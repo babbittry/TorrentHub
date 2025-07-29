@@ -12,11 +12,12 @@ namespace Sakura.PT.Data
         public DbSet<User> Users { get; set; }
         public DbSet<Torrent> Torrents { get; set; }
         public DbSet<Invite> Invites { get; set; }
+        public DbSet<Peers> Peers { get; set; }
 
-        /*protected override void OnModelCreating(ModelBuilder modelBuilder)
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<User>()
-                .HasIndex(u => u.Username)
+                .HasIndex(u => u.UserName)
                 .IsUnique();
 
             modelBuilder.Entity<Torrent>()
@@ -24,8 +25,8 @@ namespace Sakura.PT.Data
                 .IsUnique();
 
             modelBuilder.Entity<Invite>()
-                .HasIndex(i => i.Code)
+                .HasIndex(i => i.Id)
                 .IsUnique();
-        }*/
+        }
     }
 }

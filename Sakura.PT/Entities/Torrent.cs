@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using Sakura.PT.Enums;
 
 namespace Sakura.PT.Entities;
@@ -14,6 +15,8 @@ public class Torrent
     public string Description { get; set; }
     [Required]
     public int UploadedByUserId { get; set; }
+    [ForeignKey(nameof(UploadedByUserId))]
+    public User UploadedByUser { get; set; }
     [Required]
     public TorrentCategory Category { get; set; }
     [Required]

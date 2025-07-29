@@ -7,10 +7,8 @@ namespace Sakura.PT.Controllers;
 [Route("[controller]")]
 public class TorrentController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
 
-    public TorrentController(ApplicationDbContext context)
+    public TorrentController()
     {
-        _context = context;
     }
 }
