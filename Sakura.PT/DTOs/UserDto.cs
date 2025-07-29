@@ -5,7 +5,7 @@ namespace Sakura.PT.DTOs;
 public class UserDto
 {
    public int Id { get; set; }
-   public string Username { get; set; }
+   public required string UserName { get; set; }
    public string? Avatar { get; set; }
    public long UploadedBytes { get; set; }
    public long DownloadedBytes { get; set; }
