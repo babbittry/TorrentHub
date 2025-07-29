@@ -16,9 +16,11 @@ namespace Sakura.PT.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<User>()
-                .HasIndex(u => u.UserName)
-                .IsUnique();
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.HasIndex(u => u.UserName).IsUnique();
+                entity.HasIndex(u => u.Email).IsUnique();
+            });
 
             modelBuilder.Entity<Torrent>()
                 .HasIndex(t => t.InfoHash)
