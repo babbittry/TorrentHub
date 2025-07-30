@@ -106,6 +106,44 @@ public class User
     public int InviteNum { get; set; } = 0;
 
     /// <summary>
+    /// Number of personal freeleech tokens the user possesses.
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public int FreeleechTokens { get; set; } = 0;
+
+    /// <summary>
+    /// User's Sakura Coins balance.
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public long SakuraCoins { get; set; } = 0;
+
+    /// <summary>
+    /// Indicates if the user's upload is currently doubled.
+    /// </summary>
+    [Required]
+    [DefaultValue(false)]
+    public bool IsDoubleUploadActive { get; set; } = false;
+
+    /// <summary>
+    /// The date and time when double upload status expires.
+    /// </summary>
+    public DateTime? DoubleUploadExpiresAt { get; set; }
+
+    /// <summary>
+    /// Indicates if the user is currently exempt from Hit & Run rules.
+    /// </summary>
+    [Required]
+    [DefaultValue(false)]
+    public bool IsNoHRActive { get; set; } = false;
+
+    /// <summary>
+    /// The date and time when No Hit & Run status expires.
+    /// </summary>
+    public DateTime? NoHRExpiresAt { get; set; }
+
+    /// <summary>
     /// Foreign key to the invite that was used to register this user.
     /// </summary>
     public Guid? InviteId { get; set; }

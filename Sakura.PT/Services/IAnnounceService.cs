@@ -15,5 +15,6 @@ public interface IAnnounceService
         string? @event,
         int numWant,
         string? key,
-        string? ipAddress); // Pass IP address from controller
+        string? ipAddress,
+        int userId); // Pass userId from controller
 }

@@ -26,6 +26,13 @@ namespace Sakura.PT
             // Add custom services
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IAnnounceService, AnnounceService>();
+            builder.Services.AddScoped<IStoreService, StoreService>();
+
+            // Configure SakuraCoin Settings
+            builder.Services.Configure<SakuraCoinSettings>(builder.Configuration.GetSection("SakuraCoinSettings"));
+
+            // Add background services
+            builder.Services.AddHostedService<SakuraCoinGenerationService>();
 
             // Add Authentication
             builder.Services.AddAuthentication(options =>

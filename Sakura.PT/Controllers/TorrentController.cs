@@ -9,6 +9,8 @@ using Sakura.PT.Data;
 using Sakura.PT.Entities;
 using Sakura.PT.Enums;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Sakura.PT.Services;
 
 namespace Sakura.PT.Controllers;
 
@@ -19,11 +21,15 @@ public class TorrentController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly BencodeParser _bencodeParser = new();
     private readonly ILogger<TorrentController> _logger;
+    private readonly IUserService _userService;
+    private readonly SakuraCoinSettings _sakuraCoinSettings;
 
-    public TorrentController(ApplicationDbContext context, ILogger<TorrentController> logger)
+    public TorrentController(ApplicationDbContext context, ILogger<TorrentController> logger, IUserService userService, IOptions<SakuraCoinSettings> sakuraCoinSettings)
     {
         _context = context;
         _logger = logger;
+        _userService = userService;
+        _sakuraCoinSettings = sakuraCoinSettings.Value;
     }
 
     [HttpPost("upload")]
@@ -59,6 +65,9 @@ public class TorrentController : ControllerBase
 
             _context.Torrents.Add(torrentEntity);
             await _context.SaveChangesAsync();
+
+            // Grant SakuraCoins to the uploader
+            await _userService.AddSakuraCoinsAsync(torrentEntity.UploadedByUserId, _sakuraCoinSettings.UploadTorrentBonus);
 
             _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, User.FindFirstValue(ClaimTypes.NameIdentifier));
             return Ok(new { message = "Torrent uploaded successfully.", infoHash });
@@ -219,6 +228,77 @@ public class TorrentController : ControllerBase
             _logger.LogError(ex, "Error serving torrent file {FileName} for torrent {TorrentId}.", torrent.Name + ".torrent", torrentId);
             return StatusCode(500, "An error occurred during file download.");
         }
+    }
+
+    [HttpPost("{torrentId}/completeInfo")]
+    [Authorize]
+    public async Task<IActionResult> CompleteInfo(int torrentId, [FromForm] string imdbId)
+    {
+        var torrent = await _context.Torrents.FindAsync(torrentId);
+        if (torrent == null)
+        {
+            return NotFound("Torrent not found.");
+        }
+
+        if (!string.IsNullOrEmpty(torrent.ImdbId))
+        {
+            return BadRequest("IMDb ID already exists for this torrent.");
+        }
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+        torrent.ImdbId = imdbId;
+
+        await _userService.AddSakuraCoinsAsync(userId, _settings.CompleteInfoBonus);
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} added IMDb ID {ImdbId} to torrent {TorrentId} and earned {Bonus} SakuraCoins.", userId, imdbId, torrentId, _settings.CompleteInfoBonus);
+
+        return Ok("IMDb ID added successfully.");
+    }
+
+    [HttpPost("{torrentId}/applyFreeleechToken")]
+    [Authorize]
+    public async Task<IActionResult> ApplyFreeleechToken(int torrentId)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            return Unauthorized();
+        }
+
+        if (user.FreeleechTokens <= 0)
+        {
+            return BadRequest("You do not have any freeleech tokens.");
+        }
+
+        var torrent = await _context.Torrents.FindAsync(torrentId);
+        if (torrent == null)
+        {
+            return NotFound("Torrent not found.");
+        }
+
+        // Check if the user is seeding this torrent
+        var isSeeding = await _context.Peers.AnyAsync(p => p.UserId == userId && p.TorrentId == torrentId && p.IsSeeder);
+        if (!isSeeding)
+        {
+            return BadRequest("You must be seeding this torrent to apply a freeleech token.");
+        }
+
+        // Apply freeleech status
+        torrent.IsFree = true;
+        torrent.FreeUntil = DateTime.UtcNow.AddHours(_sakuraCoinSettings.FreeleechTokenDurationHours);
+
+        // Consume one token
+        user.FreeleechTokens--;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} applied freeleech token to torrent {TorrentId}. Tokens remaining: {Tokens}. Free until: {FreeUntil}", userId, torrentId, user.FreeleechTokens, torrent.FreeUntil);
+
+        return Ok("Freeleech token applied successfully.");
     }
 }
 

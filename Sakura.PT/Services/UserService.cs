@@ -16,12 +16,14 @@ public class UserService : IUserService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UserService> _logger;
+    private readonly SakuraCoinSettings _sakuraCoinSettings;
 
-    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger)
+    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
+        _sakuraCoinSettings = sakuraCoinSettings.Value;
     }
     public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
     {
@@ -112,5 +114,74 @@ public class UserService : IUserService
         _logger.LogInformation("User {UserName} registered successfully with ID {UserId}.", user.UserName, user.Id);
 
         return user;
+    }
+
+    public async Task<bool> AddSakuraCoinsAsync(int userId, long amount)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("Could not find user with ID {UserId} to add SakuraCoins.", userId);
+            return false;
+        }
+
+        user.SakuraCoins += amount;
+        if (user.SakuraCoins < 0)
+        {
+            user.SakuraCoins -= amount; // Revert if the balance would be negative
+            _logger.LogWarning("User {UserId} has insufficient SakuraCoins to perform this transaction.", userId);
+            return false;
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Successfully added {Amount} SakuraCoins to user {UserId}. New balance: {Balance}", amount, userId, user.SakuraCoins);
+        return true;
+    }
+
+    public async Task<bool> TransferSakuraCoinsAsync(int fromUserId, int toUserId, long amount)
+    {
+        if (amount <= 0)
+        {
+            _logger.LogWarning("Transfer failed: Amount must be positive. FromUser: {FromUser}, ToUser: {ToUser}, Amount: {Amount}", fromUserId, toUserId, amount);
+            return false;
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var fromUser = await _context.Users.FindAsync(fromUserId);
+            var toUser = await _context.Users.FindAsync(toUserId);
+
+            if (fromUser == null || toUser == null)
+            {
+                _logger.LogWarning("Transfer failed: One or both users not found. FromUser: {FromUser}, ToUser: {ToUser}", fromUserId, toUserId);
+                return false;
+            }
+
+            if (fromUser.SakuraCoins < amount)
+            {
+                _logger.LogWarning("Transfer failed: Insufficient funds. FromUser: {FromUser}, Balance: {Balance}, Amount: {Amount}", fromUserId, fromUser.SakuraCoins, amount);
+                return false;
+            }
+
+            // Calculate tax
+            var taxAmount = (long)Math.Ceiling(amount * _sakuraCoinSettings.TransactionTaxRate);
+            var actualTransferAmount = amount - taxAmount;
+
+            fromUser.SakuraCoins -= amount; // Deduct full amount from sender
+            toUser.SakuraCoins += actualTransferAmount; // Receiver gets amount minus tax
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            _logger.LogInformation("Successfully transferred {ActualAmount} SakuraCoins (tax: {Tax}) from user {FromUser} to user {ToUser}.", actualTransferAmount, taxAmount, fromUserId, toUserId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred during SakuraCoin transfer. Rolling back transaction. FromUser: {FromUser}, ToUser: {ToUser}, Amount: {Amount}", fromUserId, toUserId, amount);
+            await transaction.RollbackAsync();
+            return false;
+        }
     }
 }

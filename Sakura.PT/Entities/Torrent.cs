@@ -98,4 +98,10 @@ public class Torrent
     [Required]
     [DefaultValue(TorrentStickyStatus.None)]
     public TorrentStickyStatus StickyStatus { get; set; } = TorrentStickyStatus.None;
+
+    /// <summary>
+    /// IMDb ID for the movie or series.
+    /// </summary>
+    [StringLength(15)]
+    public string? ImdbId { get; set; }
 }

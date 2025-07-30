@@ -11,4 +11,5 @@ public class UserDto
    public long DownloadedBytes { get; set; }
    public UserRole Role { get; set; }
    public DateTime CreatedAt { get; set; }
+   public long SakuraCoins { get; set; }
 }

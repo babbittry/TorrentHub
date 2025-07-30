@@ -30,22 +30,18 @@ public class AnnounceService : IAnnounceService
         string? @event,
         int numWant,
         string? key,
-        string? ipAddress)
+        string? ipAddress,
+        int userId)
     {
         _logger.LogInformation("Processing announce request for infoHash: {InfoHash}, peerId: {PeerId}, event: {Event}", infoHash, peerId, @event);
 
         // Authenticate user by passkey
-        if (string.IsNullOrEmpty(key))
-        {
-            _logger.LogWarning("Announce request missing passkey.");
-            throw new ArgumentException("Missing passkey.");
-        }
-
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == key);
+        // Passkey is now handled in AnnounceController, so we can directly get the user
+        var user = await _context.Users.FindAsync(userId);
         if (user == null)
         {
-            _logger.LogWarning("Announce request with invalid passkey: {Passkey}", key);
-            throw new UnauthorizedAccessException("Invalid passkey.");
+            _logger.LogWarning("Announce request with invalid userId: {UserId}", userId);
+            throw new UnauthorizedAccessException("Invalid user.");
         }
 
         // Convert infoHash from URL-encoded to byte array (assuming it's 20 bytes SHA1)
@@ -118,9 +114,31 @@ public class AnnounceService : IAnnounceService
         }
 
         // Update user's uploaded and downloaded bytes
-        user.UploadedBytes += uploaded;
+        long actualUploaded = uploaded;
+        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTime.UtcNow)
+        {
+            actualUploaded *= 2;
+            _logger.LogInformation("User {UserId} has double upload active. Uploaded bytes doubled to {ActualUploaded}.", user.Id, actualUploaded);
+        }
+        else if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt <= DateTime.UtcNow)
+        {
+            // Double upload expired, reset status
+            user.IsDoubleUploadActive = false;
+            user.DoubleUploadExpiresAt = null;
+            _logger.LogInformation("User {UserId} double upload expired and reset.", user.Id);
+        }
+
+        user.UploadedBytes += actualUploaded;
         user.DownloadedBytes += downloaded;
         _logger.LogInformation("User {UserId} stats updated: Uploaded {Uploaded}, Downloaded {Downloaded}.", user.Id, user.UploadedBytes, user.DownloadedBytes);
+
+        // Check and reset No H&R status if expired
+        if (user.IsNoHRActive && user.NoHRExpiresAt <= DateTime.UtcNow)
+        {
+            user.IsNoHRActive = false;
+            user.NoHRExpiresAt = null;
+            _logger.LogInformation("User {UserId} No H&R status expired and reset.", user.Id);
+        }
 
         await _context.SaveChangesAsync();
         _logger.LogInformation("Announce request processed successfully for infoHash: {InfoHash}, peerId: {PeerId}.", infoHash, peerId);

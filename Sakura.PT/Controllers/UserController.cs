@@ -3,6 +3,9 @@ using Sakura.PT.DTOs;
 using Sakura.PT.Mappers;
 using Sakura.PT.Services;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Sakura.PT.Data;
+using System.Security.Claims;
 
 namespace Sakura.PT.Controllers;
 
@@ -12,11 +15,13 @@ public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly ILogger<UserController> _logger;
+    private readonly ApplicationDbContext _context;
 
-    public UserController(IUserService userService, ILogger<UserController> logger)
+    public UserController(IUserService userService, ILogger<UserController> logger, ApplicationDbContext context)
     {
         _userService = userService;
         _logger = logger;
+        _context = context;
     }
 
     [HttpPost("register")]
@@ -54,13 +59,39 @@ public class UserController : ControllerBase
         }
     }
 
-    // Placeholder for GetUser(id) - you can implement this later
     [HttpGet("{id:int}")]
-    public IActionResult GetUser(int id)
+    public async Task<IActionResult> GetUser(int id)
     {
         _logger.LogInformation("GetUser request received for id: {Id}", id);
-        // In a real app, you would fetch the user from the database.
-        _logger.LogWarning("GetUser endpoint is not fully implemented yet.");
-        return Ok(new { Id = id, Message = "GetUser endpoint is not implemented yet." });
+        var user = await _context.Users.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound("User not found.");
+        }
+        return Ok(Mapper.ToUserDto(user));
+    }
+
+    [HttpGet("{userId}/badges")]
+    public async Task<IActionResult> GetUserBadges(int userId)
+    {
+        var badges = await _context.UserBadges
+            .Where(ub => ub.UserId == userId)
+            .Select(ub => ub.Badge)
+            .ToListAsync();
+
+        return Ok(badges);
+    }
+
+    [HttpGet("mybadges")]
+    [Authorize]
+    public async Task<IActionResult> GetMyBadges()
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var badges = await _context.UserBadges
+            .Where(ub => ub.UserId == userId)
+            .Select(ub => ub.Badge)
+            .ToListAsync();
+
+        return Ok(badges);
     }
 }
