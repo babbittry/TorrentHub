@@ -79,4 +79,23 @@ public class Torrent
     /// </summary>
     [Required]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Indicates if the torrent is free to download.
+    /// </summary>
+    [Required]
+    [DefaultValue(false)]
+    public bool IsFree { get; set; } = false;
+
+    /// <summary>
+    /// The date and time until which the torrent is free. Null if not free.
+    /// </summary>
+    public DateTime? FreeUntil { get; set; }
+
+    /// <summary>
+    /// The sticky status of the torrent.
+    /// </summary>
+    [Required]
+    [DefaultValue(TorrentStickyStatus.None)]
+    public TorrentStickyStatus StickyStatus { get; set; } = TorrentStickyStatus.None;
 }

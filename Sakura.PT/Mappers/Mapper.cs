@@ -17,6 +17,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.Invite))]
     [MapperIgnoreSource(nameof(User.Torrents))]
     [MapperIgnoreSource(nameof(User.GeneratedInvites))]
+    [MapperIgnoreSource(nameof(User.Passkey))]
     public static partial UserDto ToUserDto(User user);
     
 

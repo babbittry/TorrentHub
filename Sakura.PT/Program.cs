@@ -25,6 +25,7 @@ namespace Sakura.PT
 
             // Add custom services
             builder.Services.AddScoped<IUserService, UserService>();
+            builder.Services.AddScoped<IAnnounceService, AnnounceService>();
 
             // Add Authentication
             builder.Services.AddAuthentication(options =>

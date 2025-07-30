@@ -72,6 +72,13 @@ public class User
     public string? RssKey { get; set; }
 
     /// <summary>
+    /// Unique passkey for tracker authentication.
+    /// </summary>
+    [Required]
+    [StringLength(32)]
+    public required string Passkey { get; set; }
+
+    /// <summary>
     /// Role of the user in the system.
     /// </summary>
     [Required]

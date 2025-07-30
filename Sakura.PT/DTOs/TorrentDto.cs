@@ -1,4 +1,6 @@
-﻿namespace Sakura.PT.DTOs;
+﻿using Sakura.PT.Enums;
+
+namespace Sakura.PT.DTOs;
 
 public class TorrentDto
 {
@@ -8,4 +10,7 @@ public class TorrentDto
     public long Size { get; set; }
     public required string UploaderUsername { get; set; } 
     public DateTime CreatedAt { get; set; }
+    public bool IsFree { get; set; }
+    public DateTime? FreeUntil { get; set; }
+    public TorrentStickyStatus StickyStatus { get; set; }
 }
