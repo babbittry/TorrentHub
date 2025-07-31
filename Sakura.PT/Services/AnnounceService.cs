@@ -7,17 +7,22 @@ using Sakura.PT.Entities;
 using System.Web;
 using Microsoft.Extensions.Logging;
 
+using Microsoft.Extensions.Options;
+using Sakura.PT.Enums;
+
 namespace Sakura.PT.Services;
 
 public class AnnounceService : IAnnounceService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<AnnounceService> _logger;
+    private readonly SakuraCoinSettings _sakuraCoinSettings;
 
-    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger)
+    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings)
     {
         _context = context;
         _logger = logger;
+        _sakuraCoinSettings = sakuraCoinSettings.Value;
     }
 
     public async Task<BDictionary> ProcessAnnounceRequest(
@@ -68,6 +73,17 @@ public class AnnounceService : IAnnounceService
 
         // Handle peer events (started, completed, stopped, none)
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
+
+        // Calculate seeding time for existing peers
+        if (peer != null && peer.IsSeeder) // Only accumulate time if they were seeding
+        {
+            var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
+            if (timeSeeding > 0 && timeSeeding <= 3600) // Cap at 1 hour to prevent abuse from long gaps
+            {
+                user.TotalSeedingTimeMinutes += (long)timeSeeding;
+                _logger.LogDebug("User {UserId} accumulated {Time} minutes of seeding time. Total: {Total}", user.Id, timeSeeding, user.TotalSeedingTimeMinutes);
+            }
+        }
 
         switch (@event)
         {
@@ -172,5 +188,24 @@ public class AnnounceService : IAnnounceService
         response.Add("peers", peerList);
 
         return response;
+    }
+
+    /// <summary>
+    /// Gets the H&R exemption hours for a given user role.
+    /// </summary>
+    /// <param name="role">The user's role.</param>
+    /// <returns>The number of hours the user is exempt from H&R rules.</returns>
+    private int GetHRExemptionHours(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.User => _sakuraCoinSettings.UserHRExemptionHours,
+            UserRole.PowerUser => _sakuraCoinSettings.PowerUserHRExemptionHours,
+            UserRole.EliteUser => _sakuraCoinSettings.EliteUserHRExemptionHours,
+            UserRole.CrazyUser => _sakuraCoinSettings.CrazyUserHRExemptionHours,
+            UserRole.VeteranUser => _sakuraCoinSettings.VeteranUserHRExemptionHours,
+            UserRole.VIP => _sakuraCoinSettings.VIPHRExemptionHours,
+            _ => 0 // Other roles (Mosquito, Seeder, Staff) have no special H&R exemption by default
+        };
     }
 }

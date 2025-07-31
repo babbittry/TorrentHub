@@ -90,15 +90,15 @@ public class TorrentController : ControllerBase
         return Ok(new { message = message });
     }
 
-    [HttpPost("{torrentId}/applyFreeleechToken")]
+    [HttpPost("{torrentId}/applyFreeleech")]
     [Authorize]
-    public async Task<IActionResult> ApplyFreeleechToken(int torrentId)
+    public async Task<IActionResult> ApplyFreeleech(int torrentId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-        var (success, message) = await _torrentService.ApplyFreeleechTokenAsync(torrentId, userId);
+        var (success, message) = await _torrentService.ApplyFreeleechAsync(torrentId, userId);
         if (!success)
         {
-            _logger.LogWarning("ApplyFreeleechToken failed: {Message}", message);
+            _logger.LogWarning("ApplyFreeleech failed: {Message}", message);
             return BadRequest(message);
         }
         return Ok(new { message = message });

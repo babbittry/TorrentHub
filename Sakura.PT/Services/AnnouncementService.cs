@@ -1,20 +1,36 @@
 using Microsoft.EntityFrameworkCore;
-using Sakura.PT.Data;
-using Sakura.PT.Entities;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace Sakura.PT.Services;
+
+public interface IAnnouncementService
+{
+    Task<(bool Success, string Message, Announcement? Announcement)> CreateAnnouncementAsync(string title, string content, int createdByUserId, bool sendToInbox);
+    Task<List<Announcement>> GetAnnouncementsAsync();
+}
 
 public class AnnouncementService : IAnnouncementService
 {
     private readonly ApplicationDbContext _context;
     private readonly IMessageService _messageService;
     private readonly ILogger<AnnouncementService> _logger;
+    private readonly IDistributedCache _cache;
 
-    public AnnouncementService(ApplicationDbContext context, IMessageService messageService, ILogger<AnnouncementService> logger)
+    // Cache key for announcements
+    private const string AnnouncementsCacheKey = "Announcements";
+    // Cache duration (e.g., 1 hour)
+    private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+    };
+
+    public AnnouncementService(ApplicationDbContext context, IMessageService messageService, ILogger<AnnouncementService> logger, IDistributedCache cache)
     {
         _context = context;
         _messageService = messageService;
         _logger = logger;
+        _cache = cache;
     }
 
     public async Task<(bool Success, string Message, Announcement? Announcement)> CreateAnnouncementAsync(string title, string content, int createdByUserId, bool sendToInbox)
@@ -31,6 +47,10 @@ public class AnnouncementService : IAnnouncementService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Announcement '{Title}' created by user {CreatedByUserId}.", title, createdByUserId);
+
+        // Invalidate cache after creating a new announcement
+        await _cache.RemoveAsync(AnnouncementsCacheKey);
+        _logger.LogInformation("Announcements cache invalidated.");
 
         if (sendToInbox)
         {
@@ -49,8 +69,19 @@ public class AnnouncementService : IAnnouncementService
 
     public async Task<List<Announcement>> GetAnnouncementsAsync()
     {
-        return await _context.Announcements
+        var cachedData = await _cache.GetStringAsync(AnnouncementsCacheKey);
+        if (cachedData != null)
+        {
+            _logger.LogDebug("Retrieving announcements from cache.");
+            return JsonSerializer.Deserialize<List<Announcement>>(cachedData) ?? new List<Announcement>();
+        }
+
+        _logger.LogInformation("Cache miss for announcements. Refreshing from DB.");
+        var announcements = await _context.Announcements
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync();
+        await _cache.SetStringAsync(AnnouncementsCacheKey, JsonSerializer.Serialize(announcements), _cacheOptions);
+        return announcements;
     }
 }
+

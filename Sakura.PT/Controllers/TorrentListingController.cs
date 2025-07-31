@@ -1,0 +1,39 @@
+using Microsoft.AspNetCore.Mvc;
+using Sakura.PT.DTOs;
+using Sakura.PT.Services;
+
+namespace Sakura.PT.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class TorrentListingController : ControllerBase
+{
+    private readonly ITorrentListingService _torrentListingService;
+    private readonly ILogger<TorrentListingController> _logger;
+
+    public TorrentListingController(ITorrentListingService torrentListingService, ILogger<TorrentListingController> logger)
+    {
+        _torrentListingService = torrentListingService;
+        _logger = logger;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetTorrents([FromQuery] TorrentFilterDto filter)
+    {
+        if (filter.PageNumber < 1 || filter.PageSize < 1 || filter.PageSize > 100) // Basic validation
+        {
+            return BadRequest("Invalid pagination parameters.");
+        }
+
+        try
+        {
+            var torrents = await _torrentListingService.GetTorrentsAsync(filter);
+            return Ok(torrents);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting torrents with filter: {Filter}", JsonSerializer.Serialize(filter));
+            return StatusCode(500, "An unexpected error occurred.");
+        }
+    }
+}

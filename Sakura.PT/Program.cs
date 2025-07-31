@@ -33,6 +33,16 @@ namespace Sakura.PT
             builder.Services.AddScoped<IMessageService, MessageService>();
             builder.Services.AddScoped<IReportService, ReportService>();
             builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
+            builder.Services.AddScoped<IUserLevelService, UserLevelService>();
+            builder.Services.AddScoped<ITopPlayersService, TopPlayersService>();
+            builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
+
+            // Configure Garnet as distributed cache
+            builder.Services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = builder.Configuration.GetSection("Garnet:Configuration").Value;
+                options.InstanceName = "SakuraPT:"; // Optional: prefix for cache keys
+            });
 
             // Configure SMTP Settings
             builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
@@ -43,6 +53,8 @@ namespace Sakura.PT
 
             // Add background services
             builder.Services.AddHostedService<SakuraCoinGenerationService>();
+            builder.Services.AddHostedService<UserLevelBackgroundService>();
+            builder.Services.AddHostedService<TopPlayersCacheRefreshService>();
 
             // Add Authentication
             builder.Services.AddAuthentication(options =>

@@ -104,4 +104,10 @@ public class Torrent
     /// </summary>
     [StringLength(15)]
     public string? ImdbId { get; set; }
+
+    /// <summary>
+    /// Text search vector for full-text search.
+    /// </summary>
+    [Column(TypeName = "tsvector")]
+    public NpgsqlTsVector SearchVector { get; set; }
 }

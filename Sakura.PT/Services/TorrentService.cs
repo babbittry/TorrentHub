@@ -122,6 +122,8 @@ public class TorrentService : ITorrentService
         }
 
         torrent.ImdbId = imdbId;
+        // Update SearchVector when IMDb ID is added, as it might be part of the search content
+        torrent.SearchVector = NpgsqlTsVector.Create(torrent.Name + " " + torrent.Description + " " + imdbId);
 
         await _userService.AddSakuraCoinsAsync(userId, _sakuraCoinSettings.CompleteInfoBonus);
 
@@ -132,7 +134,7 @@ public class TorrentService : ITorrentService
         return (true, "IMDb ID added successfully.");
     }
 
-    public async Task<(bool Success, string Message)> ApplyFreeleechTokenAsync(int torrentId, int userId)
+    public async Task<(bool Success, string Message)> ApplyFreeleechAsync(int torrentId, int userId)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
@@ -141,7 +143,7 @@ public class TorrentService : ITorrentService
         }
 
         // Check if user has enough SakuraCoins
-        if (user.SakuraCoins < _sakuraCoinSettings.FreeleechTokenPrice)
+        if (user.SakuraCoins < _sakuraCoinSettings.FreeleechPrice)
         {
             return (false, "Insufficient SakuraCoins to apply freeleech.");
         }
@@ -161,14 +163,14 @@ public class TorrentService : ITorrentService
 
         // Apply freeleech status
         torrent.IsFree = true;
-        torrent.FreeUntil = DateTime.UtcNow.AddHours(_sakuraCoinSettings.FreeleechTokenDurationHours);
+        torrent.FreeUntil = DateTime.UtcNow.AddHours(_sakuraCoinSettings.FreeleechDurationHours);
 
         // Deduct coins directly
-        user.SakuraCoins -= _sakuraCoinSettings.FreeleechTokenPrice;
+        user.SakuraCoins -= _sakuraCoinSettings.FreeleechPrice;
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} applied freeleech to torrent {TorrentId} for {Price} SakuraCoins. Free until: {FreeUntil}", userId, torrentId, _sakuraCoinSettings.FreeleechTokenPrice, torrent.FreeUntil);
+        _logger.LogInformation("User {UserId} applied freeleech to torrent {TorrentId} for {Price} SakuraCoins. Free until: {FreeUntil}", userId, torrentId, _sakuraCoinSettings.FreeleechPrice, torrent.FreeUntil);
 
         return (true, "Freeleech applied successfully.");
     }
@@ -220,7 +222,7 @@ public class TorrentService : ITorrentService
 
     private async Task<string> SaveTorrentFile(IFormFile file, string infoHash)
     {
-        var torrentsDir = Path.Combine(Directory.GetCurrentDirectory(), "torrents");
+        var torrentsDir = _sakuraCoinSettings.TorrentStoragePath;
         if (!Directory.Exists(torrentsDir))
         {
             _logger.LogInformation("Creating torrents directory: {Directory}", torrentsDir);
@@ -265,7 +267,8 @@ public class TorrentService : ITorrentService
             IsFree = false,
             FreeUntil = null,
             StickyStatus = TorrentStickyStatus.None,
-            FilePath = filePath
+            FilePath = filePath,
+            SearchVector = NpgsqlTsVector.Create(torrent.DisplayName + " " + description)
         };
     }
 }

@@ -82,8 +82,8 @@ public class User
     /// Role of the user in the system.
     /// </summary>
     [Required]
-    [DefaultValue(UserRole.Validating)]
-    public UserRole Role { get; set; } = UserRole.Validating;
+    [DefaultValue(UserRole.User)]
+    public UserRole Role { get; set; } = UserRole.User;
 
     /// <summary>
     /// Timestamp when the user was created.
@@ -113,6 +113,13 @@ public class User
     [Required]
     [DefaultValue(0)]
     public long SakuraCoins { get; set; } = 0;
+
+    /// <summary>
+    /// Total time (in minutes) the user has spent seeding torrents.
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public long TotalSeedingTimeMinutes { get; set; } = 0;
 
     /// <summary>
     /// Indicates if the user's upload is currently doubled.

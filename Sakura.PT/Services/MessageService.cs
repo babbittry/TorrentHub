@@ -15,8 +15,17 @@ public class MessageService : IMessageService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Sends a private message from one user to another.
+    /// </summary>
+    /// <param name="senderId">The ID of the user sending the message.</param>
+    /// <param name="receiverId">The ID of the user receiving the message.</param>
+    /// <param name="subject">The subject of the message.</param>
+    /// <param name="content">The content of the message.</param>
+    /// <returns>A tuple indicating success and a message.</returns>
     public async Task<(bool Success, string Message)> SendMessageAsync(int senderId, int receiverId, string subject, string content)
     {
+        // 1. Validate sender and receiver existence.
         var sender = await _context.Users.FindAsync(senderId);
         var receiver = await _context.Users.FindAsync(receiverId);
 
@@ -26,6 +35,7 @@ public class MessageService : IMessageService
             return (false, "Sender or receiver not found.");
         }
 
+        // 2. Create a new Message entity.
         var message = new Message
         {
             SenderId = senderId,
@@ -33,9 +43,10 @@ public class MessageService : IMessageService
             Subject = subject,
             Content = content,
             SentAt = DateTime.UtcNow,
-            IsRead = false
+            IsRead = false // New messages are unread by default.
         };
 
+        // 3. Add the message to the database and save changes.
         _context.Messages.Add(message);
         await _context.SaveChangesAsync();
 
@@ -94,14 +105,24 @@ public class MessageService : IMessageService
         return (true, "Message marked as read.");
     }
 
+    /// <summary>
+    /// Deletes a message for a specific user. Messages are soft-deleted (marked as deleted by sender/receiver).
+    /// A message is permanently removed from the database only when both sender and receiver have deleted it.
+    /// </summary>
+    /// <param name="messageId">The ID of the message to delete.</param>
+    /// <param name="userId">The ID of the user performing the deletion.</param>
+    /// <param name="isSender">True if the user is the sender, false if the user is the receiver.</param>
+    /// <returns>A tuple indicating success and a message.</returns>
     public async Task<(bool Success, string Message)> DeleteMessageAsync(int messageId, int userId, bool isSender)
     {
+        // 1. Find the message by its ID.
         var message = await _context.Messages.FindAsync(messageId);
         if (message == null)
         {
             return (false, "Message not found.");
         }
 
+        // 2. Mark the message as deleted based on who is deleting it (sender or receiver).
         if (isSender && message.SenderId == userId)
         {
             message.SenderDeleted = true;
@@ -112,16 +133,18 @@ public class MessageService : IMessageService
         }
         else
         {
+            // User is neither sender nor receiver, or trying to delete for the wrong role.
             return (false, "You are not authorized to delete this message.");
         }
 
-        // If both sender and receiver have deleted the message, remove it from DB
+        // 3. If both sender and receiver have marked the message as deleted, permanently remove it from the database.
         if (message.SenderDeleted && message.ReceiverDeleted)
         {
             _context.Messages.Remove(message);
-            _logger.LogInformation("Message {MessageId} permanently deleted from DB.", messageId);
+            _logger.LogInformation("Message {MessageId} permanently deleted from DB as both parties deleted it.", messageId);
         }
 
+        // 4. Save changes to the database.
         await _context.SaveChangesAsync();
         _logger.LogInformation("Message {MessageId} marked as deleted by user {UserId} (isSender: {IsSender}).", messageId, userId, isSender);
         return (true, "Message deleted successfully.");

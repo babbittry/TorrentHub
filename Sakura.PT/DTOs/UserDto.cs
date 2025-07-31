@@ -16,4 +16,5 @@ public class UserDto
    public DateTime? DoubleUploadExpiresAt { get; set; }
    public bool IsNoHRActive { get; set; }
    public DateTime? NoHRExpiresAt { get; set; }
+   public long TotalSeedingTimeMinutes { get; set; }
 }

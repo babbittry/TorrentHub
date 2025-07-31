@@ -9,6 +9,8 @@ using Sakura.PT.Entities;
 using Sakura.PT.Mappers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Caching.Distributed;
+using System.Text.Json;
 
 namespace Sakura.PT.Services;
 
@@ -19,14 +21,24 @@ public class UserService : IUserService
     private readonly ILogger<UserService> _logger;
     private readonly SakuraCoinSettings _sakuraCoinSettings;
     private readonly IEmailService _emailService;
+    private readonly IDistributedCache _cache;
 
-    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings, IEmailService emailService)
+    // Cache key prefix for user badges
+    private const string UserBadgesCacheKeyPrefix = "UserBadges:";
+    // Cache duration (e.g., 1 hour)
+    private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
+    {
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
+    };
+
+    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings, IEmailService emailService, IDistributedCache cache)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
         _sakuraCoinSettings = sakuraCoinSettings.Value;
         _emailService = emailService;
+        _cache = cache;
     }
     public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
     {
@@ -201,9 +213,20 @@ public class UserService : IUserService
 
     public async Task<List<Badge>> GetUserBadgesAsync(int userId)
     {
-        return await _context.UserBadges
+        var cacheKey = $"{UserBadgesCacheKeyPrefix}{userId}";
+        var cachedData = await _cache.GetStringAsync(cacheKey);
+        if (cachedData != null)
+        {
+            _logger.LogDebug("Retrieving user badges for user {UserId} from cache.", userId);
+            return JsonSerializer.Deserialize<List<Badge>>(cachedData) ?? new List<Badge>();
+        }
+
+        _logger.LogInformation("Cache miss for user badges for user {UserId}. Refreshing from DB.", userId);
+        var badges = await _context.UserBadges
             .Where(ub => ub.UserId == userId)
             .Select(ub => ub.Badge!)
             .ToListAsync();
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(badges), _cacheOptions);
+        return badges;
     }
 }
