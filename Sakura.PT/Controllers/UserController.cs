@@ -3,9 +3,8 @@ using Sakura.PT.DTOs;
 using Sakura.PT.Mappers;
 using Sakura.PT.Services;
 using Microsoft.Extensions.Logging;
-using Microsoft.EntityFrameworkCore;
-using Sakura.PT.Data;
 using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Sakura.PT.Controllers;
 
@@ -15,13 +14,11 @@ public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly ILogger<UserController> _logger;
-    private readonly ApplicationDbContext _context;
 
-    public UserController(IUserService userService, ILogger<UserController> logger, ApplicationDbContext context)
+    public UserController(IUserService userService, ILogger<UserController> logger)
     {
         _userService = userService;
         _logger = logger;
-        _context = context;
     }
 
     [HttpPost("register")]
@@ -63,7 +60,7 @@ public class UserController : ControllerBase
     public async Task<IActionResult> GetUser(int id)
     {
         _logger.LogInformation("GetUser request received for id: {Id}", id);
-        var user = await _context.Users.FindAsync(id);
+        var user = await _userService.GetUserByIdAsync(id);
         if (user == null)
         {
             return NotFound("User not found.");
@@ -74,11 +71,7 @@ public class UserController : ControllerBase
     [HttpGet("{userId}/badges")]
     public async Task<IActionResult> GetUserBadges(int userId)
     {
-        var badges = await _context.UserBadges
-            .Where(ub => ub.UserId == userId)
-            .Select(ub => ub.Badge)
-            .ToListAsync();
-
+        var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
     }
 
@@ -87,11 +80,7 @@ public class UserController : ControllerBase
     public async Task<IActionResult> GetMyBadges()
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-        var badges = await _context.UserBadges
-            .Where(ub => ub.UserId == userId)
-            .Select(ub => ub.Badge)
-            .ToListAsync();
-
+        var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
     }
 }

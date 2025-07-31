@@ -184,4 +184,17 @@ public class UserService : IUserService
             return false;
         }
     }
+
+    public async Task<User?> GetUserByIdAsync(int userId)
+    {
+        return await _context.Users.FindAsync(userId);
+    }
+
+    public async Task<List<Badge>> GetUserBadgesAsync(int userId)
+    {
+        return await _context.UserBadges
+            .Where(ub => ub.UserId == userId)
+            .Select(ub => ub.Badge!)
+            .ToListAsync();
+    }
 }

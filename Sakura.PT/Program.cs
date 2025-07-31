@@ -27,6 +27,9 @@ namespace Sakura.PT
             builder.Services.AddScoped<IUserService, UserService>();
             builder.Services.AddScoped<IAnnounceService, AnnounceService>();
             builder.Services.AddScoped<IStoreService, StoreService>();
+            builder.Services.AddScoped<ITorrentService, TorrentService>();
+            builder.Services.AddScoped<ICommentService, CommentService>();
+            builder.Services.AddScoped<IRequestService, RequestService>();
 
             // Configure SakuraCoin Settings
             builder.Services.Configure<SakuraCoinSettings>(builder.Configuration.GetSection("SakuraCoinSettings"));

@@ -9,4 +9,6 @@ public interface IUserService
     Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto);
     Task<bool> AddSakuraCoinsAsync(int userId, long amount);
     Task<bool> TransferSakuraCoinsAsync(int fromUserId, int toUserId, long amount);
+    Task<User?> GetUserByIdAsync(int userId);
+    Task<List<Badge>> GetUserBadgesAsync(int userId);
 }

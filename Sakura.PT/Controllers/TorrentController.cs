@@ -1,15 +1,9 @@
 ﻿
 using System.Security.Claims;
-using BencodeNET.Parsing;
-using BencodeNET.Torrents;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Sakura.PT.Data;
-using Sakura.PT.Entities;
-using Sakura.PT.Enums;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
+using Sakura.PT.Enums;
 using Sakura.PT.Services;
 
 namespace Sakura.PT.Controllers;
@@ -18,244 +12,82 @@ namespace Sakura.PT.Controllers;
 [Route("[controller]")]
 public class TorrentController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
-    private readonly BencodeParser _bencodeParser = new();
+    private readonly ITorrentService _torrentService;
     private readonly ILogger<TorrentController> _logger;
-    private readonly IUserService _userService;
-    private readonly SakuraCoinSettings _sakuraCoinSettings;
 
-    public TorrentController(ApplicationDbContext context, ILogger<TorrentController> logger, IUserService userService, IOptions<SakuraCoinSettings> sakuraCoinSettings)
+    public TorrentController(ITorrentService torrentService, ILogger<TorrentController> logger)
     {
-        _context = context;
+        _torrentService = torrentService;
         _logger = logger;
-        _userService = userService;
-        _sakuraCoinSettings = sakuraCoinSettings.Value;
     }
 
     [HttpPost("upload")]
     [Authorize]
     public async Task<IActionResult> Upload(IFormFile torrentFile, [FromForm] string? description, [FromForm] TorrentCategory category)
     {
-        _logger.LogInformation("Upload request received for file: {FileName}, category: {Category}", torrentFile.FileName, category);
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var (success, message, infoHash) = await _torrentService.UploadTorrentAsync(torrentFile, description, category, userId);
 
-        if (torrentFile.Length == 0)
+        if (!success)
         {
-            _logger.LogWarning("Upload failed: Torrent file is empty.");
-            return BadRequest("Torrent file is empty.");
+            _logger.LogWarning("Torrent upload failed: {Message}", message);
+            return BadRequest(message);
         }
 
-        var torrent = await ParseTorrentFile(torrentFile);
-        if (torrent == null)
-        {
-            _logger.LogWarning("Upload failed: Invalid torrent file format for {FileName}.", torrentFile.FileName);
-            return BadRequest("Invalid torrent file.");
-        }
-        
-        var infoHash = torrent.GetInfoHash();
-        if (await _context.Torrents.AnyAsync(t => t.InfoHash == infoHash))
-        {
-            _logger.LogWarning("Upload failed: Torrent with infoHash {InfoHash} already exists.", infoHash);
-            return BadRequest("Torrent already exists.");
-        }
-
-        try
-        {
-            var filePath = await SaveTorrentFile(torrentFile, infoHash);
-            var torrentEntity = await CreateTorrentEntity(torrent, description, category, filePath);
-
-            _context.Torrents.Add(torrentEntity);
-            await _context.SaveChangesAsync();
-
-            // Grant SakuraCoins to the uploader
-            await _userService.AddSakuraCoinsAsync(torrentEntity.UploadedByUserId, _sakuraCoinSettings.UploadTorrentBonus);
-
-            _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, User.FindFirstValue(ClaimTypes.NameIdentifier));
-            return Ok(new { message = "Torrent uploaded successfully.", infoHash });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during torrent upload for file {FileName}.", torrentFile.FileName);
-            return StatusCode(500, "An error occurred during upload.");
-        }
+        _logger.LogInformation("Torrent uploaded successfully. InfoHash: {InfoHash}", infoHash);
+        return Ok(new { message = message, infoHash = infoHash });
     }
 
     [HttpPost("setFree/{torrentId}")]
     [Authorize(Roles = "Administrator")] // Only administrators can set torrents as free
     public async Task<IActionResult> SetFree(int torrentId, [FromQuery] DateTime? freeUntil)
     {
-        _logger.LogInformation("SetFree request received for torrentId: {TorrentId}, freeUntil: {FreeUntil}", torrentId, freeUntil);
-        var torrent = await _context.Torrents.FindAsync(torrentId);
-        if (torrent == null)
+        var (success, message) = await _torrentService.SetFreeAsync(torrentId, freeUntil);
+        if (!success)
         {
-            _logger.LogWarning("SetFree failed: Torrent {TorrentId} not found.", torrentId);
-            return NotFound("Torrent not found.");
+            _logger.LogWarning("SetFree failed: {Message}", message);
+            return NotFound(message);
         }
-
-        torrent.IsFree = true;
-        torrent.FreeUntil = freeUntil;
-
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) set to free until {FreeUntil}.", torrent.Name, torrentId, freeUntil?.ToString() ?? "forever");
-
-        return Ok(new { message = $"Torrent {torrent.Name} set to free until {freeUntil?.ToString() ?? "forever"}." });
+        return Ok(new { message = message });
     }
 
     [HttpPost("setSticky/{torrentId}")]
     [Authorize(Roles = "Administrator")] // Only administrators can set official sticky status
     public async Task<IActionResult> SetSticky(int torrentId, [FromQuery] TorrentStickyStatus status)
     {
-        _logger.LogInformation("SetSticky request received for torrentId: {TorrentId}, status: {Status}", torrentId, status);
-        if (status == TorrentStickyStatus.None)
+        var (success, message) = await _torrentService.SetStickyAsync(torrentId, status);
+        if (!success)
         {
-            _logger.LogWarning("SetSticky failed: Cannot set sticky status to None for torrent {TorrentId}.", torrentId);
-            return BadRequest("Cannot set sticky status to None using this endpoint. Use a dedicated unsticky endpoint if needed.");
+            _logger.LogWarning("SetSticky failed: {Message}", message);
+            return BadRequest(message);
         }
-
-        var torrent = await _context.Torrents.FindAsync(torrentId);
-        if (torrent == null)
-        {
-            _logger.LogWarning("SetSticky failed: Torrent {TorrentId} not found.", torrentId);
-            return NotFound("Torrent not found.");
-        }
-
-        torrent.StickyStatus = status;
-
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) sticky status set to {Status}.", torrent.Name, torrentId, status);
-
-        return Ok(new { message = $"Torrent {torrent.Name} sticky status set to {status}." });
-    }
-
-    private async Task<BencodeNET.Torrents.Torrent?> ParseTorrentFile(IFormFile file)
-    {
-        try
-        {
-            _logger.LogDebug("Parsing torrent file: {FileName}", file.FileName);
-            await using var stream = file.OpenReadStream();
-            return await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(stream);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error parsing torrent file: {FileName}", file.FileName);
-            return null;
-        }
-    }
-
-    private async Task<string> SaveTorrentFile(IFormFile file, string infoHash)
-    {
-        var torrentsDir = Path.Combine(Directory.GetCurrentDirectory(), "torrents");
-        if (!Directory.Exists(torrentsDir))
-        {
-            _logger.LogInformation("Creating torrents directory: {Directory}", torrentsDir);
-            Directory.CreateDirectory(torrentsDir);
-        }
-
-        var filePath = Path.Combine(torrentsDir, $"{infoHash}.torrent");
-        try
-        {
-            _logger.LogDebug("Saving torrent file to: {FilePath}", filePath);
-            await using var stream = new FileStream(filePath, FileMode.Create);
-            await file.CopyToAsync(stream);
-            return filePath;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving torrent file {FileName} to {FilePath}.", file.FileName, filePath);
-            throw; // Re-throw to be caught by the Upload method's try-catch
-        }
-    }
-    
-    private async Task<Entities.Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, string? description, TorrentCategory category, string filePath)
-    {
-        _logger.LogDebug("Creating torrent entity for {TorrentName} (InfoHash: {InfoHash}).", torrent.DisplayName, torrent.GetInfoHash());
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
-        {
-            _logger.LogError("User ID not found in claims during torrent entity creation.");
-            throw new Exception("User ID not found");
-        }
-        var user = await _context.Users.FindAsync(int.Parse(userId));
-        if (user == null)
-        {
-            _logger.LogError("User {UserId} not found in database during torrent entity creation.", userId);
-            throw new Exception("User not found");
-        } 
-        
-        return new Entities.Torrent
-        {
-            Name = torrent.DisplayName,
-            InfoHash = torrent.GetInfoHash(),
-            Description = description,
-            Size = torrent.TotalSize,
-            UploadedByUserId = user.Id,
-            UploadedByUser = user,
-            Category = category,
-            CreatedAt = DateTime.UtcNow,
-            IsFree = false,
-            FreeUntil = null,
-            StickyStatus = TorrentStickyStatus.None,
-            FilePath = filePath
-        };
+        return Ok(new { message = message });
     }
 
     [HttpGet("download/{torrentId}")]
     [Authorize]
     public async Task<IActionResult> Download(int torrentId)
     {
-        _logger.LogInformation("Download request received for torrentId: {TorrentId}.", torrentId);
-        var torrent = await _context.Torrents.FindAsync(torrentId);
-        if (torrent == null)
+        var fileStreamResult = await _torrentService.DownloadTorrentAsync(torrentId);
+        if (fileStreamResult == null)
         {
-            _logger.LogWarning("Download failed: Torrent {TorrentId} not found.", torrentId);
-            return NotFound("Torrent not found.");
+            return NotFound("Torrent file not found or an error occurred.");
         }
-
-        var filePath = torrent.FilePath;
-        if (!System.IO.File.Exists(filePath))
-        {
-            _logger.LogError("Download failed: Torrent file not found on server for torrent {TorrentId} at path {FilePath}.", torrentId, filePath);
-            return NotFound("Torrent file not found on server.");
-        }
-
-        try
-        {
-            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-            _logger.LogInformation("Serving torrent file {FileName} for torrent {TorrentId}.", torrent.Name + ".torrent", torrentId);
-            return File(fileStream, "application/x-bittorrent", torrent.Name + ".torrent");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error serving torrent file {FileName} for torrent {TorrentId}.", torrent.Name + ".torrent", torrentId);
-            return StatusCode(500, "An error occurred during file download.");
-        }
+        return fileStreamResult;
     }
 
     [HttpPost("{torrentId}/completeInfo")]
     [Authorize]
     public async Task<IActionResult> CompleteInfo(int torrentId, [FromForm] string imdbId)
     {
-        var torrent = await _context.Torrents.FindAsync(torrentId);
-        if (torrent == null)
-        {
-            return NotFound("Torrent not found.");
-        }
-
-        if (!string.IsNullOrEmpty(torrent.ImdbId))
-        {
-            return BadRequest("IMDb ID already exists for this torrent.");
-        }
-
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-
-        torrent.ImdbId = imdbId;
-
-        await _userService.AddSakuraCoinsAsync(userId, _settings.CompleteInfoBonus);
-
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("User {UserId} added IMDb ID {ImdbId} to torrent {TorrentId} and earned {Bonus} SakuraCoins.", userId, imdbId, torrentId, _settings.CompleteInfoBonus);
-
-        return Ok("IMDb ID added successfully.");
+        var (success, message) = await _torrentService.CompleteTorrentInfoAsync(torrentId, imdbId, userId);
+        if (!success)
+        {
+            _logger.LogWarning("CompleteInfo failed: {Message}", message);
+            return BadRequest(message);
+        }
+        return Ok(new { message = message });
     }
 
     [HttpPost("{torrentId}/applyFreeleechToken")]
@@ -263,42 +95,13 @@ public class TorrentController : ControllerBase
     public async Task<IActionResult> ApplyFreeleechToken(int torrentId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
+        var (success, message) = await _torrentService.ApplyFreeleechTokenAsync(torrentId, userId);
+        if (!success)
         {
-            return Unauthorized();
+            _logger.LogWarning("ApplyFreeleechToken failed: {Message}", message);
+            return BadRequest(message);
         }
-
-        if (user.FreeleechTokens <= 0)
-        {
-            return BadRequest("You do not have any freeleech tokens.");
-        }
-
-        var torrent = await _context.Torrents.FindAsync(torrentId);
-        if (torrent == null)
-        {
-            return NotFound("Torrent not found.");
-        }
-
-        // Check if the user is seeding this torrent
-        var isSeeding = await _context.Peers.AnyAsync(p => p.UserId == userId && p.TorrentId == torrentId && p.IsSeeder);
-        if (!isSeeding)
-        {
-            return BadRequest("You must be seeding this torrent to apply a freeleech token.");
-        }
-
-        // Apply freeleech status
-        torrent.IsFree = true;
-        torrent.FreeUntil = DateTime.UtcNow.AddHours(_sakuraCoinSettings.FreeleechTokenDurationHours);
-
-        // Consume one token
-        user.FreeleechTokens--;
-
-        await _context.SaveChangesAsync();
-
-        _logger.LogInformation("User {UserId} applied freeleech token to torrent {TorrentId}. Tokens remaining: {Tokens}. Free until: {FreeUntil}", userId, torrentId, user.FreeleechTokens, torrent.FreeUntil);
-
-        return Ok("Freeleech token applied successfully.");
+        return Ok(new { message = message });
     }
 }
 
