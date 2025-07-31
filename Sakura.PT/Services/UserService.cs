@@ -8,6 +8,7 @@ using Sakura.PT.DTOs;
 using Sakura.PT.Entities;
 using Sakura.PT.Mappers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Sakura.PT.Services;
 
@@ -17,13 +18,15 @@ public class UserService : IUserService
     private readonly IConfiguration _configuration;
     private readonly ILogger<UserService> _logger;
     private readonly SakuraCoinSettings _sakuraCoinSettings;
+    private readonly IEmailService _emailService;
 
-    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings)
+    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings, IEmailService emailService)
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
         _sakuraCoinSettings = sakuraCoinSettings.Value;
+        _emailService = emailService;
     }
     public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
     {
@@ -112,6 +115,12 @@ public class UserService : IUserService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
         _logger.LogInformation("User {UserName} registered successfully with ID {UserId}.", user.UserName, user.Id);
+
+        // Send registration confirmation email
+        var subject = "Welcome to Sakura.PT!";
+        var body = $"Hello {user.UserName},<br><br>Welcome to Sakura.PT! Your account has been successfully created.<br><br>Enjoy your time on our tracker!<br><br>The Sakura.PT Team";
+        await _emailService.SendEmailAsync(user.Email, subject, body);
+        _logger.LogInformation("Sent welcome email to {Email} for user {UserName}.", user.Email, user.UserName);
 
         return user;
     }

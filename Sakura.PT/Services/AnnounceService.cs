@@ -31,17 +31,16 @@ public class AnnounceService : IAnnounceService
         int numWant,
         string? key,
         string? ipAddress,
-        int userId)
+        string passkey)
     {
         _logger.LogInformation("Processing announce request for infoHash: {InfoHash}, peerId: {PeerId}, event: {Event}", infoHash, peerId, @event);
 
         // Authenticate user by passkey
-        // Passkey is now handled in AnnounceController, so we can directly get the user
-        var user = await _context.Users.FindAsync(userId);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == passkey);
         if (user == null)
         {
-            _logger.LogWarning("Announce request with invalid userId: {UserId}", userId);
-            throw new UnauthorizedAccessException("Invalid user.");
+            _logger.LogWarning("Announce request with invalid passkey: {Passkey}", passkey);
+            throw new UnauthorizedAccessException("Invalid passkey.");
         }
 
         // Convert infoHash from URL-encoded to byte array (assuming it's 20 bytes SHA1)
@@ -85,7 +84,8 @@ public class AnnounceService : IAnnounceService
                         User = user,
                         IpAddress = ipAddress,
                         Port = port,
-                        LastAnnounce = DateTime.UtcNow
+                        LastAnnounce = DateTime.UtcNow,
+                        IsSeeder = (left == 0)
                     };
                     _context.Peers.Add(peer);
                 }
@@ -95,6 +95,7 @@ public class AnnounceService : IAnnounceService
                     peer.IpAddress = ipAddress;
                     peer.Port = port;
                     peer.LastAnnounce = DateTime.UtcNow;
+                    peer.IsSeeder = (left == 0);
                 }
                 break;
             case "completed":
@@ -102,6 +103,7 @@ public class AnnounceService : IAnnounceService
                 if (peer != null)
                 {
                     peer.LastAnnounce = DateTime.UtcNow;
+                    peer.IsSeeder = true; // Peer completed, so it's now a seeder
                 }
                 break;
             case "stopped":

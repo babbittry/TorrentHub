@@ -30,6 +30,13 @@ namespace Sakura.PT
             builder.Services.AddScoped<ITorrentService, TorrentService>();
             builder.Services.AddScoped<ICommentService, CommentService>();
             builder.Services.AddScoped<IRequestService, RequestService>();
+            builder.Services.AddScoped<IMessageService, MessageService>();
+            builder.Services.AddScoped<IReportService, ReportService>();
+            builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
+
+            // Configure SMTP Settings
+            builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
+            builder.Services.AddTransient<IEmailService, EmailService>();
 
             // Configure SakuraCoin Settings
             builder.Services.Configure<SakuraCoinSettings>(builder.Configuration.GetSection("SakuraCoinSettings"));

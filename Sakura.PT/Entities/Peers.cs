@@ -56,4 +56,10 @@ public class Peers
     /// </summary>
     [Required]
     public DateTime LastAnnounce { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Indicates if the peer is a seeder (true) or a leecher (false).
+    /// </summary>
+    [Required]
+    public bool IsSeeder { get; set; }
 }

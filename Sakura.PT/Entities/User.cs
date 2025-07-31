@@ -105,12 +105,7 @@ public class User
     [DefaultValue(0)]
     public int InviteNum { get; set; } = 0;
 
-    /// <summary>
-    /// Number of personal freeleech tokens the user possesses.
-    /// </summary>
-    [Required]
-    [DefaultValue(0)]
-    public int FreeleechTokens { get; set; } = 0;
+    
 
     /// <summary>
     /// User's Sakura Coins balance.

@@ -140,9 +140,10 @@ public class TorrentService : ITorrentService
             return (false, "User not found.");
         }
 
-        if (user.FreeleechTokens <= 0)
+        // Check if user has enough SakuraCoins
+        if (user.SakuraCoins < _sakuraCoinSettings.FreeleechTokenPrice)
         {
-            return (false, "You do not have any freeleech tokens.");
+            return (false, "Insufficient SakuraCoins to apply freeleech.");
         }
 
         var torrent = await _context.Torrents.FindAsync(torrentId);
@@ -155,21 +156,21 @@ public class TorrentService : ITorrentService
         var isSeeding = await _context.Peers.AnyAsync(p => p.UserId == userId && p.TorrentId == torrentId && p.IsSeeder);
         if (!isSeeding)
         {
-            return (false, "You must be seeding this torrent to apply a freeleech token.");
+            return (false, "You must be seeding this torrent to apply freeleech.");
         }
 
         // Apply freeleech status
         torrent.IsFree = true;
         torrent.FreeUntil = DateTime.UtcNow.AddHours(_sakuraCoinSettings.FreeleechTokenDurationHours);
 
-        // Consume one token
-        user.FreeleechTokens--;
+        // Deduct coins directly
+        user.SakuraCoins -= _sakuraCoinSettings.FreeleechTokenPrice;
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} applied freeleech token to torrent {TorrentId}. Tokens remaining: {Tokens}. Free until: {FreeUntil}", userId, torrentId, user.FreeleechTokens, torrent.FreeUntil);
+        _logger.LogInformation("User {UserId} applied freeleech to torrent {TorrentId} for {Price} SakuraCoins. Free until: {FreeUntil}", userId, torrentId, _sakuraCoinSettings.FreeleechTokenPrice, torrent.FreeUntil);
 
-        return (true, "Freeleech token applied successfully.");
+        return (true, "Freeleech applied successfully.");
     }
 
     public async Task<FileStreamResult?> DownloadTorrentAsync(int torrentId)

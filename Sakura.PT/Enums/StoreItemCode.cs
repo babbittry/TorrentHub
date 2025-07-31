@@ -27,9 +27,7 @@ public enum StoreItemCode
     InviteFive,
 
     /// <summary>
-    /// Grants a personal freeleech token for a specific torrent.
-    /// </summary>
-    FreeleechToken,
+    
 
     /// <summary>
     /// Activates double upload status for a period.

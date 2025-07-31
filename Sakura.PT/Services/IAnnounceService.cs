@@ -16,5 +16,5 @@ public interface IAnnounceService
         int numWant,
         string? key,
         string? ipAddress,
-        int userId); // Pass userId from controller
+        string passkey); // Pass passkey from controller
 }

@@ -1,10 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Sakura.PT.Data;
-using BencodeNET.Torrents;
 using BencodeNET.Objects;
-using BencodeNET;
-using Sakura.PT.Entities;
-using System.Web;
 using Sakura.PT.Services;
 using Microsoft.Extensions.Logging;
 
@@ -23,8 +18,9 @@ public class AnnounceController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet]
+    [HttpGet("{passkey}/announce")] // Passkey is now part of the route
     public async Task<IActionResult> Announce(
+        string passkey,
         [FromQuery(Name = "info_hash")] string infoHash,
         [FromQuery(Name = "peer_id")] string peerId,
         [FromQuery(Name = "port")] int port,
@@ -54,24 +50,10 @@ public class AnnounceController : ControllerBase
             return BadRequest("Could not determine client IP address.");
         }
 
-        var passkey = HttpContext.Request.Path.Segments.LastOrDefault();
-        if (string.IsNullOrEmpty(passkey))
-        {
-            _logger.LogWarning("Announce request missing passkey in URL.");
-            return BadRequest("Missing passkey.");
-        }
-
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == passkey);
-        if (user == null)
-        {
-            _logger.LogWarning("Announce request with invalid passkey: {Passkey}", passkey);
-            return Unauthorized("Invalid passkey.");
-        }
-
         try
         {
             var responseDictionary = await _announceService.ProcessAnnounceRequest(
-                infoHash, peerId, port, uploaded, downloaded, left, @event, numWant, key, ipAddress, user.Id);
+                infoHash, peerId, port, uploaded, downloaded, left, @event, numWant, key, ipAddress, passkey);
 
             var bDict = new BDictionary(responseDictionary);
             var bencodedResponse = bDict.EncodeAsBytes();

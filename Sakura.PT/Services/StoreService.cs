@@ -65,9 +65,7 @@ public class StoreService : IStoreService
                 case Enums.StoreItemCode.InviteFive:
                     user.InviteNum += 5;
                     break;
-                case Enums.StoreItemCode.FreeleechToken:
-                    user.FreeleechTokens += 1;
-                    break;
+                
                 case Enums.StoreItemCode.DoubleUpload:
                     user.IsDoubleUploadActive = true;
                     user.DoubleUploadExpiresAt = DateTime.UtcNow.AddHours(24); // 24 hours

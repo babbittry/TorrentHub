@@ -19,6 +19,9 @@ namespace Sakura.PT.Data
         public DbSet<StoreItem> StoreItems { get; set; }
         public DbSet<Badge> Badges { get; set; }
         public DbSet<UserBadge> UserBadges { get; set; }
+        public DbSet<Message> Messages { get; set; }
+        public DbSet<Report> Reports { get; set; }
+        public DbSet<Announcement> Announcements { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -46,10 +49,9 @@ namespace Sakura.PT.Data
                 new StoreItem { Id = 2, ItemCode = Enums.StoreItemCode.UploadCredit50GB, Name = "50 GB Upload Credit", Description = "Add 50 GB to your total upload amount.", Price = 4500, IsAvailable = true },
                 new StoreItem { Id = 3, ItemCode = Enums.StoreItemCode.InviteOne, Name = "1 Invite Code", Description = "Receive one invitation code to share with a friend.", Price = 5000, IsAvailable = true },
                 new StoreItem { Id = 4, ItemCode = Enums.StoreItemCode.InviteFive, Name = "5 Invite Codes", Description = "Receive five invitation codes to share with your friends.", Price = 20000, IsAvailable = true },
-                new StoreItem { Id = 5, ItemCode = Enums.StoreItemCode.FreeleechToken, Name = "Personal Freeleech Token", Description = "Make one of your seeding torrents free for 24 hours.", Price = 50000, IsAvailable = true },
-                new StoreItem { Id = 6, ItemCode = Enums.StoreItemCode.DoubleUpload, Name = "Double Upload (24h)", Description = "All your uploads count double for 24 hours.", Price = 10000, IsAvailable = true },
-                new StoreItem { Id = 7, ItemCode = Enums.StoreItemCode.NoHitAndRun, Name = "No Hit & Run (72h)", Description = "Exempt from Hit & Run rules for 72 hours.", Price = 15000, IsAvailable = true },
-                new StoreItem { Id = 8, ItemCode = Enums.StoreItemCode.Badge, Name = "Sakura Coin Collector Badge", Description = "Show off your dedication to SakuraCoins!", Price = 25000, IsAvailable = true, BadgeId = 4 }
+                new StoreItem { Id = 5, ItemCode = Enums.StoreItemCode.DoubleUpload, Name = "Double Upload (24h)", Description = "All your uploads count double for 24 hours.", Price = 10000, IsAvailable = true },
+                new StoreItem { Id = 6, ItemCode = Enums.StoreItemCode.NoHitAndRun, Name = "No Hit & Run (72h)", Description = "Exempt from Hit & Run rules for 72 hours.", Price = 15000, IsAvailable = true },
+                new StoreItem { Id = 7, ItemCode = Enums.StoreItemCode.Badge, Name = "Sakura Coin Collector Badge", Description = "Show off your dedication to SakuraCoins!", Price = 25000, IsAvailable = true, BadgeId = 4 }
             );
 
             // Seed some badges
