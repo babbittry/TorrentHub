@@ -7,6 +7,7 @@ using Sakura.PT.Entities;
 using Sakura.PT.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using NpgsqlTypes;
 
 namespace Sakura.PT.Services;
 
@@ -122,8 +123,6 @@ public class TorrentService : ITorrentService
         }
 
         torrent.ImdbId = imdbId;
-        // Update SearchVector when IMDb ID is added, as it might be part of the search content
-        torrent.SearchVector = NpgsqlTsVector.Create(torrent.Name + " " + torrent.Description + " " + imdbId);
 
         await _userService.AddSakuraCoinsAsync(userId, _sakuraCoinSettings.CompleteInfoBonus);
 
@@ -267,8 +266,7 @@ public class TorrentService : ITorrentService
             IsFree = false,
             FreeUntil = null,
             StickyStatus = TorrentStickyStatus.None,
-            FilePath = filePath,
-            SearchVector = NpgsqlTsVector.Create(torrent.DisplayName + " " + description)
+            FilePath = filePath
         };
     }
 }

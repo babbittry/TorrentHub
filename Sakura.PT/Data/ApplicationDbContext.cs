@@ -40,7 +40,7 @@ namespace Sakura.PT.Data
                 .HasGeneratedTsVectorColumn(
                     t => t.SearchVector,
                     "english", // Or your preferred language configuration
-                    t => new { t.Name, t.Description })
+                    t => new { t.Name, t.Description, t.ImdbId })
                 .HasIndex(t => t.SearchVector)
                 .HasMethod("GIN"); // Use GIN index for performance
 

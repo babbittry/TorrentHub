@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel;
+using NpgsqlTypes;
 using Sakura.PT.Enums;
 
 namespace Sakura.PT.Entities;
