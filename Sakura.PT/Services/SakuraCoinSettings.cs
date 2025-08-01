@@ -7,12 +7,12 @@ public class SakuraCoinSettings
     public double SizeFactorMultiplier { get; set; } = 0.5;
     public double MosquitoFactorMultiplier { get; set; } = 1.5;
     public double SeederFactorMultiplier { get; set; } = 0.8;
-    public long UploadTorrentBonus { get; set; } = 50;
-    public long FillRequestBonus { get; set; } = 100;
-    public long CommentBonus { get; set; } = 5;
-    public long CompleteInfoBonus { get; set; } = 20;
+    public ulong UploadTorrentBonus { get; set; } = 50UL;
+    public ulong FillRequestBonus { get; set; } = 100UL;
+    public ulong CommentBonus { get; set; } = 5UL;
+    public ulong CompleteInfoBonus { get; set; } = 20UL;
     public int MaxDailyCommentBonuses { get; set; } = 5;
-    public long FreeleechPrice { get; set; } = 50000;
+    public ulong FreeleechPrice { get; set; } = 50000UL;
     public int FreeleechDurationHours { get; set; } = 24;
     public double TransactionTaxRate { get; set; } = 0.1; // 10%
 

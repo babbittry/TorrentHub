@@ -14,6 +14,7 @@ public class Request
     public required string Title { get; set; }
 
     [Required]
+    [StringLength(500)]
     public required string Description { get; set; }
 
     [Required]
@@ -44,5 +45,5 @@ public class Request
     /// The total amount of SakuraCoins offered as a bounty for this request.
     /// </summary>
     [Required]
-    public long BountyAmount { get; set; } = 0;
+    public ulong BountyAmount { get; set; } = 0UL;
 }

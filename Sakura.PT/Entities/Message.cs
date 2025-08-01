@@ -28,10 +28,11 @@ public class Message
     public required string Subject { get; set; }
 
     [Required]
+    [StringLength(500)]
     public required string Content { get; set; }
 
     [Required]
-    public DateTime SentAt { get; set; } = DateTime.UtcNow;
+    public DateTime SentAt { get; init; } = DateTime.UtcNow;
 
     [Required]
     public bool IsRead { get; set; } = false;

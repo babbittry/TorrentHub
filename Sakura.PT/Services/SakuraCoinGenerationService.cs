@@ -108,7 +108,7 @@ public class SakuraCoinGenerationService : BackgroundService
             foreach (var user in usersToUpdate)
             {
                 // Round the accumulated double points to a long integer for the final balance.
-                var gain = (long)Math.Round(userCoinGains[user.Id]);
+                var gain = (ulong)Math.Round(userCoinGains[user.Id]);
                 user.SakuraCoins += gain;
                 _logger.LogDebug("User {UserId} earned {Coins} SakuraCoins this cycle.", user.Id, gain);
             }

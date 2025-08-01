@@ -5,6 +5,6 @@ namespace Sakura.PT.Services;
 
 public interface ITopPlayersService
 {
-    Task<List<UserDto>> GetTopPlayersAsync(TopPlayerType type, int count);
+    Task<List<UserDto>> GetTopPlayersAsync(TopPlayerType type);
     Task RefreshTopPlayersCacheAsync();
 }

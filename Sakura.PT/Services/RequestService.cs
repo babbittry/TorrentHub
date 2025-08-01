@@ -59,7 +59,7 @@ public class RequestService : IRequestService
         return (true, "Request created successfully.", newRequest);
     }
 
-    public async Task<(bool Success, string Message)> AddBountyAsync(int requestId, long amount, int userId)
+    public async Task<(bool Success, string Message)> AddBountyAsync(int requestId, ulong amount, int userId)
     {
         var user = await _context.Users.FindAsync(userId);
 

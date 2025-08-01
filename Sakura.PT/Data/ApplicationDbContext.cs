@@ -48,6 +48,19 @@ namespace Sakura.PT.Data
                 .HasIndex(i => i.Id)
                 .IsUnique();
 
+            modelBuilder.Entity<Invite>()
+                .HasOne(i => i.GeneratorUser)
+                .WithMany(u => u.GeneratedInvites)
+                .HasForeignKey(i => i.GeneratorUserId)
+                .OnDelete(DeleteBehavior.Restrict); // Prevent circular cascade delete
+
+            modelBuilder.Entity<Invite>()
+                .HasOne(i => i.UsedByUser)
+                .WithOne(u => u.Invite)
+                .HasForeignKey<User>(u => u.InviteId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
             modelBuilder.Entity<UserDailyStats>()
                 .HasIndex(s => new { s.UserId, s.Date })
                 .IsUnique();

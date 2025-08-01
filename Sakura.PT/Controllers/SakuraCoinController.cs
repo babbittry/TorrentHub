@@ -25,7 +25,7 @@ public class SakuraCoinController : ControllerBase
     /// <param name="amount">The amount of coins to add (can be negative to remove).</param>
     /// <returns>A confirmation message.</returns>
     [HttpPost("add")]
-    public async Task<IActionResult> AddCoins(int userId, long amount)
+    public async Task<IActionResult> AddCoins(int userId, ulong amount)
     {
         _logger.LogInformation("Attempting to add {Amount} SakuraCoins to user {UserId} by {AdminUserName}", amount, userId, User.Identity.Name);
         var result = await _userService.AddSakuraCoinsAsync(userId, amount);

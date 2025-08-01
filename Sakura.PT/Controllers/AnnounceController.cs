@@ -24,13 +24,13 @@ public class AnnounceController : ControllerBase
         [FromQuery(Name = "info_hash")] string infoHash,
         [FromQuery(Name = "peer_id")] string peerId,
         [FromQuery(Name = "port")] int port,
-        [FromQuery(Name = "uploaded")] long uploaded,
-        [FromQuery(Name = "downloaded")] long downloaded,
+        [FromQuery(Name = "uploaded")] ulong uploaded,
+        [FromQuery(Name = "downloaded")] ulong downloaded,
         [FromQuery(Name = "left")] long left,
-        [FromQuery(Name = "compact")] int compact = 0,
-        [FromQuery(Name = "no_peer_id")] int noPeerId = 0,
+        [FromQuery(Name = "compact")] int? compact = null,
+        [FromQuery(Name = "no_peer_id")] int? noPeerId = null,
         [FromQuery(Name = "event")] string? @event = null,
-        [FromQuery(Name = "numwant")] int numWant = 50,
+        [FromQuery(Name = "numwant")] int? numWant = null,
         [FromQuery(Name = "key")] string? key = null,
         [FromQuery(Name = "trackerid")] string? trackerId = null)
     {
@@ -52,8 +52,13 @@ public class AnnounceController : ControllerBase
 
         try
         {
+            // Set default values for nullable parameters
+            var compactValue = compact ?? 0;
+            var noPeerIdValue = noPeerId ?? 0;
+            var numWantValue = numWant ?? 50;
+            
             var responseDictionary = await _announceService.ProcessAnnounceRequest(
-                infoHash, peerId, port, uploaded, downloaded, left, @event, numWant, key, ipAddress, passkey);
+                infoHash, peerId, port, uploaded, downloaded, left, @event, numWantValue, key, ipAddress, passkey);
 
             var bDict = new BDictionary(responseDictionary);
             var bencodedResponse = bDict.EncodeAsBytes();

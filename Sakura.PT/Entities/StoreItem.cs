@@ -26,7 +26,7 @@ public class StoreItem
     public string? Description { get; set; }
 
     [Required]
-    public long Price { get; set; }
+    public ulong Price { get; set; }
 
     /// <summary>
     /// Whether the item is currently available for purchase.

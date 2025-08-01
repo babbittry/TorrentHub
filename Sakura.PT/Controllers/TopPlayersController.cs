@@ -18,16 +18,11 @@ public class TopPlayersController : ControllerBase
     }
 
     [HttpGet("{type}")]
-    public async Task<IActionResult> GetTopPlayers(TopPlayerType type, [FromQuery] int count = 10)
+    public async Task<IActionResult> GetTopPlayers(TopPlayerType type)
     {
-        if (count <= 0 || count > 100) // Limit count to prevent abuse
-        {
-            return BadRequest("Count must be between 1 and 100.");
-        }
-
         try
         {
-            var topPlayers = await _topPlayersService.GetTopPlayersAsync(type, count);
+            var topPlayers = await _topPlayersService.GetTopPlayersAsync(type);
             return Ok(topPlayers);
         }
         catch (ArgumentOutOfRangeException ex)

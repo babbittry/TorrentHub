@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Sakura.PT.Data;
 using Sakura.PT.Services;
 using Scalar.AspNetCore;
+using StackExchange.Redis;
 
 namespace Sakura.PT
 {
@@ -40,7 +41,20 @@ namespace Sakura.PT
             // Configure Garnet as distributed cache
             builder.Services.AddStackExchangeRedisCache(options =>
             {
-                options.Configuration = builder.Configuration.GetSection("Garnet:Configuration").Value;
+                var configString = builder.Configuration.GetSection("Garnet:Configuration").Value;
+                var username = builder.Configuration.GetSection("Garnet:Username").Value;
+                var password = builder.Configuration.GetSection("Garnet:Password").Value;
+
+                var configOptions = ConfigurationOptions.Parse(configString);
+                if (!string.IsNullOrEmpty(username))
+                {
+                    configOptions.User = username;
+                }
+                if (!string.IsNullOrEmpty(password))
+                {
+                    configOptions.Password = password;
+                }
+                options.ConfigurationOptions = configOptions;
                 options.InstanceName = "SakuraPT:"; // Optional: prefix for cache keys
             });
 
@@ -81,8 +95,43 @@ namespace Sakura.PT
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
-                app.MapScalarApiReference(); // scalar/v1
-                app.MapOpenApi();
+                app.UseDeveloperExceptionPage(); // 添加详细异常页面
+                
+                // 添加全局异常处理中间件
+                app.Use(async (context, next) =>
+                {
+                    try
+                    {
+                        await next();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"=== 全局异常捕获 ===");
+                        Console.WriteLine($"异常类型: {ex.GetType().FullName}");
+                        Console.WriteLine($"异常消息: {ex.Message}");
+                        Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+                        
+                        if (ex.InnerException != null)
+                        {
+                            Console.WriteLine($"内部异常类型: {ex.InnerException.GetType().FullName}");
+                            Console.WriteLine($"内部异常消息: {ex.InnerException.Message}");
+                        }
+                        
+                        throw; // 重新抛出异常
+                    }
+                });
+                
+                // 临时调试：如果还有问题，可以注释掉这些行来测试
+                try
+                {
+                    app.MapScalarApiReference(); // scalar/v1
+                    app.MapOpenApi();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"OpenAPI配置错误: {ex.Message}");
+                    Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
+                }
             }
 
             app.UseHttpsRedirection();

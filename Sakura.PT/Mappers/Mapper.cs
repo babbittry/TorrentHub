@@ -12,7 +12,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.Language))]
     [MapperIgnoreSource(nameof(User.RssKey))]
     [MapperIgnoreSource(nameof(User.IsBanned))]
-    [MapperIgnoreSource(nameof(User.InviteNum))]
     [MapperIgnoreSource(nameof(User.InviteId))]
     [MapperIgnoreSource(nameof(User.Invite))]
     [MapperIgnoreSource(nameof(User.Torrents))]
@@ -33,6 +32,5 @@ public static partial class Mapper
     [MapProperty(nameof(Invite.GeneratorUser.UserName), nameof(InviteDto.GeneratorUsername))]
     [MapProperty(nameof(Invite.UsedByUser.UserName), nameof(InviteDto.UsedByUsername))]
     [MapperIgnoreSource(nameof(Invite.GeneratorUserId))]
-    [MapperIgnoreSource(nameof(Invite.UsedByUserId))]
     public static partial InviteDto ToInviteDto(Invite invite);
 }

@@ -29,8 +29,8 @@ public class AnnounceService : IAnnounceService
         string infoHash,
         string peerId,
         int port,
-        long uploaded,
-        long downloaded,
+        ulong uploaded,
+        ulong downloaded,
         long left,
         string? @event,
         int numWant,
@@ -80,7 +80,7 @@ public class AnnounceService : IAnnounceService
             var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
             if (timeSeeding > 0 && timeSeeding <= 3600) // Cap at 1 hour to prevent abuse from long gaps
             {
-                user.TotalSeedingTimeMinutes += (long)timeSeeding;
+                user.TotalSeedingTimeMinutes += (ulong)timeSeeding;
                 _logger.LogDebug("User {UserId} accumulated {Time} minutes of seeding time. Total: {Total}", user.Id, timeSeeding, user.TotalSeedingTimeMinutes);
             }
         }
@@ -132,7 +132,7 @@ public class AnnounceService : IAnnounceService
         }
 
         // Update user's uploaded and downloaded bytes
-        long actualUploaded = uploaded;
+        ulong actualUploaded = uploaded;
         if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTime.UtcNow)
         {
             actualUploaded *= 2;

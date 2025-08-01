@@ -37,7 +37,7 @@ public class RequestController : ControllerBase
     }
 
     [HttpPost("{requestId}/addBounty")]
-    public async Task<IActionResult> AddBounty(int requestId, [FromForm] long amount)
+    public async Task<IActionResult> AddBounty(int requestId, [FromForm] ulong amount)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
         var (success, message) = await _requestService.AddBountyAsync(requestId, amount, userId);

@@ -79,7 +79,11 @@ public class UserController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetMyBadges()
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
         var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
     }

@@ -90,7 +90,7 @@ public class UserService : IUserService
         _logger.LogInformation("Attempting registration for user: {UserName}", userForRegistrationDto.UserName);
         // 1. Validate Invite Code
         var invite = await _context.Invites
-            .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.UsedByUserId == null && i.ExpiresAt > DateTime.UtcNow);
+            .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTime.UtcNow);
 
         if (invite == null)
         {
@@ -137,7 +137,7 @@ public class UserService : IUserService
         return user;
     }
 
-    public async Task<bool> AddSakuraCoinsAsync(int userId, long amount)
+    public async Task<bool> AddSakuraCoinsAsync(int userId, ulong amount)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
@@ -159,7 +159,7 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> TransferSakuraCoinsAsync(int fromUserId, int toUserId, long amount)
+    public async Task<bool> TransferSakuraCoinsAsync(int fromUserId, int toUserId, ulong amount)
     {
         if (amount <= 0)
         {
@@ -186,7 +186,7 @@ public class UserService : IUserService
             }
 
             // Calculate tax
-            var taxAmount = (long)Math.Ceiling(amount * _sakuraCoinSettings.TransactionTaxRate);
+            var taxAmount = (ulong)Math.Ceiling(amount * _sakuraCoinSettings.TransactionTaxRate);
             var actualTransferAmount = amount - taxAmount;
 
             fromUser.SakuraCoins -= amount; // Deduct full amount from sender

@@ -34,7 +34,7 @@ public class TopPlayersService : ITopPlayersService
         _logger = logger;
     }
 
-    public async Task<List<UserDto>> GetTopPlayersAsync(TopPlayerType type, int count)
+    public async Task<List<UserDto>> GetTopPlayersAsync(TopPlayerType type)
     {
         string cacheKey = type switch
         {

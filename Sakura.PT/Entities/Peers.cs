@@ -12,7 +12,7 @@ public class Peers
     /// Unique identifier for the peer entry.
     /// </summary>
     [Key]
-    public int Id { get; set; }
+    public int Id { get; init; }
 
     /// <summary>
     /// Foreign key of the torrent this peer is part of.
