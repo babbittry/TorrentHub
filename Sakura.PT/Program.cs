@@ -16,7 +16,11 @@ namespace Sakura.PT
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+                });
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
             
@@ -86,7 +90,7 @@ namespace Sakura.PT
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = builder.Configuration["Jwt:Issuer"],
                     ValidAudience = builder.Configuration["Jwt:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]))
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key is not configured.")))
                 };
             });
 
@@ -96,42 +100,8 @@ namespace Sakura.PT
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage(); // 添加详细异常页面
-                
-                // 添加全局异常处理中间件
-                app.Use(async (context, next) =>
-                {
-                    try
-                    {
-                        await next();
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"=== 全局异常捕获 ===");
-                        Console.WriteLine($"异常类型: {ex.GetType().FullName}");
-                        Console.WriteLine($"异常消息: {ex.Message}");
-                        Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
-                        
-                        if (ex.InnerException != null)
-                        {
-                            Console.WriteLine($"内部异常类型: {ex.InnerException.GetType().FullName}");
-                            Console.WriteLine($"内部异常消息: {ex.InnerException.Message}");
-                        }
-                        
-                        throw; // 重新抛出异常
-                    }
-                });
-                
-                // 临时调试：如果还有问题，可以注释掉这些行来测试
-                try
-                {
-                    app.MapScalarApiReference(); // scalar/v1
-                    app.MapOpenApi();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"OpenAPI配置错误: {ex.Message}");
-                    Console.WriteLine($"堆栈跟踪: {ex.StackTrace}");
-                }
+                app.MapOpenApi();
+                app.MapScalarApiReference(); // scalar/v1
             }
 
             app.UseHttpsRedirection();

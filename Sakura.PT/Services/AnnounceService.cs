@@ -48,13 +48,50 @@ public class AnnounceService : IAnnounceService
             throw new UnauthorizedAccessException("Invalid passkey.");
         }
 
-        // Convert infoHash from URL-encoded to byte array (assuming it's 20 bytes SHA1)
-        var infoHashBytes = HttpUtility.UrlDecodeToBytes(infoHash);
-        if (infoHashBytes == null || infoHashBytes.Length != 20)
+        if (user.IsBanned)
         {
-            _logger.LogWarning("Announce request with invalid info_hash format: {InfoHash}", infoHash);
-            throw new ArgumentException("Invalid info_hash.");
+            _logger.LogWarning("Announce request from banned user: {UserId}", user.Id);
+            throw new UnauthorizedAccessException("Your account has been banned.");
         }
+
+        // Frequency check
+        var minAnnounceInterval = TimeSpan.FromSeconds(30); // Define your minimum interval
+        if (DateTime.UtcNow - user.LastAnnounceRequestTime < minAnnounceInterval)
+        {
+            _logger.LogWarning("Announce request too frequent from user: {UserId}", user.Id);
+            throw new InvalidOperationException("Request too frequent.");
+        }
+
+        user.LastAnnounceRequestTime = DateTime.UtcNow; // Update last request time
+
+        byte[] infoHashBytes;
+        try
+        {
+            infoHashBytes = HttpUtility.UrlDecodeToBytes(infoHash);
+            if (infoHashBytes.Length != 20)
+            {
+                // Handle cases where the decoded bytes are not 20 bytes long, which is standard for SHA-1 hashes.
+                // This might happen with malformed requests.
+                var hexString = System.Text.Encoding.UTF8.GetString(HttpUtility.UrlDecodeToBytes(infoHash));
+                if (hexString.Length == 40)
+                {
+                    infoHashBytes = Enumerable.Range(0, hexString.Length)
+                                     .Where(x => x % 2 == 0)
+                                     .Select(x => Convert.ToByte(hexString.Substring(x, 2), 16))
+                                     .ToArray();
+                }
+                else
+                {
+                     throw new ArgumentException("Invalid info_hash format.");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash);
+            throw new ArgumentException("Invalid info_hash format.", ex);
+        }
+
         var infoHashString = BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant();
 
 
@@ -75,9 +112,9 @@ public class AnnounceService : IAnnounceService
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
 
         // Calculate seeding time for existing peers
-        if (peer != null && peer.IsSeeder) // Only accumulate time if they were seeding
+        if (peer != null && peer.IsSeeder && peer.LastAnnounce.HasValue) // Only accumulate time if they were seeding
         {
-            var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
+            var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce.Value).TotalMinutes;
             if (timeSeeding > 0 && timeSeeding <= 3600) // Cap at 1 hour to prevent abuse from long gaps
             {
                 user.TotalSeedingTimeMinutes += (ulong)timeSeeding;
@@ -132,11 +169,10 @@ public class AnnounceService : IAnnounceService
         }
 
         // Update user's uploaded and downloaded bytes
-        ulong actualUploaded = uploaded;
         if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTime.UtcNow)
         {
-            actualUploaded *= 2;
-            _logger.LogInformation("User {UserId} has double upload active. Uploaded bytes doubled to {ActualUploaded}.", user.Id, actualUploaded);
+            uploaded *= 2;
+            _logger.LogInformation("User {UserId} has double upload active. Uploaded bytes doubled to {ActualUploaded}.", user.Id, uploaded);
         }
         else if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt <= DateTime.UtcNow)
         {
@@ -146,7 +182,7 @@ public class AnnounceService : IAnnounceService
             _logger.LogInformation("User {UserId} double upload expired and reset.", user.Id);
         }
 
-        user.UploadedBytes += actualUploaded;
+        user.UploadedBytes += uploaded;
         user.DownloadedBytes += downloaded;
         _logger.LogInformation("User {UserId} stats updated: Uploaded {Uploaded}, Downloaded {Downloaded}.", user.Id, user.UploadedBytes, user.DownloadedBytes);
 

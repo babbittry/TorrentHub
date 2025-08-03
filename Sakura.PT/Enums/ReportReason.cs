@@ -8,7 +8,7 @@ public enum ReportReason
     /// <summary>
     /// Content is illegal or prohibited.
     /// </summary>
-    IllegalContent,
+    IllegalContent = 0,
 
     /// <summary>
     /// Content is miscategorized.

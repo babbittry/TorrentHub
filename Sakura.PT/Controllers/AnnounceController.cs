@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System.ComponentModel;
+using Microsoft.AspNetCore.Mvc;
 using BencodeNET.Objects;
 using Sakura.PT.Services;
 using Microsoft.Extensions.Logging;
@@ -30,7 +31,9 @@ public class AnnounceController : ControllerBase
         [FromQuery(Name = "compact")] int? compact = null,
         [FromQuery(Name = "no_peer_id")] int? noPeerId = null,
         [FromQuery(Name = "event")] string? @event = null,
-        [FromQuery(Name = "numwant")] int? numWant = null,
+        [FromQuery(Name = "numwant")]
+        [DefaultValue(50)]
+        int? numWant = null,
         [FromQuery(Name = "key")] string? key = null,
         [FromQuery(Name = "trackerid")] string? trackerId = null)
     {
@@ -60,8 +63,7 @@ public class AnnounceController : ControllerBase
             var responseDictionary = await _announceService.ProcessAnnounceRequest(
                 infoHash, peerId, port, uploaded, downloaded, left, @event, numWantValue, key, ipAddress, passkey);
 
-            var bDict = new BDictionary(responseDictionary);
-            var bencodedResponse = bDict.EncodeAsBytes();
+            var bencodedResponse = responseDictionary.EncodeAsBytes();
 
             _logger.LogInformation("Announce request processed successfully for infoHash: {InfoHash}, peerId: {PeerId}.", infoHash, peerId);
             return File(bencodedResponse, "text/plain");

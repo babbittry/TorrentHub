@@ -40,7 +40,7 @@ public class TorrentListingService : ITorrentListingService
         // Apply filters
         if (filter.Category.HasValue)
         {
-            query = query.Where(t => t.Category == (TorrentCategory)filter.Category.Value);
+            query = query.Where(t => t.Category == filter.Category.Value);
         }
 
         if (!string.IsNullOrEmpty(filter.SearchTerm))

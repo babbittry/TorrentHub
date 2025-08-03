@@ -27,9 +27,6 @@ public enum StoreItemCode
     InviteFive,
 
     /// <summary>
-    
-
-    /// <summary>
     /// Activates double upload status for a period.
     /// </summary>
     DoubleUpload,
