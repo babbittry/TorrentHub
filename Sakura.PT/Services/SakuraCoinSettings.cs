@@ -23,6 +23,4 @@ public class SakuraCoinSettings
     public int CrazyUserHRExemptionHours { get; set; } = 96;
     public int VeteranUserHRExemptionHours { get; set; } = 120;
     public int VIPHRExemptionHours { get; set; } = 168; // 1 week
-
-    public string TorrentStoragePath { get; set; } = "./torrents";
 }

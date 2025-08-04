@@ -13,12 +13,14 @@ public class TorrentListingService : ITorrentListingService
     private readonly ApplicationDbContext _context;
     private readonly IDistributedCache _cache;
     private readonly ILogger<TorrentListingService> _logger;
+    private readonly IElasticsearchService _elasticsearchService;
 
-    public TorrentListingService(ApplicationDbContext context, IDistributedCache cache, ILogger<TorrentListingService> logger)
+    public TorrentListingService(ApplicationDbContext context, IDistributedCache cache, ILogger<TorrentListingService> logger, IElasticsearchService elasticsearchService)
     {
         _context = context;
         _cache = cache;
         _logger = logger;
+        _elasticsearchService = elasticsearchService;
     }
 
     public async Task<List<Torrent>> GetTorrentsAsync(TorrentFilterDto filter)
@@ -45,8 +47,7 @@ public class TorrentListingService : ITorrentListingService
 
         if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
-            // Use PostgreSQL full-text search
-            query = query.Where(t => t.SearchVector.Matches(filter.SearchTerm));
+            return (await _elasticsearchService.SearchTorrentsAsync(filter.SearchTerm, filter.PageNumber, filter.PageSize)).ToList();
         }
 
         // Apply sorting

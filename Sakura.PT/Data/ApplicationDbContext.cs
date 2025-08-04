@@ -35,15 +35,6 @@ namespace Sakura.PT.Data
                 .HasIndex(t => t.InfoHash)
                 .IsUnique();
 
-            // Configure full-text search for Torrents
-            modelBuilder.Entity<Torrent>()
-                .HasGeneratedTsVectorColumn(
-                    t => t.SearchVector,
-                    "english", // Or your preferred language configuration
-                    t => new { t.Name, t.Description, t.ImdbId })
-                .HasIndex(t => t.SearchVector)
-                .HasMethod("GIN"); // Use GIN index for performance
-
             modelBuilder.Entity<Invite>()
                 .HasIndex(i => i.Id)
                 .IsUnique();

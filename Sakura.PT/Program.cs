@@ -1,7 +1,9 @@
 using System.Text;
+using Elasticsearch.Net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Nest;
 using Sakura.PT.Data;
 using Sakura.PT.Services;
 using Scalar.AspNetCore;
@@ -41,6 +43,7 @@ namespace Sakura.PT
             builder.Services.AddScoped<IUserLevelService, UserLevelService>();
             builder.Services.AddScoped<ITopPlayersService, TopPlayersService>();
             builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
+            builder.Services.AddScoped<IElasticsearchService, ElasticsearchService>();
 
             // Configure Garnet as distributed cache
             builder.Services.AddStackExchangeRedisCache(options =>
@@ -49,6 +52,7 @@ namespace Sakura.PT
                 var username = builder.Configuration.GetSection("Garnet:Username").Value;
                 var password = builder.Configuration.GetSection("Garnet:Password").Value;
 
+                if (string.IsNullOrEmpty(configString)) return;
                 var configOptions = ConfigurationOptions.Parse(configString);
                 if (!string.IsNullOrEmpty(username))
                 {
@@ -68,6 +72,26 @@ namespace Sakura.PT
 
             // Configure SakuraCoin Settings
             builder.Services.Configure<SakuraCoinSettings>(builder.Configuration.GetSection("SakuraCoinSettings"));
+
+            // Configure Torrent Settings
+            builder.Services.Configure<TorrentSettings>(builder.Configuration.GetSection("TorrentSettings"));
+
+            // Configure Elasticsearch
+            var esUri = builder.Configuration["Elasticsearch:Uri"];
+            var esUsername = builder.Configuration["Elasticsearch:Username"];
+            var esPassword = builder.Configuration["Elasticsearch:Password"];
+
+            if (string.IsNullOrEmpty(esUri))
+            {
+                throw new InvalidOperationException("Elasticsearch URI is not configured.");
+            }
+
+            var settings = new ConnectionSettings(new Uri(esUri))
+                .DefaultIndex("torrents")
+                .BasicAuthentication(esUsername, esPassword);
+
+            var client = new ElasticClient(settings);
+            builder.Services.AddSingleton<IElasticClient>(client);
 
             // Add background services
             builder.Services.AddHostedService<SakuraCoinGenerationService>();

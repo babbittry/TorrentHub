@@ -17,14 +17,18 @@ public class TorrentService : ITorrentService
     private readonly IUserService _userService;
     private readonly SakuraCoinSettings _sakuraCoinSettings;
     private readonly ILogger<TorrentService> _logger;
+    private readonly TorrentSettings _torrentSettings;
+    private readonly IElasticsearchService _elasticsearchService;
     private readonly BencodeParser _bencodeParser = new();
 
-    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<SakuraCoinSettings> sakuraCoinSettings, ILogger<TorrentService> logger)
+    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<SakuraCoinSettings> sakuraCoinSettings, ILogger<TorrentService> logger, IOptions<TorrentSettings> torrentSettings, IElasticsearchService elasticsearchService)
     {
         _context = context;
         _userService = userService;
         _sakuraCoinSettings = sakuraCoinSettings.Value;
         _logger = logger;
+        _torrentSettings = torrentSettings.Value;
+        _elasticsearchService = elasticsearchService;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, string? description, TorrentCategory category, int userId)
@@ -58,6 +62,9 @@ public class TorrentService : ITorrentService
 
             // Grant SakuraCoins to the uploader
             await _userService.AddSakuraCoinsAsync(torrentEntity.UploadedByUserId, _sakuraCoinSettings.UploadTorrentBonus);
+
+            // Index torrent in Elasticsearch
+            await _elasticsearchService.IndexTorrentAsync(torrentEntity);
 
             _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, userId);
             return (true, "Torrent uploaded successfully.", infoHash);
@@ -221,7 +228,7 @@ public class TorrentService : ITorrentService
 
     private async Task<string> SaveTorrentFile(IFormFile file, string infoHash)
     {
-        var torrentsDir = _sakuraCoinSettings.TorrentStoragePath;
+        var torrentsDir = _torrentSettings.TorrentStoragePath;
         if (!Directory.Exists(torrentsDir))
         {
             _logger.LogInformation("Creating torrents directory: {Directory}", torrentsDir);

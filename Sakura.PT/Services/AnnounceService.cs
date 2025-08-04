@@ -17,12 +17,14 @@ public class AnnounceService : IAnnounceService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<AnnounceService> _logger;
     private readonly SakuraCoinSettings _sakuraCoinSettings;
+    private readonly TorrentSettings _torrentSettings;
 
-    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings)
+    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, IOptions<SakuraCoinSettings> sakuraCoinSettings, IOptions<TorrentSettings> torrentSettings)
     {
         _context = context;
         _logger = logger;
         _sakuraCoinSettings = sakuraCoinSettings.Value;
+        _torrentSettings = torrentSettings.Value;
     }
 
     public async Task<BDictionary> ProcessAnnounceRequest(
@@ -195,10 +197,11 @@ public class AnnounceService : IAnnounceService
         _logger.LogInformation("Announce request processed successfully for infoHash: {InfoHash}, peerId: {PeerId}.", infoHash, peerId);
 
         // Prepare response
+        // Prepare response
         var response = new BDictionary
         {
-            { "interval", new BNumber(1800) }, // Announce interval in seconds
-            { "min interval", new BNumber(900) } // Minimum announce interval
+            { "interval", new BNumber(_torrentSettings.AnnounceIntervalSeconds) }, // Announce interval in seconds
+            { "min interval", new BNumber(_torrentSettings.MinAnnounceIntervalSeconds) } // Minimum announce interval
         };
 
         // Get peers for response

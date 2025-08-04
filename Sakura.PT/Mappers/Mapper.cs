@@ -26,7 +26,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
     [MapperIgnoreSource(nameof(Torrent.Category))]
     [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
-    [MapperIgnoreSource(nameof(Torrent.SearchVector))]
     public static partial TorrentDto ToTorrentDto(Torrent torrent);
 
     [MapProperty(nameof(Invite.GeneratorUser.UserName), nameof(InviteDto.GeneratorUsername))]
