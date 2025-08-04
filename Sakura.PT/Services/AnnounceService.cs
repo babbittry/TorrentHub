@@ -53,17 +53,7 @@ public class AnnounceService : IAnnounceService
             _logger.LogWarning("Announce request from banned user: {UserId}", user.Id);
             throw new UnauthorizedAccessException("Your account has been banned.");
         }
-
-        // Frequency check
-        var minAnnounceInterval = TimeSpan.FromSeconds(30); // Define your minimum interval
-        if (DateTime.UtcNow - user.LastAnnounceRequestTime < minAnnounceInterval)
-        {
-            _logger.LogWarning("Announce request too frequent from user: {UserId}", user.Id);
-            throw new InvalidOperationException("Request too frequent.");
-        }
-
-        user.LastAnnounceRequestTime = DateTime.UtcNow; // Update last request time
-
+        
         byte[] infoHashBytes;
         try
         {
@@ -111,14 +101,21 @@ public class AnnounceService : IAnnounceService
         // Handle peer events (started, completed, stopped, none)
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
 
-        // Calculate seeding time for existing peers
-        if (peer != null && peer.IsSeeder && peer.LastAnnounce.HasValue) // Only accumulate time if they were seeding
+        // Calculate seeding time and frequency check for existing peers
+        if (peer != null && peer.IsSeeder) // Only accumulate time if they were seeding
         {
-            var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce.Value).TotalMinutes;
+            var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
             if (timeSeeding > 0 && timeSeeding <= 3600) // Cap at 1 hour to prevent abuse from long gaps
             {
                 user.TotalSeedingTimeMinutes += (ulong)timeSeeding;
                 _logger.LogDebug("User {UserId} accumulated {Time} minutes of seeding time. Total: {Total}", user.Id, timeSeeding, user.TotalSeedingTimeMinutes);
+            }
+            // Frequency check
+            var minAnnounceInterval = TimeSpan.FromSeconds(30); // Define your minimum interval
+            if (DateTime.UtcNow - peer.LastAnnounce < minAnnounceInterval)
+            {
+                _logger.LogWarning("Announce request too frequent from user: {UserId}", user.Id);
+                throw new InvalidOperationException("Request too frequent.");
             }
         }
 
