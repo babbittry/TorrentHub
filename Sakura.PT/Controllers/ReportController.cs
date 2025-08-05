@@ -23,7 +23,7 @@ public class ReportController : ControllerBase
     [HttpPost("submit")]
     public async Task<IActionResult> SubmitReport([FromForm] int torrentId, [FromForm] ReportReason reason, [FromForm] string? details)
     {
-        var reporterUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var reporterUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _reportService.SubmitReportAsync(torrentId, reporterUserId, reason, details);
 
         if (!success)
@@ -55,7 +55,7 @@ public class ReportController : ControllerBase
     [Authorize(Roles = "Administrator,Moderator")]
     public async Task<IActionResult> ProcessReport(int reportId, [FromForm] string adminNotes, [FromForm] bool markAsProcessed)
     {
-        var processedByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var processedByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _reportService.ProcessReportAsync(reportId, processedByUserId, adminNotes, markAsProcessed);
 
         if (!success)

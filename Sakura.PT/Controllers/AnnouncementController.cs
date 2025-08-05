@@ -22,7 +22,7 @@ public class AnnouncementController : ControllerBase
     [Authorize(Roles = "Administrator,Moderator")] // Only admins/mods can create announcements
     public async Task<IActionResult> CreateAnnouncement([FromForm] string title, [FromForm] string content, [FromForm] bool sendToInbox = false)
     {
-        var createdByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var createdByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, announcement) = await _announcementService.CreateAnnouncementAsync(title, content, createdByUserId, sendToInbox);
 
         if (!success)

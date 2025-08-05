@@ -23,7 +23,7 @@ public class CommentController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> PostComment(int torrentId, [FromBody] Comment newComment)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, comment) = await _commentService.PostCommentAsync(torrentId, newComment.Text, userId);
 
         if (!success)

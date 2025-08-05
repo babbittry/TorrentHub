@@ -25,7 +25,7 @@ public class TorrentController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Upload(IFormFile torrentFile, [FromForm] string? description, [FromForm] TorrentCategory category)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, infoHash) = await _torrentService.UploadTorrentAsync(torrentFile, description, category, userId);
 
         if (!success)
@@ -80,7 +80,7 @@ public class TorrentController : ControllerBase
     [Authorize]
     public async Task<IActionResult> CompleteInfo(int torrentId, [FromForm] string imdbId)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _torrentService.CompleteTorrentInfoAsync(torrentId, imdbId, userId);
         if (!success)
         {
@@ -94,7 +94,7 @@ public class TorrentController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ApplyFreeleech(int torrentId)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _torrentService.ApplyFreeleechAsync(torrentId, userId);
         if (!success)
         {

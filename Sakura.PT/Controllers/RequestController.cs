@@ -24,7 +24,7 @@ public class RequestController : ControllerBase
     [HttpPost("create")]
     public async Task<IActionResult> CreateRequest([FromBody] CreateRequestDto createRequestDto)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, request) = await _requestService.CreateRequestAsync(createRequestDto, userId);
 
         if (!success)
@@ -39,7 +39,7 @@ public class RequestController : ControllerBase
     [HttpPost("{requestId}/addBounty")]
     public async Task<IActionResult> AddBounty(int requestId, [FromForm] ulong amount)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _requestService.AddBountyAsync(requestId, amount, userId);
 
         if (!success)
@@ -61,7 +61,7 @@ public class RequestController : ControllerBase
     [HttpPost("{requestId}/fill/{torrentId}")]
     public async Task<IActionResult> FillRequest(int requestId, int torrentId)
     {
-        var fillerUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var fillerUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _requestService.FillRequestAsync(requestId, torrentId, fillerUserId);
 
         if (!success)

@@ -29,7 +29,7 @@ public class StoreController : ControllerBase
     [HttpPost("purchase/{itemId}")]
     public async Task<IActionResult> PurchaseItem(int itemId)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         _logger.LogInformation("User {UserId} is attempting to purchase item {ItemId}.", userId, itemId);
 
         var success = await _storeService.PurchaseItemAsync(userId, itemId);
