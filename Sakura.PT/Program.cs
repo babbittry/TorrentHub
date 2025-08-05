@@ -1,3 +1,5 @@
+using Sakura.PT.Entities;
+using Sakura.PT.Enums;
 using System.Text;
 using Elasticsearch.Net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -13,7 +15,7 @@ namespace Sakura.PT
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -126,14 +128,41 @@ namespace Sakura.PT
                 app.UseDeveloperExceptionPage(); // 添加详细异常页面
                 app.MapOpenApi();
                 app.MapScalarApiReference(); // scalar/v1
+
+                // Seed default admin user
+                using (var scope = app.Services.CreateScope())
+                {
+                    var services = scope.ServiceProvider;
+                    try
+                    {
+                        var context = services.GetRequiredService<ApplicationDbContext>();
+                        var logger = services.GetRequiredService<ILogger<Program>>();
+
+                        // 确保数据库已迁移到最新版本
+                        await context.Database.MigrateAsync();
+
+                        // Seed default admin user
+                        await DataSeeder.SeedDefaultAdminUserAsync(context, logger);
+
+                        // Seed invite codes
+                        await DataSeeder.SeedInviteCodesAsync(context, logger);
+
+                        // Seed test torrents
+                        await DataSeeder.SeedTorrentsAsync(context, logger);
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = services.GetRequiredService<ILogger<Program>>();
+                        logger.LogError(ex, "An error occurred while seeding the database.");
+                    }
+                }
             }
 
             app.UseHttpsRedirection();
 
             app.UseAuthentication();
             app.UseAuthorization();
-
-
+            
             app.MapControllers();
 
             app.Run();
