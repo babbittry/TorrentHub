@@ -56,7 +56,7 @@ namespace Sakura.PT.Data
                         CreatedAt = DateTime.UtcNow,
                         ExpiresAt = DateTime.UtcNow.AddDays(7), // 邀请码有效期7天
                         GeneratorUserId = adminUser.Id,
-                        GeneratorUser = adminUser // <-- 新增这一行
+                        GeneratorUser = adminUser
                     };
                     context.Invites.Add(invite);
                 }
@@ -84,7 +84,7 @@ namespace Sakura.PT.Data
                 {
                     var torrent = new Torrent
                     {
-                        InfoHash = Guid.NewGuid().ToString("N").Substring(0, 40), // 模拟InfoHash
+                        InfoHash = (Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")).Substring(0, 40), // 模拟InfoHash
                         Name = $"Test Torrent {i + 1}",
                         Description = $"This is a test torrent for seeding purposes {i + 1}.",
                         Category = TorrentCategory.Movie, // 示例分类

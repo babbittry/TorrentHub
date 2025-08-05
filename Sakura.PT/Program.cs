@@ -1,7 +1,4 @@
-using Sakura.PT.Entities;
-using Sakura.PT.Enums;
 using System.Text;
-using Elasticsearch.Net;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -10,6 +7,8 @@ using Sakura.PT.Data;
 using Sakura.PT.Services;
 using Scalar.AspNetCore;
 using StackExchange.Redis;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using HealthChecks.Redis;
 
 namespace Sakura.PT
 {
@@ -47,26 +46,25 @@ namespace Sakura.PT
             builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
             builder.Services.AddScoped<IElasticsearchService, ElasticsearchService>();
 
-            // Configure Garnet as distributed cache
-            builder.Services.AddStackExchangeRedisCache(options =>
+            // Configure Garnet with resilience and health checks
+            var garnetConnectionString = builder.Configuration.GetConnectionString("Garnet");
+            if (!string.IsNullOrEmpty(garnetConnectionString))
             {
-                var configString = builder.Configuration.GetSection("Garnet:Configuration").Value;
-                var username = builder.Configuration.GetSection("Garnet:Username").Value;
-                var password = builder.Configuration.GetSection("Garnet:Password").Value;
+                var configOptions = ConfigurationOptions.Parse(garnetConnectionString);
+                configOptions.AbortOnConnectFail = false; // Key setting for resilience
+                configOptions.ConnectRetry = 5;
+                configOptions.ConnectTimeout = 5000;
 
-                if (string.IsNullOrEmpty(configString)) return;
-                var configOptions = ConfigurationOptions.Parse(configString);
-                if (!string.IsNullOrEmpty(username))
+                builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(configOptions));
+                builder.Services.AddStackExchangeRedisCache(options =>
                 {
-                    configOptions.User = username;
-                }
-                if (!string.IsNullOrEmpty(password))
-                {
-                    configOptions.Password = password;
-                }
-                options.ConfigurationOptions = configOptions;
-                options.InstanceName = "SakuraPT:"; // Optional: prefix for cache keys
-            });
+                    options.ConfigurationOptions = configOptions;
+                    options.InstanceName = "SakuraPT:";
+                });
+
+                // Add Health Checks for Redis
+                builder.Services.AddHealthChecks().AddRedis(garnetConnectionString, name: "garnet-cache");
+            }
 
             // Configure SMTP Settings
             builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("SmtpSettings"));
@@ -164,6 +162,8 @@ namespace Sakura.PT
             app.UseAuthorization();
             
             app.MapControllers();
+
+            app.MapHealthChecks("/health");
 
             app.Run();
         }
