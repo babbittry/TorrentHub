@@ -13,6 +13,7 @@ Private Tracker back-end.
 - 配置系统
 - 缓存系统（目前采用 Garnet）
 - 种子搜索
+- 种子请求（愿望单）
 
 ## 未实现
 
