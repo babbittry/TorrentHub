@@ -54,6 +54,7 @@ namespace Sakura.PT
                 configOptions.AbortOnConnectFail = false; // Key setting for resilience
                 configOptions.ConnectRetry = 5;
                 configOptions.ConnectTimeout = 5000;
+                configOptions.ReconnectRetryPolicy = new ExponentialRetry(1000);
 
                 builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(configOptions));
                 builder.Services.AddStackExchangeRedisCache(options =>
