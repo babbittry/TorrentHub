@@ -400,3 +400,6 @@ FodyWeavers.xsd
 # JetBrains Rider
 *.sln.iml
 .idea
+
+Sakura.PT/appsettings.Development.json
+Sakura.PT/appsettings.json
