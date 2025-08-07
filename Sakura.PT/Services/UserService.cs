@@ -55,7 +55,7 @@ public class UserService : IUserService
         var userDto = Mapper.ToUserDto(user);
         _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
 
-        return new LoginResponseDto
+                return new LoginResponseDto
         {
             Token = token,
             User = userDto

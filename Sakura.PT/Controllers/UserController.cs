@@ -47,7 +47,18 @@ public class UserController : ControllerBase
         {
             var loginResponse = await _userService.LoginAsync(userForLoginDto);
             _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
-            return Ok(loginResponse);
+
+            // Set JWT as an HttpOnly cookie
+            Response.Cookies.Append("jwt", loginResponse.Token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true, // Only send the cookie over HTTPS
+                SameSite = SameSiteMode.Strict, // Protect against CSRF attacks
+                Expires = DateTime.UtcNow.AddDays(7) // Set cookie expiration
+            });
+
+            // Return user info without the token in the response body
+            return Ok(new { User = loginResponse.User });
         }
         catch (Exception ex)
         {
