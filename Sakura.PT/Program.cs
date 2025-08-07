@@ -27,6 +27,18 @@ namespace Sakura.PT
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
             
+            // Add CORS services
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowSpecificOrigin",
+                    builder =>
+                    {
+                        builder.WithOrigins("http://localhost:3000") // 允许前端的源
+                               .AllowAnyHeader()
+                               .AllowAnyMethod();
+                    });
+            });
+            
             // Add DbContext
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                   options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -158,6 +170,9 @@ namespace Sakura.PT
             }
 
             app.UseHttpsRedirection();
+
+            // Use CORS policy
+            app.UseCors("AllowSpecificOrigin");
 
             app.UseAuthentication();
             app.UseAuthorization();
