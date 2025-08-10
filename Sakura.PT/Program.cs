@@ -22,11 +22,12 @@ namespace Sakura.PT
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
                 {
-                    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+                    options.JsonSerializerOptions.Converters.Add(
+                        new System.Text.Json.Serialization.JsonStringEnumConverter());
                 });
             // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
             builder.Services.AddOpenApi();
-            
+
             // Add CORS services
             builder.Services.AddCors(options =>
             {
@@ -39,10 +40,10 @@ namespace Sakura.PT
                             .AllowCredentials(); // 允许凭据
                     });
             });
-            
+
             // Add DbContext
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                  options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             // Add custom services
             builder.Services.AddScoped<IUserService, UserService>();
@@ -113,37 +114,47 @@ namespace Sakura.PT
             builder.Services.AddHostedService<TopPlayersCacheRefreshService>();
 
             // Add Authentication
-            builder.Services.AddAuthentication(options =>
+            var jwtKey = builder.Configuration["Jwt:Key"];
+            if (string.IsNullOrEmpty(jwtKey))
             {
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            })
-            .AddJwtBearer(options =>
-{
-    options.RequireHttpsMetadata = false; // In production, this should be true
-    options.SaveToken = true;
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuerSigningKey = true,
-        IssuerSigningKey = new SymmetricSecurityKey(key),
-        ValidateIssuer = true,
-        ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidateAudience = true,
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        ValidateLifetime = true,
-        ClockSkew = TimeSpan.Zero
-    };
-    
-    // Configure the JWT bearer to read the token from the cookie
-    options.Events = new JwtBearerEvents
-    {
-        OnMessageReceived = context =>
-        {
-            context.Token = context.Request.Cookies["authToken"];
-            return Task.CompletedTask;
-        }
-    };
-});;
+                throw new InvalidOperationException(
+                    "JWT Key is not configured. Please set 'Jwt:Key' in your configuration file (e.g., appsettings.json).");
+            }
+
+            var key = Encoding.UTF8.GetBytes(jwtKey);
+
+            builder.Services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+                })
+                .AddJwtBearer(options =>
+                {
+                    options.RequireHttpsMetadata = false; // In production, this should be true
+                    options.SaveToken = true;
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(key),
+                        ValidateIssuer = true,
+                        ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                        ValidateAudience = true,
+                        ValidAudience = builder.Configuration["Jwt:Audience"],
+                        ValidateLifetime = true,
+                        ClockSkew = TimeSpan.Zero
+                    };
+
+                    // Configure the JWT bearer to read the token from the cookie
+                    options.Events = new JwtBearerEvents
+                    {
+                        OnMessageReceived = context =>
+                        {
+                            context.Token = context.Request.Cookies["authToken"];
+                            return Task.CompletedTask;
+                        }
+                    };
+                });
+            ;
 
             var app = builder.Build();
 
@@ -190,7 +201,7 @@ namespace Sakura.PT
 
             app.UseAuthentication();
             app.UseAuthorization();
-            
+
             app.MapControllers();
 
             app.MapHealthChecks("/health");
