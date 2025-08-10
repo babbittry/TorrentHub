@@ -14,11 +14,13 @@ public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly ILogger<UserController> _logger;
+    private readonly IWebHostEnvironment _env; // Add IWebHostEnvironment
 
-    public UserController(IUserService userService, ILogger<UserController> logger)
+    public UserController(IUserService userService, ILogger<UserController> logger, IWebHostEnvironment env)
     {
         _userService = userService;
         _logger = logger;
+        _env = env; // Initialize IWebHostEnvironment
     }
 
     [HttpPost("register")]
@@ -49,12 +51,13 @@ public class UserController : ControllerBase
             _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
 
             // Set JWT as an HttpOnly cookie
-            Response.Cookies.Append("jwt", loginResponse.Token, new CookieOptions
+            Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
             {
-                HttpOnly = true,
-                Secure = true, // Only send the cookie over HTTPS
-                SameSite = SameSiteMode.Strict, // Protect against CSRF attacks
-                Expires = DateTime.UtcNow.AddDays(7) // Set cookie expiration
+                HttpOnly = true, // Always true for security
+                Secure = !_env.IsDevelopment(), // Secure in production, not in development
+                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict, // Lax for both dev (cross-origin) and prod (balance security/usability)
+                Expires = DateTime.UtcNow.AddDays(7), // Set cookie expiration
+                Domain = "localhost"
             });
 
             // Return user info without the token in the response body
@@ -65,6 +68,25 @@ public class UserController : ControllerBase
             _logger.LogError(ex, "Login failed for user {UserName}: {ErrorMessage}", userForLoginDto.UserName, ex.Message);
             return Unauthorized(new { message = ex.Message });
         }
+    }
+    
+    [HttpGet("self")]
+    [Authorize]
+    public async Task<IActionResult> GetSelf()
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null)
+        {
+            // This case should be rare for an authenticated user, but it's good practice to handle it.
+            return NotFound("User not found.");
+        }
+
+        return Ok(Mapper.ToUserDto(user));
     }
 
     [HttpGet("{id:int}")]
