@@ -78,7 +78,7 @@ public class RequestService : IRequestService
     /// <param name="amount">The amount of SakuraCoins to add.</param>
     /// <param name="userId">The ID of the user adding the bounty.</param>
     /// <returns>A tuple indicating success and a message.</returns>
-    public async Task<(bool Success, string Message)> AddBountyAsync(int requestId, ulong amount, int userId)
+    public async Task<(bool Success, string Message)> AddBountyAsync(int requestId, AddBountyRequestDto addBountyRequestDto, int userId)
     {
         var user = await _context.Users.FindAsync(userId);
 
@@ -87,13 +87,13 @@ public class RequestService : IRequestService
             return (false, "User not found.");
         }
 
-        if (amount <= 0)
+        if (addBountyRequestDto.Amount <= 0)
         {
             return (false, "Bounty amount must be positive.");
         }
 
         // 检查用户是否有足够的樱花币
-        if (user.SakuraCoins < amount)
+        if (user.SakuraCoins < addBountyRequestDto.Amount)
         {
             return (false, "Insufficient SakuraCoins to add to bounty.");
         }
@@ -106,12 +106,12 @@ public class RequestService : IRequestService
         }
 
         // 从用户账户扣除樱花币，并增加到请求的总赏金中
-        user.SakuraCoins -= amount;
-        request.BountyAmount += amount;
+        user.SakuraCoins -= addBountyRequestDto.Amount;
+        request.BountyAmount += addBountyRequestDto.Amount;
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} added {Amount} SakuraCoins to request {RequestId}. New bounty: {NewBounty}.", userId, amount, requestId, request.BountyAmount);
+        _logger.LogInformation("User {UserId} added {Amount} SakuraCoins to request {RequestId}. New bounty: {NewBounty}.", userId, addBountyRequestDto.Amount, requestId, request.BountyAmount);
         return (true, "Bounty added successfully.");
     }
 
@@ -139,7 +139,7 @@ public class RequestService : IRequestService
     /// <param name="torrentId">The ID of the torrent fulfilling the request.</param>
     /// <param name="fillerUserId">The ID of the user filling the request.</param>
     /// <returns>A tuple indicating success and a message.</returns>
-    public async Task<(bool Success, string Message)> FillRequestAsync(int requestId, int torrentId, int fillerUserId)
+    public async Task<(bool Success, string Message)> FillRequestAsync(int requestId, FillRequestDto fillRequestDto, int fillerUserId)
     {
         var request = await _context.Requests.FindAsync(requestId);
         if (request == null || request.Status != RequestStatus.Pending)
@@ -147,7 +147,7 @@ public class RequestService : IRequestService
             return (false, "Request not found or already filled.");
         }
 
-        var torrent = await _context.Torrents.FindAsync(torrentId);
+        var torrent = await _context.Torrents.FindAsync(fillRequestDto.TorrentId);
         if (torrent == null)
         {
             return (false, "Torrent not found.");
@@ -155,15 +155,23 @@ public class RequestService : IRequestService
 
         // 更新请求的状态和相关信息
         request.Status = RequestStatus.Filled;
-        request.FilledWithTorrentId = torrentId;
+        request.FilledWithTorrentId = fillRequestDto.TorrentId;
         request.FilledByUserId = fillerUserId;
         request.FilledAt = DateTime.UtcNow;
         
-        await _userService.AddSakuraCoinsAsync(fillerUserId, _settings.FillRequestBonus + request.BountyAmount);
-        _logger.LogInformation("User {FillerUserId} filled request {RequestId} with torrent {TorrentId} and earned {Bonus} SakuraCoins. basic bonus: {FillRequestBonus} Bounty: {BountyAmount}", fillerUserId, requestId, torrentId, _settings.FillRequestBonus + request.BountyAmount, _settings.FillRequestBonus, request.BountyAmount);
+        await _userService.AddSakuraCoinsAsync(fillerUserId, new UpdateSakuraCoinsRequestDto { Amount = _settings.FillRequestBonus + request.BountyAmount });
+        _logger.LogInformation("User {FillerUserId} filled request {RequestId} with torrent {TorrentId} and earned {Bonus} SakuraCoins. basic bonus: {FillRequestBonus} Bounty: {BountyAmount}", fillerUserId, requestId, fillRequestDto.TorrentId, _settings.FillRequestBonus + request.BountyAmount, _settings.FillRequestBonus, request.BountyAmount);
         
         await _context.SaveChangesAsync();
 
         return (true, "Request successfully filled.");
+    }
+
+    public async Task<Request?> GetRequestByIdAsync(int requestId)
+    {
+        return await _context.Requests
+            .Include(r => r.RequestedByUser)
+            .Include(r => r.FilledByUser)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
     }
 }

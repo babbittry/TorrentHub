@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Sakura.PT.Data;
 using Sakura.PT.Entities;
+using Sakura.PT.DTOs;
 
 namespace Sakura.PT.Services;
 
@@ -20,7 +21,7 @@ public class CommentService : ICommentService
         _logger = logger;
     }
 
-    public async Task<(bool Success, string Message, Comment? Comment)> PostCommentAsync(int torrentId, string commentText, int userId)
+    public async Task<(bool Success, string Message, Comment? Comment)> PostCommentAsync(int torrentId, CreateCommentRequestDto request, int userId)
     {
         var today = DateTime.UtcNow.Date;
 
@@ -34,7 +35,7 @@ public class CommentService : ICommentService
         {
             TorrentId = torrentId,
             UserId = userId,
-            Text = commentText,
+            Text = request.Text,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -53,7 +54,7 @@ public class CommentService : ICommentService
         if (dailyStats.CommentBonusesGiven < _settings.MaxDailyCommentBonuses)
         {
             dailyStats.CommentBonusesGiven++;
-            await _userService.AddSakuraCoinsAsync(userId, _settings.CommentBonus);
+            await _userService.AddSakuraCoinsAsync(userId, new UpdateSakuraCoinsRequestDto { Amount = _settings.CommentBonus });
             _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId} and earned {Bonus} SakuraCoins. Daily count: {Count}", userId, torrentId, _settings.CommentBonus, dailyStats.CommentBonusesGiven);
         }
         else

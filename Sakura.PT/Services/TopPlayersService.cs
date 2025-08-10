@@ -34,7 +34,7 @@ public class TopPlayersService : ITopPlayersService
         _logger = logger;
     }
 
-    public async Task<List<UserDto>> GetTopPlayersAsync(TopPlayerType type)
+    public async Task<List<UserPublicProfileDto>> GetTopPlayersAsync(TopPlayerType type)
     {
         string cacheKey = type switch
         {
@@ -50,7 +50,7 @@ public class TopPlayersService : ITopPlayersService
         if (cachedData != null)
         {
             _logger.LogDebug("Retrieving top players from cache: {CacheKey}", cacheKey);
-            return JsonSerializer.Deserialize<List<UserDto>>(cachedData) ?? new List<UserDto>();
+            return JsonSerializer.Deserialize<List<UserPublicProfileDto>>(cachedData) ?? new List<UserPublicProfileDto>();
         }
 
         _logger.LogInformation("Cache miss for top players: {CacheKey}. Refreshing from DB.", cacheKey);
@@ -60,10 +60,10 @@ public class TopPlayersService : ITopPlayersService
         cachedData = await _cache.GetStringAsync(cacheKey);
         if (cachedData != null)
         {
-            return JsonSerializer.Deserialize<List<UserDto>>(cachedData) ?? new List<UserDto>();
+            return JsonSerializer.Deserialize<List<UserPublicProfileDto>>(cachedData) ?? new List<UserPublicProfileDto>();
         }
 
-        return new List<UserDto>(); // Should not happen if refresh is successful
+        return new List<UserPublicProfileDto>(); // Should not happen if refresh is successful
     }
 
     public async Task RefreshTopPlayersCacheAsync()
@@ -74,7 +74,7 @@ public class TopPlayersService : ITopPlayersService
         var topUploaded = await _context.Users
             .OrderByDescending(u => u.UploadedBytes)
             .Take(10) // Get top 10
-            .Select(u => Mapper.ToUserDto(u))
+            .Select(u => Mapper.ToUserPublicProfileDto(u))
             .ToListAsync();
         await _cache.SetStringAsync(TopUploadedKey, JsonSerializer.Serialize(topUploaded), _cacheOptions);
         _logger.LogInformation("Refreshed Top Uploaded Users cache.");
@@ -83,7 +83,7 @@ public class TopPlayersService : ITopPlayersService
         var topDownloaded = await _context.Users
             .OrderByDescending(u => u.DownloadedBytes)
             .Take(10)
-            .Select(u => Mapper.ToUserDto(u))
+            .Select(u => Mapper.ToUserPublicProfileDto(u))
             .ToListAsync();
         await _cache.SetStringAsync(TopDownloadedKey, JsonSerializer.Serialize(topDownloaded), _cacheOptions);
         _logger.LogInformation("Refreshed Top Downloaded Users cache.");
@@ -92,7 +92,7 @@ public class TopPlayersService : ITopPlayersService
         var topSakuraCoins = await _context.Users
             .OrderByDescending(u => u.SakuraCoins)
             .Take(10)
-            .Select(u => Mapper.ToUserDto(u))
+            .Select(u => Mapper.ToUserPublicProfileDto(u))
             .ToListAsync();
         await _cache.SetStringAsync(TopSakuraCoinsKey, JsonSerializer.Serialize(topSakuraCoins), _cacheOptions);
         _logger.LogInformation("Refreshed Top SakuraCoins Users cache.");
@@ -101,7 +101,7 @@ public class TopPlayersService : ITopPlayersService
         var topSeedingTime = await _context.Users
             .OrderByDescending(u => u.TotalSeedingTimeMinutes)
             .Take(10)
-            .Select(u => Mapper.ToUserDto(u))
+            .Select(u => Mapper.ToUserPublicProfileDto(u))
             .ToListAsync();
         await _cache.SetStringAsync(TopSeedingTimeKey, JsonSerializer.Serialize(topSeedingTime), _cacheOptions);
         _logger.LogInformation("Refreshed Top Seeding Time Users cache.");
@@ -122,7 +122,7 @@ public class TopPlayersService : ITopPlayersService
             .Join(_context.Users, // Join with Users table to get user details
                   peerGroup => peerGroup.UserId,
                   user => user.Id,
-                  (peerGroup, user) => Mapper.ToUserDto(user) // Map to UserDto
+                  (peerGroup, user) => Mapper.ToUserPublicProfileDto(user) // Map to UserDto
             )
             .ToListAsync();
         await _cache.SetStringAsync(TopSeedingSizeKey, JsonSerializer.Serialize(topSeedingSize), _cacheOptions);

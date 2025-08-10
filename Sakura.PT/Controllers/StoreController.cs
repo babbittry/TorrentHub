@@ -1,12 +1,15 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Sakura.PT.Services;
+using Sakura.PT.DTOs;
+using Sakura.PT.Mappers;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/store")]
 [Authorize]
 public class StoreController : ControllerBase
 {
@@ -20,13 +23,13 @@ public class StoreController : ControllerBase
     }
 
     [HttpGet("items")]
-    public async Task<IActionResult> GetStoreItems()
+    public async Task<ActionResult<List<StoreItemDto>>> GetStoreItems()
     {
         var items = await _storeService.GetAvailableItemsAsync();
-        return Ok(items);
+        return Ok(items.Select(i => Mapper.ToStoreItemDto(i)).ToList());
     }
 
-    [HttpPost("purchase/{itemId}")]
+    [HttpPost("items/{itemId}/purchase")]
     public async Task<IActionResult> PurchaseItem(int itemId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));

@@ -5,5 +5,5 @@ namespace Sakura.PT.Services;
 
 public interface ITorrentListingService
 {
-    Task<List<Torrent>> GetTorrentsAsync(TorrentFilterDto filter);
+    Task<List<TorrentDto>> GetTorrentsAsync(TorrentFilterDto filter);
 }

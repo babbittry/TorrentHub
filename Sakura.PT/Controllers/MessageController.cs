@@ -1,70 +1,73 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Sakura.PT.DTOs;
+using Sakura.PT.Mappers;
 using Sakura.PT.Services;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/messages")]
 [Authorize]
-public class MessageController : ControllerBase
+public class MessagesController : ControllerBase
 {
     private readonly IMessageService _messageService;
-    private readonly ILogger<MessageController> _logger;
+    private readonly ILogger<MessagesController> _logger;
 
-    public MessageController(IMessageService messageService, ILogger<MessageController> logger)
+    public MessagesController(IMessageService messageService, ILogger<MessagesController> logger)
     {
         _messageService = messageService;
         _logger = logger;
     }
 
-    [HttpPost("send")]
-    public async Task<IActionResult> SendMessage([FromForm] int receiverId, [FromForm] string subject, [FromForm] string content)
+    [HttpPost]
+    public async Task<IActionResult> SendMessage([FromBody] SendMessageRequestDto request)
     {
         var senderId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _messageService.SendMessageAsync(senderId, receiverId, subject, content);
+        var (success, message) = await _messageService.SendMessageAsync(senderId, request);
 
         if (!success)
         {
             _logger.LogWarning("Failed to send message: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
 
         return Ok(new { message = message });
     }
 
     [HttpGet("inbox")]
-    public async Task<IActionResult> GetInbox()
+    public async Task<ActionResult<List<MessageDto>>> GetInbox()
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var messages = await _messageService.GetInboxAsync(userId);
-        return Ok(messages);
+        return Ok(messages.Select(m => Mapper.ToMessageDto(m)).ToList());
     }
 
     [HttpGet("sent")]
-    public async Task<IActionResult> GetSentMessages()
+    public async Task<ActionResult<List<MessageDto>>> GetSentMessages()
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var messages = await _messageService.GetSentMessagesAsync(userId);
-        return Ok(messages);
+        return Ok(messages.Select(m => Mapper.ToMessageDto(m)).ToList());
     }
 
-    [HttpGet("{messageId}")]
-    public async Task<IActionResult> GetMessage(int messageId)
+    [HttpGet("{messageId:int}")]
+    public async Task<ActionResult<MessageDto>> GetMessage(int messageId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var message = await _messageService.GetMessageAsync(messageId, userId);
 
         if (message == null)
         {
-            return NotFound("Message not found or you are not authorized to view it.");
+            return NotFound(new { message = "Message not found or you are not authorized to view it." });
         }
 
-        return Ok(message);
+        return Ok(Mapper.ToMessageDto(message));
     }
 
-    [HttpPost("{messageId}/read")]
+    [HttpPatch("{messageId}/read")]
     public async Task<IActionResult> MarkAsRead(int messageId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
@@ -73,37 +76,22 @@ public class MessageController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Failed to mark message {MessageId} as read: {ErrorMessage}", messageId, message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
 
         return Ok(new { message = message });
     }
 
-    [HttpDelete("{messageId}/sender")]
-    public async Task<IActionResult> DeleteMessageAsSender(int messageId)
+    [HttpDelete("{messageId:int}")]
+    public async Task<IActionResult> DeleteMessage(int messageId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _messageService.DeleteMessageAsync(messageId, userId, true);
+        var (success, message) = await _messageService.DeleteMessageAsync(messageId, userId);
 
         if (!success)
         {
-            _logger.LogWarning("Failed to delete message {MessageId} as sender: {ErrorMessage}", messageId, message);
-            return BadRequest(message);
-        }
-
-        return Ok(new { message = message });
-    }
-
-    [HttpDelete("{messageId}/receiver")]
-    public async Task<IActionResult> DeleteMessageAsReceiver(int messageId)
-    {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _messageService.DeleteMessageAsync(messageId, userId, false);
-
-        if (!success)
-        {
-            _logger.LogWarning("Failed to delete message {MessageId} as receiver: {ErrorMessage}", messageId, message);
-            return BadRequest(message);
+            _logger.LogWarning("Failed to delete message {MessageId}: {ErrorMessage}", messageId, message);
+            return BadRequest(new { message = message });
         }
 
         return Ok(new { message = message });

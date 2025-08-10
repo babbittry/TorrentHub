@@ -5,6 +5,7 @@ using Sakura.PT.DTOs;
 using Sakura.PT.Entities;
 using Sakura.PT.Enums;
 using System.Text.Json;
+using Sakura.PT.Mappers;
 
 namespace Sakura.PT.Services;
 
@@ -23,7 +24,7 @@ public class TorrentListingService : ITorrentListingService
         _elasticsearchService = elasticsearchService;
     }
 
-    public async Task<List<Torrent>> GetTorrentsAsync(TorrentFilterDto filter)
+    public async Task<List<TorrentDto>> GetTorrentsAsync(TorrentFilterDto filter)
     {
         // Generate a unique cache key based on filter parameters
         var cacheKey = $"TorrentsList:{filter.PageNumber}:{filter.PageSize}:{filter.Category}:{filter.SearchTerm}:{filter.SortBy}:{filter.SortOrder}";
@@ -32,7 +33,7 @@ public class TorrentListingService : ITorrentListingService
         if (cachedData != null)
         {
             _logger.LogDebug("Retrieving torrents from cache for key: {CacheKey}", cacheKey);
-            return JsonSerializer.Deserialize<List<Torrent>>(cachedData) ?? new List<Torrent>();
+            return JsonSerializer.Deserialize<List<TorrentDto>>(cachedData) ?? new List<TorrentDto>();
         }
 
         _logger.LogInformation("Cache miss for torrents list for key: {CacheKey}. Querying DB.", cacheKey);
@@ -47,7 +48,7 @@ public class TorrentListingService : ITorrentListingService
 
         if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
-            return (await _elasticsearchService.SearchTorrentsAsync(filter.SearchTerm, filter.PageNumber, filter.PageSize)).ToList();
+            return (await _elasticsearchService.SearchTorrentsAsync(filter.SearchTerm, filter.PageNumber, filter.PageSize)).Select(t => Mapper.ToTorrentDto(t)).ToList();
         }
 
         // Apply sorting
@@ -65,13 +66,15 @@ public class TorrentListingService : ITorrentListingService
             .Take(filter.PageSize)
             .ToListAsync();
 
+        var torrentDtos = torrents.Select(t => Mapper.ToTorrentDto(t)).ToList();
+
         // Cache the result
         var cacheOptions = new DistributedCacheEntryOptions
         {
             AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) // Cache for 5 minutes
         };
-        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(torrents), cacheOptions);
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(torrentDtos), cacheOptions);
 
-        return torrents;
+        return torrentDtos;
     }
 }

@@ -52,13 +52,12 @@ public class UserService : IUserService
         }
 
         var token = GenerateJwtToken(user);
-        var userDto = Mapper.ToUserDto(user);
         _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
 
                 return new LoginResponseDto
         {
             Token = token,
-            User = userDto
+            User = user
         };
     }
 
@@ -137,7 +136,7 @@ public class UserService : IUserService
         return user;
     }
 
-    public async Task<bool> AddSakuraCoinsAsync(int userId, ulong amount)
+    public async Task<bool> AddSakuraCoinsAsync(int userId, UpdateSakuraCoinsRequestDto request)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
@@ -146,16 +145,10 @@ public class UserService : IUserService
             return false;
         }
 
-        user.SakuraCoins += amount;
-        if (user.SakuraCoins < 0)
-        {
-            user.SakuraCoins -= amount; // Revert if the balance would be negative
-            _logger.LogWarning("User {UserId} has insufficient SakuraCoins to perform this transaction.", userId);
-            return false;
-        }
+        user.SakuraCoins += request.Amount;
 
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Successfully added {Amount} SakuraCoins to user {UserId}. New balance: {Balance}", amount, userId, user.SakuraCoins);
+        _logger.LogInformation("Successfully added {Amount} SakuraCoins to user {UserId}. New balance: {Balance}", request.Amount, userId, user.SakuraCoins);
         return true;
     }
 

@@ -1,37 +1,39 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Sakura.PT.Entities;
+using Microsoft.Extensions.Logging;
+using Sakura.PT.DTOs;
+using Sakura.PT.Mappers;
 using Sakura.PT.Services;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/torrents/{torrentId}/[controller]")]
+[Route("api/torrents/{torrentId}/comments")]
 [Authorize]
-public class CommentController : ControllerBase
+public class CommentsController : ControllerBase
 {
     private readonly ICommentService _commentService;
-    private readonly ILogger<CommentController> _logger;
+    private readonly ILogger<CommentsController> _logger;
 
-    public CommentController(ICommentService commentService, ILogger<CommentController> logger)
+    public CommentsController(ICommentService commentService, ILogger<CommentsController> logger)
     {
         _commentService = commentService;
         _logger = logger;
     }
 
     [HttpPost]
-    public async Task<IActionResult> PostComment(int torrentId, [FromBody] Comment newComment)
+    public async Task<ActionResult<CommentDto>> PostComment(int torrentId, [FromBody] CreateCommentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message, comment) = await _commentService.PostCommentAsync(torrentId, newComment.Text, userId);
+        var (success, message, comment) = await _commentService.PostCommentAsync(torrentId, request, userId);
 
         if (!success)
         {
             _logger.LogWarning("Failed to post comment: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
 
-        return Ok(comment);
+        return Ok(Mapper.ToCommentDto(comment!));
     }
 }

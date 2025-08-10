@@ -1,35 +1,38 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
+using Sakura.PT.DTOs;
+using Sakura.PT.Mappers;
 using Sakura.PT.Enums;
 using Sakura.PT.Services;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/reports")]
 [Authorize]
-public class ReportController : ControllerBase
+public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
-    private readonly ILogger<ReportController> _logger;
+    private readonly ILogger<ReportsController> _logger;
 
-    public ReportController(IReportService reportService, ILogger<ReportController> logger)
+    public ReportsController(IReportService reportService, ILogger<ReportsController> logger)
     {
         _reportService = reportService;
         _logger = logger;
     }
 
-    [HttpPost("submit")]
-    public async Task<IActionResult> SubmitReport([FromForm] int torrentId, [FromForm] ReportReason reason, [FromForm] string? details)
+    [HttpPost]
+    public async Task<IActionResult> SubmitReport([FromBody] SubmitReportRequestDto request)
     {
         var reporterUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _reportService.SubmitReportAsync(torrentId, reporterUserId, reason, details);
+        var (success, message) = await _reportService.SubmitReportAsync(request, reporterUserId);
 
         if (!success)
         {
             _logger.LogWarning("Report submission failed: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
 
         return Ok(new { message = message });
@@ -37,31 +40,31 @@ public class ReportController : ControllerBase
 
     [HttpGet("pending")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<IActionResult> GetPendingReports()
+    public async Task<ActionResult<List<ReportDto>>> GetPendingReports()
     {
         var reports = await _reportService.GetPendingReportsAsync();
-        return Ok(reports);
+        return Ok(reports.Select(r => Mapper.ToReportDto(r)).ToList());
     }
 
     [HttpGet("processed")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<IActionResult> GetProcessedReports()
+    public async Task<ActionResult<List<ReportDto>>> GetProcessedReports()
     {
         var reports = await _reportService.GetProcessedReportsAsync();
-        return Ok(reports);
+        return Ok(reports.Select(r => Mapper.ToReportDto(r)).ToList());
     }
 
-    [HttpPost("{reportId}/process")]
+    [HttpPatch("{reportId}/process")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<IActionResult> ProcessReport(int reportId, [FromForm] string adminNotes, [FromForm] bool markAsProcessed)
+    public async Task<IActionResult> ProcessReport(int reportId, [FromBody] ProcessReportRequestDto request)
     {
         var processedByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _reportService.ProcessReportAsync(reportId, processedByUserId, adminNotes, markAsProcessed);
+        var (success, message) = await _reportService.ProcessReportAsync(reportId, processedByUserId, request);
 
         if (!success)
         {
             _logger.LogWarning("Report processing failed: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
 
         return Ok(new { message = message });

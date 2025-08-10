@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Sakura.PT.DTOs;
 using Sakura.PT.Mappers;
 using Sakura.PT.Services;
@@ -9,28 +9,29 @@ using Microsoft.AspNetCore.Authorization;
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
-public class UserController : ControllerBase
+[Route("api/users")]
+public class UsersController : ControllerBase
 {
     private readonly IUserService _userService;
-    private readonly ILogger<UserController> _logger;
-    private readonly IWebHostEnvironment _env; // Add IWebHostEnvironment
+    private readonly ILogger<UsersController> _logger;
+    private readonly IWebHostEnvironment _env;
 
-    public UserController(IUserService userService, ILogger<UserController> logger, IWebHostEnvironment env)
+    public UsersController(IUserService userService, ILogger<UsersController> logger, IWebHostEnvironment env)
     {
         _userService = userService;
         _logger = logger;
-        _env = env; // Initialize IWebHostEnvironment
+        _env = env;
     }
 
     [HttpPost("register")]
+    [AllowAnonymous]
     public async Task<IActionResult> Register(UserForRegistrationDto userForRegistrationDto)
     {
         _logger.LogInformation("Register request received for user: {UserName}", userForRegistrationDto.UserName);
         try
         {
             var newUser = await _userService.RegisterAsync(userForRegistrationDto);
-            var userDto = Mapper.ToUserDto(newUser);
+            var userDto = Mapper.ToUserPublicProfileDto(newUser);
             _logger.LogInformation("User {UserName} registered successfully.", userForRegistrationDto.UserName);
             return CreatedAtAction(nameof(GetUser), new { id = userDto.Id }, userDto);
         }
@@ -42,6 +43,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPost("login")]
+    [AllowAnonymous]
     public async Task<IActionResult> Login(UserForLoginDto userForLoginDto)
     {
         _logger.LogInformation("Login request received for user: {UserName}", userForLoginDto.UserName);
@@ -50,29 +52,29 @@ public class UserController : ControllerBase
             var loginResponse = await _userService.LoginAsync(userForLoginDto);
             _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
 
-            // Set JWT as an HttpOnly cookie
             Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
             {
-                HttpOnly = true, // Always true for security
-                Secure = !_env.IsDevelopment(), // Secure in production, not in development
-                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict, // Lax for both dev (cross-origin) and prod (balance security/usability)
-                Expires = DateTime.UtcNow.AddDays(7), // Set cookie expiration
+                HttpOnly = true,
+                Secure = !_env.IsDevelopment(),
+                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(7),
                 Domain = "localhost"
             });
+            
+            var userProfile = Mapper.ToUserPrivateProfileDto(loginResponse.User);
 
-            // Return user info without the token in the response body
-            return Ok(new { User = loginResponse.User });
+            return Ok(new { User = userProfile });
         }
         catch (Exception ex)
-        {
+        { 
             _logger.LogError(ex, "Login failed for user {UserName}: {ErrorMessage}", userForLoginDto.UserName, ex.Message);
             return Unauthorized(new { message = ex.Message });
         }
     }
-    
-    [HttpGet("self")]
+
+    [HttpGet("me")]
     [Authorize]
-    public async Task<IActionResult> GetSelf()
+    public async Task<ActionResult<UserPrivateProfileDto>> GetMyProfile()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
@@ -82,15 +84,15 @@ public class UserController : ControllerBase
         var user = await _userService.GetUserByIdAsync(userId);
         if (user == null)
         {
-            // This case should be rare for an authenticated user, but it's good practice to handle it.
             return NotFound("User not found.");
         }
 
-        return Ok(Mapper.ToUserDto(user));
+        return Ok(Mapper.ToUserPrivateProfileDto(user));
     }
 
     [HttpGet("{id:int}")]
-    public async Task<IActionResult> GetUser(int id)
+    [Authorize] // It's good practice to require auth to see user profiles
+    public async Task<ActionResult<UserPublicProfileDto>> GetUser(int id)
     {
         _logger.LogInformation("GetUser request received for id: {Id}", id);
         var user = await _userService.GetUserByIdAsync(id);
@@ -98,17 +100,18 @@ public class UserController : ControllerBase
         {
             return NotFound("User not found.");
         }
-        return Ok(Mapper.ToUserDto(user));
+        return Ok(Mapper.ToUserPublicProfileDto(user));
     }
 
     [HttpGet("{userId}/badges")]
+    [Authorize]
     public async Task<IActionResult> GetUserBadges(int userId)
     {
         var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
     }
 
-    [HttpGet("mybadges")]
+    [HttpGet("me/badges")]
     [Authorize]
     public async Task<IActionResult> GetMyBadges()
     {

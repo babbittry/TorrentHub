@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using Sakura.PT.Enums;
 using Sakura.PT.Services;
+using Sakura.PT.DTOs;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/top-players")]
 public class TopPlayersController : ControllerBase
 {
     private readonly ITopPlayersService _topPlayersService;
@@ -18,7 +20,7 @@ public class TopPlayersController : ControllerBase
     }
 
     [HttpGet("{type}")]
-    public async Task<IActionResult> GetTopPlayers(TopPlayerType type)
+    public async Task<ActionResult<List<UserPublicProfileDto>>> GetTopPlayers(TopPlayerType type)
     {
         try
         {
@@ -28,22 +30,21 @@ public class TopPlayersController : ControllerBase
         catch (ArgumentOutOfRangeException ex)
         {
             _logger.LogWarning(ex, "Invalid TopPlayerType requested: {Type}", type);
-            return BadRequest(ex.Message);
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "An error occurred while getting top players for type: {Type}", type);
-            return StatusCode(500, "An unexpected error occurred.");
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 
-    [HttpPost("refreshCache")]
-    // This endpoint should ideally be protected by admin/moderator roles
-    // [Authorize(Roles = "Administrator,Moderator")]
+    [HttpPost("refresh-cache")]
+    [Authorize(Roles = "Administrator,Moderator")]
     public async Task<IActionResult> RefreshCache()
     {
         _logger.LogInformation("Manual cache refresh requested for top players.");
         await _topPlayersService.RefreshTopPlayersCacheAsync();
-        return Ok("Top players cache refreshed.");
+        return Ok(new { message = "Top players cache refreshed." });
     }
 }

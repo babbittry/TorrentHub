@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using Sakura.PT.Data;
 using Sakura.PT.Entities;
+using Sakura.PT.DTOs;
 
 namespace Sakura.PT.Services;
 
@@ -29,12 +30,12 @@ public class AnnouncementService : IAnnouncementService
         _cache = cache;
     }
 
-    public async Task<(bool Success, string Message, Announcement? Announcement)> CreateAnnouncementAsync(string title, string content, int createdByUserId, bool sendToInbox)
+    public async Task<(bool Success, string Message, Announcement? Announcement)> CreateAnnouncementAsync(CreateAnnouncementRequestDto request, int createdByUserId)
     {
         var announcement = new Announcement
         {
-            Title = title,
-            Content = content,
+            Title = request.Title,
+            Content = request.Content,
             CreatedAt = DateTime.UtcNow,
             CreatedByUserId = createdByUserId
         };
@@ -42,22 +43,22 @@ public class AnnouncementService : IAnnouncementService
         _context.Announcements.Add(announcement);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Announcement '{Title}' created by user {CreatedByUserId}.", title, createdByUserId);
+        _logger.LogInformation("Announcement '{Title}' created by user {CreatedByUserId}.", request.Title, createdByUserId);
 
         // Invalidate cache after creating a new announcement
         await _cache.RemoveAsync(AnnouncementsCacheKey);
         _logger.LogInformation("Announcements cache invalidated.");
 
-        if (sendToInbox)
+        if (request.SendToInbox)
         {
             // Send to all active users via internal message system
             var allUserIds = await _context.Users.Select(u => u.Id).ToListAsync();
             foreach (var userId in allUserIds)
             {
                 // System message, senderId can be 0 or a dedicated system user ID
-                await _messageService.SendMessageAsync(0, userId, $"Announcement: {title}", content);
+                await _messageService.SendMessageAsync(0, new SendMessageRequestDto { ReceiverId = userId, Subject = $"Announcement: {request.Title}", Content = request.Content });
             }
-            _logger.LogInformation("Announcement '{Title}' sent to {UserCount} users via inbox.", title, allUserIds.Count);
+            _logger.LogInformation("Announcement '{Title}' sent to {UserCount} users via inbox.", request.Title, allUserIds.Count);
         }
 
         return (true, "Announcement created successfully.", announcement);
@@ -80,4 +81,5 @@ public class AnnouncementService : IAnnouncementService
         return announcements;
     }
 }
+
 

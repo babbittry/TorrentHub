@@ -1,18 +1,20 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Sakura.PT.Services;
+using Sakura.PT.DTOs;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/sakuracoins")]
 [Authorize(Roles = "Administrator,Moderator")] // Only allow authorized staff to access
-public class SakuraCoinController : ControllerBase
+public class SakuraCoinsController : ControllerBase
 {
     private readonly IUserService _userService;
-    private readonly ILogger<SakuraCoinController> _logger;
+    private readonly ILogger<SakuraCoinsController> _logger;
 
-    public SakuraCoinController(IUserService userService, ILogger<SakuraCoinController> logger)
+    public SakuraCoinsController(IUserService userService, ILogger<SakuraCoinsController> logger)
     {
         _userService = userService;
         _logger = logger;
@@ -22,21 +24,21 @@ public class SakuraCoinController : ControllerBase
     /// Adds or removes SakuraCoins for a specific user.
     /// </summary>
     /// <param name="userId">The ID of the user to modify.</param>
-    /// <param name="amount">The amount of coins to add (can be negative to remove).</param>
+    /// <param name="request">The DTO containing the amount of coins to add (can be negative to remove).</param>
     /// <returns>A confirmation message.</returns>
-    [HttpPost("add")]
-    public async Task<IActionResult> AddCoins(int userId, ulong amount)
+    [HttpPatch("{userId}")]
+    public async Task<IActionResult> UpdateCoins(int userId, [FromBody] UpdateSakuraCoinsRequestDto request)
     {
-        _logger.LogInformation("Attempting to add {Amount} SakuraCoins to user {UserId} by {AdminUserName}", amount, userId, User.Identity?.Name ?? "UnknownAdmin");
-        var result = await _userService.AddSakuraCoinsAsync(userId, amount);
+        _logger.LogInformation("Attempting to update {Amount} SakuraCoins for user {UserId} by {AdminUserName}", request.Amount, userId, User.Identity?.Name ?? "UnknownAdmin");
+        var result = await _userService.AddSakuraCoinsAsync(userId, request);
 
         if (!result)
         {
-            _logger.LogWarning("Failed to add SakuraCoins to user {UserId}.", userId);
-            return BadRequest("Failed to update SakuraCoins. User not found or insufficient balance.");
+            _logger.LogWarning("Failed to update SakuraCoins for user {UserId}.", userId);
+            return BadRequest(new { message = "Failed to update SakuraCoins. User not found or insufficient balance." });
         }
 
-        _logger.LogInformation("Successfully added {Amount} SakuraCoins to user {UserId}.", amount, userId);
-        return Ok("SakuraCoins updated successfully.");
+        _logger.LogInformation("Successfully updated {Amount} SakuraCoins for user {UserId}.", request.Amount, userId);
+        return Ok(new { message = "SakuraCoins updated successfully." });
     }
 }

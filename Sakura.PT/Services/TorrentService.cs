@@ -8,6 +8,7 @@ using Sakura.PT.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NpgsqlTypes;
+using Sakura.PT.DTOs;
 
 namespace Sakura.PT.Services;
 
@@ -31,9 +32,9 @@ public class TorrentService : ITorrentService
         _elasticsearchService = elasticsearchService;
     }
 
-    public async Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, string? description, TorrentCategory category, int userId)
+    public async Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
     {
-        _logger.LogInformation("Upload request received for file: {FileName}, category: {Category}, user: {UserId}", torrentFile.FileName, category, userId);
+        _logger.LogInformation("Upload request received for file: {FileName}, category: {Category}, user: {UserId}", torrentFile.FileName, request.Category, userId);
 
         if (torrentFile.Length == 0)
         {
@@ -55,13 +56,13 @@ public class TorrentService : ITorrentService
         try
         {
             var filePath = await SaveTorrentFile(torrentFile, infoHash);
-            var torrentEntity = await CreateTorrentEntity(torrent, description, category, filePath, userId);
+            var torrentEntity = await CreateTorrentEntity(torrent, request.Description, request.Category, filePath, userId);
 
             _context.Torrents.Add(torrentEntity);
             await _context.SaveChangesAsync();
 
             // Grant SakuraCoins to the uploader
-            await _userService.AddSakuraCoinsAsync(torrentEntity.UploadedByUserId, _sakuraCoinSettings.UploadTorrentBonus);
+            await _userService.AddSakuraCoinsAsync(torrentEntity.UploadedByUserId, new UpdateSakuraCoinsRequestDto { Amount = _sakuraCoinSettings.UploadTorrentBonus });
 
             // Index torrent in Elasticsearch
             await _elasticsearchService.IndexTorrentAsync(torrentEntity);
@@ -76,7 +77,7 @@ public class TorrentService : ITorrentService
         }
     }
 
-    public async Task<(bool Success, string Message)> SetFreeAsync(int torrentId, DateTime? freeUntil)
+    public async Task<(bool Success, string Message)> SetFreeAsync(int torrentId, DateTime freeUntil)
     {
         _logger.LogInformation("SetFree request received for torrentId: {TorrentId}, freeUntil: {FreeUntil}", torrentId, freeUntil);
         var torrent = await _context.Torrents.FindAsync(torrentId);
@@ -89,15 +90,15 @@ public class TorrentService : ITorrentService
         torrent.FreeUntil = freeUntil;
 
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) set to free until {FreeUntil}.", torrent.Name, torrentId, freeUntil?.ToString() ?? "forever");
+        _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) set to free until {FreeUntil}.", torrent.Name, torrentId, freeUntil.ToString());
 
-        return (true, $"Torrent {torrent.Name} set to free until {freeUntil?.ToString() ?? "forever"}.");
+        return (true, $"Torrent {torrent.Name} set to free until {freeUntil.ToString()}.");
     }
 
-    public async Task<(bool Success, string Message)> SetStickyAsync(int torrentId, TorrentStickyStatus status)
+    public async Task<(bool Success, string Message)> SetStickyAsync(int torrentId, SetStickyRequestDto request)
     {
-        _logger.LogInformation("SetSticky request received for torrentId: {TorrentId}, status: {Status}", torrentId, status);
-        if (status == TorrentStickyStatus.None)
+        _logger.LogInformation("SetSticky request received for torrentId: {TorrentId}, status: {Status}", torrentId, request.Status);
+        if (request.Status == TorrentStickyStatus.None)
         {
             return (false, "Cannot set sticky status to None using this endpoint. Use a dedicated unsticky endpoint if needed.");
         }
@@ -108,15 +109,15 @@ public class TorrentService : ITorrentService
             return (false, "Torrent not found.");
         }
 
-        torrent.StickyStatus = status;
+        torrent.StickyStatus = request.Status;
 
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) sticky status set to {Status}.", torrent.Name, torrentId, status);
+        _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) sticky status set to {Status}.", torrent.Name, torrentId, request.Status);
 
-        return (true, $"Torrent {torrent.Name} sticky status set to {status}.");
+        return (true, $"Torrent {torrent.Name} sticky status set to {request.Status}.");
     }
 
-    public async Task<(bool Success, string Message)> CompleteTorrentInfoAsync(int torrentId, string imdbId, int userId)
+    public async Task<(bool Success, string Message)> CompleteTorrentInfoAsync(int torrentId, CompleteInfoRequestDto request, int userId)
     {
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
@@ -129,13 +130,13 @@ public class TorrentService : ITorrentService
             return (false, "IMDb ID already exists for this torrent.");
         }
 
-        torrent.ImdbId = imdbId;
+        torrent.ImdbId = request.ImdbId;
 
-        await _userService.AddSakuraCoinsAsync(userId, _sakuraCoinSettings.CompleteInfoBonus);
+        await _userService.AddSakuraCoinsAsync(userId, new UpdateSakuraCoinsRequestDto { Amount = _sakuraCoinSettings.CompleteInfoBonus });
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} added IMDb ID {ImdbId} to torrent {TorrentId} and earned {Bonus} SakuraCoins.", userId, imdbId, torrentId, _sakuraCoinSettings.CompleteInfoBonus);
+        _logger.LogInformation("User {UserId} added IMDb ID {ImdbId} to torrent {TorrentId} and earned {Bonus} SakuraCoins.", userId, request.ImdbId, torrentId, _sakuraCoinSettings.CompleteInfoBonus);
 
         return (true, "IMDb ID added successfully.");
     }

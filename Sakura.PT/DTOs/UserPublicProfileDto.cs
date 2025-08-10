@@ -1,8 +1,8 @@
-﻿using Sakura.PT.Enums;
+using Sakura.PT.Enums;
 
 namespace Sakura.PT.DTOs;
 
-public class UserDto
+public class UserPublicProfileDto
 {
    public int Id { get; set; }
    public required string UserName { get; set; }

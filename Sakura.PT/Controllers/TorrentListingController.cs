@@ -2,11 +2,12 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Sakura.PT.DTOs;
 using Sakura.PT.Services;
+using Sakura.PT.Mappers;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/torrents/listing")]
 public class TorrentListingController : ControllerBase
 {
     private readonly ITorrentListingService _torrentListingService;
@@ -19,11 +20,11 @@ public class TorrentListingController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<IActionResult> GetTorrents([FromQuery] TorrentFilterDto filter)
+    public async Task<ActionResult<List<TorrentDto>>> GetTorrents([FromQuery] TorrentFilterDto filter)
     {
         if (filter.PageNumber < 1 || filter.PageSize < 1 || filter.PageSize > 100) // Basic validation
         {
-            return BadRequest("Invalid pagination parameters.");
+            return BadRequest(new { message = "Invalid pagination parameters." });
         }
 
         try
@@ -34,7 +35,7 @@ public class TorrentListingController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting torrents with filter: {Filter}", JsonSerializer.Serialize(filter));
-            return StatusCode(500, "An unexpected error occurred.");
+            return StatusCode(500, new { message = "An unexpected error occurred." });
         }
     }
 }

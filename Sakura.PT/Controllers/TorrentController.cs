@@ -1,70 +1,70 @@
-﻿
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Sakura.PT.Enums;
 using Sakura.PT.Services;
+using Sakura.PT.DTOs;
 
 namespace Sakura.PT.Controllers;
 
 [ApiController]
-[Route("[controller]")]
-public class TorrentController : ControllerBase
+[Route("api/torrents")]
+public class TorrentsController : ControllerBase
 {
     private readonly ITorrentService _torrentService;
-    private readonly ILogger<TorrentController> _logger;
+    private readonly ILogger<TorrentsController> _logger;
 
-    public TorrentController(ITorrentService torrentService, ILogger<TorrentController> logger)
+    public TorrentsController(ITorrentService torrentService, ILogger<TorrentsController> logger)
     {
         _torrentService = torrentService;
         _logger = logger;
     }
 
-    [HttpPost("upload")]
+    [HttpPost]
     [Authorize]
-    public async Task<IActionResult> Upload(IFormFile torrentFile, [FromForm] string? description, [FromForm] TorrentCategory category)
+    public async Task<IActionResult> Upload(IFormFile torrentFile, [FromForm] UploadTorrentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message, infoHash) = await _torrentService.UploadTorrentAsync(torrentFile, description, category, userId);
+        var (success, message, infoHash) = await _torrentService.UploadTorrentAsync(torrentFile, request, userId);
 
         if (!success)
         {
             _logger.LogWarning("Torrent upload failed: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
 
         _logger.LogInformation("Torrent uploaded successfully. InfoHash: {InfoHash}", infoHash);
         return Ok(new { message = message, infoHash = infoHash });
     }
 
-    [HttpPost("setFree/{torrentId}")]
+    [HttpPatch("{torrentId}/free")]
     [Authorize(Roles = "Administrator")] // Only administrators can set torrents as free
-    public async Task<IActionResult> SetFree(int torrentId, [FromQuery] DateTime? freeUntil)
+    public async Task<IActionResult> SetFree(int torrentId, [FromBody] DateTime freeUntil)
     {
         var (success, message) = await _torrentService.SetFreeAsync(torrentId, freeUntil);
         if (!success)
         {
             _logger.LogWarning("SetFree failed: {Message}", message);
-            return NotFound(message);
+            return NotFound(new { message = message });
         }
         return Ok(new { message = message });
     }
 
-    [HttpPost("setSticky/{torrentId}")]
+    [HttpPatch("{torrentId}/sticky")]
     [Authorize(Roles = "Administrator")] // Only administrators can set official sticky status
-    public async Task<IActionResult> SetSticky(int torrentId, [FromQuery] TorrentStickyStatus status)
+    public async Task<IActionResult> SetSticky(int torrentId, [FromBody] SetStickyRequestDto request)
     {
-        var (success, message) = await _torrentService.SetStickyAsync(torrentId, status);
+        var (success, message) = await _torrentService.SetStickyAsync(torrentId, request);
         if (!success)
         {
             _logger.LogWarning("SetSticky failed: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
         return Ok(new { message = message });
     }
 
-    [HttpGet("download/{torrentId}")]
+    [HttpGet("{torrentId}/download")]
     [Authorize]
     public async Task<IActionResult> Download(int torrentId)
     {
@@ -76,21 +76,21 @@ public class TorrentController : ControllerBase
         return fileStreamResult;
     }
 
-    [HttpPost("{torrentId}/completeInfo")]
+    [HttpPatch("{torrentId}/info")]
     [Authorize]
-    public async Task<IActionResult> CompleteInfo(int torrentId, [FromForm] string imdbId)
+    public async Task<IActionResult> CompleteInfo(int torrentId, [FromBody] CompleteInfoRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _torrentService.CompleteTorrentInfoAsync(torrentId, imdbId, userId);
+        var (success, message) = await _torrentService.CompleteTorrentInfoAsync(torrentId, request, userId);
         if (!success)
         {
             _logger.LogWarning("CompleteInfo failed: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
         return Ok(new { message = message });
     }
 
-    [HttpPost("{torrentId}/applyFreeleech")]
+    [HttpPatch("{torrentId}/freeleech")]
     [Authorize]
     public async Task<IActionResult> ApplyFreeleech(int torrentId)
     {
@@ -99,9 +99,8 @@ public class TorrentController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("ApplyFreeleech failed: {Message}", message);
-            return BadRequest(message);
+            return BadRequest(new { message = message });
         }
         return Ok(new { message = message });
     }
 }
-

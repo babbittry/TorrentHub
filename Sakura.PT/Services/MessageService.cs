@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Sakura.PT.Data;
 using Sakura.PT.Entities;
+using Sakura.PT.DTOs;
 
 namespace Sakura.PT.Services;
 
@@ -23,15 +24,15 @@ public class MessageService : IMessageService
     /// <param name="subject">The subject of the message.</param>
     /// <param name="content">The content of the message.</param>
     /// <returns>A tuple indicating success and a message.</returns>
-    public async Task<(bool Success, string Message)> SendMessageAsync(int senderId, int receiverId, string subject, string content)
+    public async Task<(bool Success, string Message)> SendMessageAsync(int senderId, SendMessageRequestDto request)
     {
         // 1. Validate sender and receiver existence.
         var sender = await _context.Users.FindAsync(senderId);
-        var receiver = await _context.Users.FindAsync(receiverId);
+        var receiver = await _context.Users.FindAsync(request.ReceiverId);
 
         if (sender == null || receiver == null)
         {
-            _logger.LogWarning("Message send failed: Sender {SenderId} or Receiver {ReceiverId} not found.", senderId, receiverId);
+            _logger.LogWarning("Message send failed: Sender {SenderId} or Receiver {ReceiverId} not found.", senderId, request.ReceiverId);
             return (false, "Sender or receiver not found.");
         }
 
@@ -39,9 +40,9 @@ public class MessageService : IMessageService
         var message = new Message
         {
             SenderId = senderId,
-            ReceiverId = receiverId,
-            Subject = subject,
-            Content = content,
+            ReceiverId = request.ReceiverId,
+            Subject = request.Subject,
+            Content = request.Content,
             SentAt = DateTime.UtcNow,
             IsRead = false // New messages are unread by default.
         };
@@ -50,7 +51,7 @@ public class MessageService : IMessageService
         _context.Messages.Add(message);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Message sent from {SenderId} to {ReceiverId} with subject '{Subject}'.", senderId, receiverId, subject);
+        _logger.LogInformation("Message sent from {SenderId} to {ReceiverId} with subject '{Subject}'.", senderId, request.ReceiverId, request.Subject);
         return (true, "Message sent successfully.");
     }
 
@@ -113,7 +114,7 @@ public class MessageService : IMessageService
     /// <param name="userId">The ID of the user performing the deletion.</param>
     /// <param name="isSender">True if the user is the sender, false if the user is the receiver.</param>
     /// <returns>A tuple indicating success and a message.</returns>
-    public async Task<(bool Success, string Message)> DeleteMessageAsync(int messageId, int userId, bool isSender)
+    public async Task<(bool Success, string Message)> DeleteMessageAsync(int messageId, int userId)
     {
         // 1. Find the message by its ID.
         var message = await _context.Messages.FindAsync(messageId);
@@ -123,17 +124,17 @@ public class MessageService : IMessageService
         }
 
         // 2. Mark the message as deleted based on who is deleting it (sender or receiver).
-        if (isSender && message.SenderId == userId)
+        if (message.SenderId == userId)
         {
             message.SenderDeleted = true;
         }
-        else if (!isSender && message.ReceiverId == userId)
+        else if (message.ReceiverId == userId)
         {
             message.ReceiverDeleted = true;
         }
         else
         {
-            // User is neither sender nor receiver, or trying to delete for the wrong role.
+            // User is neither sender nor receiver.
             return (false, "You are not authorized to delete this message.");
         }
 
@@ -146,7 +147,7 @@ public class MessageService : IMessageService
 
         // 4. Save changes to the database.
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Message {MessageId} marked as deleted by user {UserId} (isSender: {IsSender}).", messageId, userId, isSender);
+        _logger.LogInformation("Message {MessageId} marked as deleted by user {UserId}.", messageId, userId);
         return (true, "Message deleted successfully.");
     }
 }
