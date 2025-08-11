@@ -38,7 +38,9 @@ public class TorrentListingService : ITorrentListingService
 
         _logger.LogInformation("Cache miss for torrents list for key: {CacheKey}. Querying DB.", cacheKey);
 
-        IQueryable<Torrent> query = _context.Torrents.Where(t => !t.IsDeleted);
+        IQueryable<Torrent> query = _context.Torrents
+            .Include(t => t.UploadedByUser) // Include the uploader's information
+            .Where(t => !t.IsDeleted);
 
         // Apply filters
         if (filter.Category.HasValue)

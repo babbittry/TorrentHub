@@ -189,14 +189,7 @@ namespace Sakura.PT
                         // 确保数据库已迁移到最新版本
                         await context.Database.MigrateAsync();
 
-                        // Seed default admin user
-                        await DataSeeder.SeedDefaultAdminUserAsync(context, logger);
-
-                        // Seed invite codes
-                        await DataSeeder.SeedInviteCodesAsync(context, logger);
-
-                        // Seed test torrents
-                        await DataSeeder.SeedTorrentsAsync(context, logger);
+                                                await DataSeeder.SeedAllDataAsync(context, logger);
                     }
                     catch (Exception ex)
                     {
