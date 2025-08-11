@@ -1,10 +1,11 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Sakura.PT.Enums;
 using Sakura.PT.Services;
 using Sakura.PT.DTOs;
+using Sakura.PT.Mappers;
 
 namespace Sakura.PT.Controllers;
 
@@ -36,6 +37,30 @@ public class TorrentsController : ControllerBase
 
         _logger.LogInformation("Torrent uploaded successfully. InfoHash: {InfoHash}", infoHash);
         return Ok(new { message = message, infoHash = infoHash });
+    }
+
+    [HttpGet("{id:int}")]
+    public async Task<ActionResult<TorrentDto>> GetTorrent(int id)
+    {
+        var torrent = await _torrentService.GetTorrentByIdAsync(id);
+        if (torrent == null)
+        {
+            return NotFound("Torrent not found.");
+        }
+        return Ok(Mapper.ToTorrentDto(torrent));
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteTorrent(int id)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
+        var (success, message) = await _torrentService.DeleteTorrentAsync(id, userId);
+        if (!success)
+        {
+            return BadRequest(new { message = message });
+        }
+        return Ok(new { message = message });
     }
 
     [HttpPatch("{torrentId}/free")]

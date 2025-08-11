@@ -25,4 +25,6 @@ public class Comment
 
     [Required]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime? EditedAt { get; set; }
 }

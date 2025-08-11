@@ -7,4 +7,5 @@ public class CommentDto
     public int TorrentId { get; set; }
     public UserPublicProfileDto? User { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? EditedAt { get; set; }
 }

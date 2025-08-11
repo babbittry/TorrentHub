@@ -16,6 +16,9 @@ public class SakuraCoinSettings
     public int FreeleechDurationHours { get; set; } = 24;
     public double TransactionTaxRate { get; set; } = 0.1; // 10%
 
+    public ulong InvitePrice { get; set; } = 1000UL; // Price to generate an invite
+    public int InviteExpirationDays { get; set; } = 7; // Invites expire in 7 days
+
     // H&R Exemption Durations (in hours) per UserRole
     public int UserHRExemptionHours { get; set; } = 24; // Default for User
     public int PowerUserHRExemptionHours { get; set; } = 48;

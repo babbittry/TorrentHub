@@ -14,4 +14,6 @@ public interface ITorrentService
     Task<(bool Success, string Message)> CompleteTorrentInfoAsync(int torrentId, CompleteInfoRequestDto request, int userId);
     Task<(bool Success, string Message)> ApplyFreeleechAsync(int torrentId, int userId);
     Task<FileStreamResult?> DownloadTorrentAsync(int torrentId);
+    Task<Torrent?> GetTorrentByIdAsync(int torrentId);
+    Task<(bool Success, string Message)> DeleteTorrentAsync(int torrentId, int userId);
 }

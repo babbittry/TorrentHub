@@ -32,7 +32,7 @@ public class Invite
     /// </summary>
     [ForeignKey(nameof(GeneratorUserId))]
     [InverseProperty(nameof(User.GeneratedInvites))]
-    public required User GeneratorUser { get; set; }
+    public User? GeneratorUser { get; set; }
 
     /// <summary>
     /// Navigation property for the user who used the invite.

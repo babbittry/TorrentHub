@@ -77,6 +77,43 @@ public class TorrentService : ITorrentService
         }
     }
 
+    public async Task<Sakura.PT.Entities.Torrent?> GetTorrentByIdAsync(int torrentId)
+    {
+        return await _context.Torrents
+            .Include(t => t.UploadedByUser)
+            .FirstOrDefaultAsync(t => t.Id == torrentId);
+    }
+
+    public async Task<(bool Success, string Message)> DeleteTorrentAsync(int torrentId, int userId)
+    {
+        var torrent = await _context.Torrents.FindAsync(torrentId);
+        if (torrent == null)
+        {
+            return (false, "Torrent not found.");
+        }
+
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null)
+        {
+            return (false, "User not found.");
+        }
+
+        // Only the uploader or an admin can delete the torrent
+        if (torrent.UploadedByUserId != userId && user.Role != UserRole.Administrator)
+        {
+            return (false, "Unauthorized to delete this torrent.");
+        }
+
+        _context.Torrents.Remove(torrent);
+        await _context.SaveChangesAsync();
+
+        // Delete from Elasticsearch
+        await _elasticsearchService.DeleteTorrentAsync(torrentId);
+
+        _logger.LogInformation("Torrent {TorrentId} deleted by user {UserId}.", torrentId, userId);
+        return (true, "Torrent deleted successfully.");
+    }
+
     public async Task<(bool Success, string Message)> SetFreeAsync(int torrentId, DateTime freeUntil)
     {
         _logger.LogInformation("SetFree request received for torrentId: {TorrentId}, freeUntil: {FreeUntil}", torrentId, freeUntil);
@@ -251,7 +288,7 @@ public class TorrentService : ITorrentService
         }
     }
     
-    private async Task<Entities.Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, string? description, TorrentCategory category, string filePath, int userId)
+    private async Task<Sakura.PT.Entities.Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, string? description, TorrentCategory category, string filePath, int userId)
     {
         _logger.LogDebug("Creating torrent entity for {TorrentName} (InfoHash: {InfoHash}).", torrent.DisplayName, torrent.GetInfoHash());
         var user = await _context.Users.FindAsync(userId);
@@ -261,7 +298,7 @@ public class TorrentService : ITorrentService
             throw new Exception("User not found");
         } 
         
-        return new Entities.Torrent
+        return new Sakura.PT.Entities.Torrent
         {
             Name = torrent.DisplayName,
             InfoHash = torrent.GetInfoHash(),

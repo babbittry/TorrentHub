@@ -1,8 +1,9 @@
 using System.Text;
+using Elastic.Clients.Elasticsearch;
+using Elastic.Transport;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Nest;
 using Sakura.PT.Data;
 using Sakura.PT.Services;
 using Scalar.AspNetCore;
@@ -59,6 +60,7 @@ namespace Sakura.PT
             builder.Services.AddScoped<ITopPlayersService, TopPlayersService>();
             builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
             builder.Services.AddScoped<IElasticsearchService, ElasticsearchService>();
+            builder.Services.AddScoped<IStatsService, StatsService>();
 
             // Configure Garnet with resilience and health checks
             var garnetConnectionString = builder.Configuration.GetConnectionString("Garnet");
@@ -101,12 +103,22 @@ namespace Sakura.PT
                 throw new InvalidOperationException("Elasticsearch URI is not configured.");
             }
 
-            var settings = new ConnectionSettings(new Uri(esUri))
-                .DefaultIndex("torrents")
-                .BasicAuthentication(esUsername, esPassword);
+            if (string.IsNullOrEmpty(esUsername))
+            {
+                throw new InvalidOperationException("Elasticsearch Username is not configured.");
+            }
 
-            var client = new ElasticClient(settings);
-            builder.Services.AddSingleton<IElasticClient>(client);
+            if (string.IsNullOrEmpty(esPassword))
+            {
+                throw new InvalidOperationException("Elasticsearch Password is not configured.");
+            }
+
+            var settings = new ElasticsearchClientSettings(new Uri(esUri))
+                .DefaultIndex("torrents")
+                .Authentication(new BasicAuthentication(esUsername, esPassword));
+
+            var client = new ElasticsearchClient(settings);
+            builder.Services.AddSingleton(client);
 
             // Add background services
             builder.Services.AddHostedService<SakuraCoinGenerationService>();

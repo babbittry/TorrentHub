@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel;
 using Sakura.PT.Enums;
@@ -42,6 +42,12 @@ public class User
     /// </summary>
     [StringLength(512)]
     public string? Avatar { get; set; }
+
+    /// <summary>
+    /// User's signature.
+    /// </summary>
+    [StringLength(500)]
+    public string? Signature { get; set; }
 
     /// <summary>
     /// User's preferred language.
@@ -97,6 +103,16 @@ public class User
     [Required]
     [DefaultValue(false)]
     public bool IsBanned { get; set; } = false;
+
+    /// <summary>
+    /// Reason for the ban.
+    /// </summary>
+    public UserBanReason? BanReason { get; set; }
+
+    /// <summary>
+    /// Date and time until the ban is active.
+    /// </summary>
+    public DateTime? BanUntil { get; set; }
 
     /// <summary>
     /// Number of invites the user can generate.

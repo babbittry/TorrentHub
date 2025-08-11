@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using Sakura.PT.Enums;
 
 namespace Sakura.PT.Services;
 
@@ -221,5 +222,112 @@ public class UserService : IUserService
             .ToListAsync();
         await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(badges), _cacheOptions);
         return badges;
+    }
+
+    public async Task<User> UpdateUserProfileAsync(int userId, UpdateUserProfileDto profileDto)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User with ID {UserId} not found for profile update.", userId);
+            throw new Exception("User not found.");
+        }
+
+        Mapper.MapTo(profileDto, user);
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User profile for {UserId} updated successfully.", userId);
+        return user;
+    }
+
+    public async Task ChangePasswordAsync(int userId, ChangePasswordDto changePasswordDto)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User with ID {UserId} not found for password change.", userId);
+            throw new Exception("User not found.");
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(changePasswordDto.CurrentPassword, user.PasswordHash))
+        {
+            _logger.LogWarning("Password change failed for user {UserId}: Invalid current password.", userId);
+            throw new Exception("Invalid current password.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(changePasswordDto.NewPassword);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Password for user {UserId} changed successfully.", userId);
+    }
+
+    public async Task<IEnumerable<User>> GetUsersAsync(int page, int pageSize, string? searchTerm)
+    {
+        var query = _context.Users.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+        {
+            query = query.Where(u => u.UserName.Contains(searchTerm) || u.Email.Contains(searchTerm));
+        }
+
+        return await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+    }
+
+    public async Task<User> UpdateUserByAdminAsync(int userId, UpdateUserAdminDto updateUserAdminDto)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User with ID {UserId} not found for admin update.", userId);
+            throw new Exception("User not found.");
+        }
+
+        Mapper.MapTo(updateUserAdminDto, user);
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User {UserId} updated by admin successfully.", userId);
+        return user;
+    }
+
+    public async Task<IEnumerable<Invite>> GetUserInvitesAsync(int userId)
+    {
+        return await _context.Invites
+            .Where(i => i.GeneratorUserId == userId)
+            .Include(i => i.UsedByUser) // Include the user who used the invite
+            .ToListAsync();
+    }
+
+    public async Task<Invite> GenerateInviteAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("User with ID {UserId} not found for invite generation.", userId);
+            throw new Exception("User not found.");
+        }
+
+        // Check if user has enough SakuraCoins to generate an invite
+        if (user.SakuraCoins < _sakuraCoinSettings.InvitePrice)
+        {
+            _logger.LogWarning("User {UserId} does not have enough SakuraCoins to generate an invite. Required: {Required}, Has: {Has}", userId, _sakuraCoinSettings.InvitePrice, user.SakuraCoins);
+            throw new Exception("Insufficient SakuraCoins to generate an invite.");
+        }
+
+        // Deduct coins
+        user.SakuraCoins -= _sakuraCoinSettings.InvitePrice;
+
+        var newInvite = new Invite
+        {
+            Code = Guid.NewGuid().ToString("N").Substring(0, 16),
+            GeneratorUserId = userId,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(_sakuraCoinSettings.InviteExpirationDays)
+        };
+
+        _context.Invites.Add(newInvite);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} for {Price} SakuraCoins.", userId, newInvite.Code, _sakuraCoinSettings.InvitePrice);
+
+        return newInvite;
     }
 }

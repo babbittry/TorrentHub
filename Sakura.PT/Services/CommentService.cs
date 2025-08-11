@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Sakura.PT.Data;
 using Sakura.PT.Entities;
 using Sakura.PT.DTOs;
+using Sakura.PT.Enums;
 
 namespace Sakura.PT.Services;
 
@@ -65,5 +66,60 @@ public class CommentService : ICommentService
         await _context.SaveChangesAsync();
 
         return (true, "Comment posted successfully.", newComment);
+    }
+
+    public async Task<IEnumerable<Comment>> GetCommentsForTorrentAsync(int torrentId, int page, int pageSize)
+    {
+        return await _context.Comments
+            .Where(c => c.TorrentId == torrentId)
+            .OrderBy(c => c.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(c => c.User) // Include user information
+            .ToListAsync();
+    }
+
+    public async Task<(bool Success, string Message)> UpdateCommentAsync(int commentId, UpdateCommentRequestDto request, int userId)
+    {
+        var comment = await _context.Comments.FindAsync(commentId);
+        if (comment == null)
+        {
+            return (false, "Comment not found.");
+        }
+
+        // Only the owner or an admin can update the comment
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null || (comment.UserId != userId && user.Role != UserRole.Administrator))
+        {
+            return (false, "Unauthorized to update this comment.");
+        }
+
+        comment.Text = request.Content;
+        comment.EditedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Comment {CommentId} updated by user {UserId}.", commentId, userId);
+        return (true, "Comment updated successfully.");
+    }
+
+    public async Task<(bool Success, string Message)> DeleteCommentAsync(int commentId, int userId)
+    {
+        var comment = await _context.Comments.FindAsync(commentId);
+        if (comment == null)
+        {
+            return (false, "Comment not found.");
+        }
+
+        // Only the owner or an admin can delete the comment
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null || (comment.UserId != userId && user.Role != UserRole.Administrator))
+        {
+            return (false, "Unauthorized to delete this comment.");
+        }
+
+        _context.Comments.Remove(comment);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Comment {CommentId} deleted by user {UserId}.", commentId, userId);
+        return (true, "Comment deleted successfully.");
     }
 }

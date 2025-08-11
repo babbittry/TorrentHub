@@ -5,6 +5,7 @@ using Sakura.PT.Services;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Sakura.PT.Enums;
 
 namespace Sakura.PT.Controllers;
 
@@ -72,6 +73,48 @@ public class UsersController : ControllerBase
         }
     }
 
+    [HttpPatch("me")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateUserProfileDto profileDto)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            var updatedUser = await _userService.UpdateUserProfileAsync(userId, profileDto);
+            return Ok(Mapper.ToUserPrivateProfileDto(updatedUser));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update user profile for {UserId}: {ErrorMessage}", userId, ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("me/password")]
+    [Authorize]
+    public async Task<IActionResult> ChangeMyPassword([FromBody] ChangePasswordDto changePasswordDto)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            await _userService.ChangePasswordAsync(userId, changePasswordDto);
+            return Ok(new { message = "Password changed successfully." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to change password for {UserId}: {ErrorMessage}", userId, ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<UserPrivateProfileDto>> GetMyProfile()
@@ -88,6 +131,35 @@ public class UsersController : ControllerBase
         }
 
         return Ok(Mapper.ToUserPrivateProfileDto(user));
+    }
+
+    [HttpGet]
+    [Authorize(Roles = nameof(UserRole.Administrator))]
+    public async Task<ActionResult<IEnumerable<UserPublicProfileDto>>> GetUsers(
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 10, 
+        [FromQuery] string? searchTerm = null)
+    {
+        var users = await _userService.GetUsersAsync(page, pageSize, searchTerm);
+        return Ok(users.Select(Mapper.ToUserPublicProfileDto));
+    }
+
+    [HttpPatch("{id:int}")]
+    [Authorize(Roles = nameof(UserRole.Administrator))]
+    public async Task<IActionResult> UpdateUser(
+        int id, 
+        [FromBody] UpdateUserAdminDto updateUserAdminDto)
+    {
+        try
+        {
+            var updatedUser = await _userService.UpdateUserByAdminAsync(id, updateUserAdminDto);
+            return Ok(Mapper.ToUserPublicProfileDto(updatedUser));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update user {UserId} by admin: {ErrorMessage}", id, ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id:int}")]
