@@ -7,7 +7,7 @@ Private Tracker back-end.
 - 邮箱系统
 - 种子举报
 - 种子置顶、种子免费
-- 用户积分（SakuraCoin）获取、消费
+- 用户积分（Coin）获取、消费
 - 公告系统
 - 用户等级系统
 - 配置系统

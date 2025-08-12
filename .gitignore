@@ -401,5 +401,5 @@ FodyWeavers.xsd
 *.sln.iml
 .idea
 
-Sakura.PT/appsettings.Development.json
-Sakura.PT/appsettings.json
+TorrentHub/appsettings.Development.json
+TorrentHub/appsettings.json
