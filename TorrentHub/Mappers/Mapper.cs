@@ -91,7 +91,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
-    [MapperIgnoreSource(nameof(Torrent.Category))]
     [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
     public static partial TorrentDto ToTorrentDto(Torrent torrent);
 

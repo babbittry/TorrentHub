@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel;
 using NpgsqlTypes;
@@ -100,9 +100,37 @@ public class Torrent
     [DefaultValue(TorrentStickyStatus.None)]
     public TorrentStickyStatus StickyStatus { get; set; } = TorrentStickyStatus.None;
 
-    /// <summary>
-    /// IMDb ID for the movie or series.
-    /// </summary>
+    // --- TMDb Fields ---
+
     [StringLength(15)]
     public string? ImdbId { get; set; }
+
+    public int? TMDbId { get; set; }
+
+    [StringLength(255)]
+    public string? OriginalTitle { get; set; }
+
+    [StringLength(1024)]
+    public string? Tagline { get; set; }
+    
+    public int? Year { get; set; }
+
+    [StringLength(255)]
+    public string? PosterPath { get; set; }
+
+    [StringLength(255)]
+    public string? BackdropPath { get; set; }
+    
+    public int? Runtime { get; set; }
+
+    [StringLength(255)]
+    public string? Genres { get; set; }
+
+    [StringLength(255)]
+    public string? Directors { get; set; }
+
+    [StringLength(1024)]
+    public string? Cast { get; set; }
+
+    public double? Rating { get; set; }
 }

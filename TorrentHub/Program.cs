@@ -93,6 +93,10 @@ namespace TorrentHub
             // Configure Torrent Settings
             builder.Services.Configure<TorrentSettings>(builder.Configuration.GetSection("TorrentSettings"));
 
+            // Configure TMDb Settings and Service
+            builder.Services.Configure<TMDbSettings>(builder.Configuration.GetSection("TMDbSettings"));
+            builder.Services.AddHttpClient<ITMDbService, TMDbService>();
+
             // Configure Elasticsearch
             var esUri = builder.Configuration["Elasticsearch:Uri"];
             var esUsername = builder.Configuration["Elasticsearch:Username"];
@@ -185,11 +189,12 @@ namespace TorrentHub
                     {
                         var context = services.GetRequiredService<ApplicationDbContext>();
                         var logger = services.GetRequiredService<ILogger<Program>>();
+                        var tmdbService = services.GetRequiredService<ITMDbService>();
 
                         // 确保数据库已迁移到最新版本
                         await context.Database.MigrateAsync();
 
-                                                await DataSeeder.SeedAllDataAsync(context, logger);
+                        await DataSeeder.SeedAllDataAsync(context, logger, tmdbService);
                     }
                     catch (Exception ex)
                     {

@@ -17,13 +17,14 @@ public class TorrentService : ITorrentService
 {
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
+    private readonly ITMDbService _tmdbService;
     private readonly CoinSettings _coinSettings;
     private readonly ILogger<TorrentService> _logger;
     private readonly TorrentSettings _torrentSettings;
     private readonly IElasticsearchService _elasticsearchService;
     private readonly BencodeParser _bencodeParser = new();
 
-    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> coinSettings, ILogger<TorrentService> logger, IOptions<TorrentSettings> torrentSettings, IElasticsearchService elasticsearchService)
+    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> coinSettings, ILogger<TorrentService> logger, IOptions<TorrentSettings> torrentSettings, IElasticsearchService elasticsearchService, ITMDbService tmdbService)
     {
         _context = context;
         _userService = userService;
@@ -31,6 +32,7 @@ public class TorrentService : ITorrentService
         _logger = logger;
         _torrentSettings = torrentSettings.Value;
         _elasticsearchService = elasticsearchService;
+        _tmdbService = tmdbService;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
@@ -57,7 +59,7 @@ public class TorrentService : ITorrentService
         try
         {
             var filePath = await SaveTorrentFile(torrentFile, infoHash);
-            var torrentEntity = await CreateTorrentEntity(torrent, request.Description, request.Category, filePath, userId);
+            var torrentEntity = await CreateTorrentEntity(torrent, request, filePath, userId);
 
             _context.Torrents.Add(torrentEntity);
             await _context.SaveChangesAsync();
@@ -78,6 +80,67 @@ public class TorrentService : ITorrentService
         }
     }
 
+    private async Task<Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, UploadTorrentRequestDto request, string filePath, int userId)
+    {
+        _logger.LogDebug("Creating torrent entity for {TorrentName} (InfoHash: {InfoHash}).", torrent.DisplayName, torrent.GetInfoHash());
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogError("User {UserId} not found in database during torrent entity creation.", userId);
+            throw new Exception("User not found");
+        }
+
+        var torrentEntity = new Torrent
+        {
+            Name = torrent.DisplayName,
+            InfoHash = torrent.GetInfoHash(),
+            Description = request.Description,
+            Size = torrent.TotalSize,
+            UploadedByUserId = user.Id,
+            UploadedByUser = user,
+            Category = request.Category,
+            CreatedAt = DateTime.UtcNow,
+            IsFree = false,
+            FreeUntil = null,
+            StickyStatus = TorrentStickyStatus.None,
+            FilePath = filePath,
+            ImdbId = request.ImdbId
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.ImdbId))
+        {
+            _logger.LogInformation("Fetching movie data from TMDb for IMDb ID: {ImdbId}", request.ImdbId);
+            var movieData = await _tmdbService.GetMovieByImdbIdAsync(request.ImdbId);
+            if (movieData != null)
+            {
+                _logger.LogInformation("Successfully fetched data for movie: {MovieTitle}", movieData.Title);
+                torrentEntity.Name = movieData.Title ?? torrentEntity.Name;
+                torrentEntity.Description = movieData.Overview;
+                torrentEntity.TMDbId = movieData.Id;
+                torrentEntity.OriginalTitle = movieData.OriginalTitle;
+                torrentEntity.Tagline = movieData.Tagline;
+                if (int.TryParse(movieData.ReleaseDate?.Split('-').FirstOrDefault(), out var year))
+                {
+                    torrentEntity.Year = year;
+                }
+                torrentEntity.PosterPath = movieData.PosterPath;
+                torrentEntity.BackdropPath = movieData.BackdropPath;
+                torrentEntity.Runtime = movieData.Runtime;
+                torrentEntity.Rating = movieData.VoteAverage;
+                torrentEntity.Genres = movieData.Genres != null ? string.Join(", ", movieData.Genres.Select(g => g.Name)) : null;
+                torrentEntity.Directors = movieData.Credits?.Crew != null ? string.Join(", ", movieData.Credits.Crew.Where(c => c.Job == "Director").Select(c => c.Name)) : null;
+                torrentEntity.Cast = movieData.Credits?.Cast != null ? string.Join(", ", movieData.Credits.Cast.OrderBy(c => c.Order).Take(5).Select(c => c.Name)) : null;
+            }
+            else
+            {
+                _logger.LogWarning("Could not fetch movie data for IMDb ID: {ImdbId}", request.ImdbId);
+            }
+        }
+
+        return torrentEntity;
+    }
+
+    // ... other methods from the original file ...
     public async Task<Torrent?> GetTorrentByIdAsync(int torrentId)
     {
         return await _context.Torrents
@@ -137,7 +200,7 @@ public class TorrentService : ITorrentService
     {
         _logger.LogInformation("SetSticky request received for torrentId: {TorrentId}, status: {Status}", torrentId, request.Status);
         if (request.Status == TorrentStickyStatus.None)
-        {
+        { 
             return (false, "Cannot set sticky status to None using this endpoint. Use a dedicated unsticky endpoint if needed.");
         }
 
@@ -287,32 +350,5 @@ public class TorrentService : ITorrentService
             _logger.LogError(ex, "Error saving torrent file {FileName} to {FilePath}.", file.FileName, filePath);
             throw; // Re-throw to be caught by the Upload method's try-catch
         }
-    }
-    
-    private async Task<Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, string? description, TorrentCategory category, string filePath, int userId)
-    {
-        _logger.LogDebug("Creating torrent entity for {TorrentName} (InfoHash: {InfoHash}).", torrent.DisplayName, torrent.GetInfoHash());
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-        {
-            _logger.LogError("User {UserId} not found in database during torrent entity creation.", userId);
-            throw new Exception("User not found");
-        } 
-        
-        return new Torrent
-        {
-            Name = torrent.DisplayName,
-            InfoHash = torrent.GetInfoHash(),
-            Description = description,
-            Size = torrent.TotalSize,
-            UploadedByUserId = user.Id,
-            UploadedByUser = user,
-            Category = category,
-            CreatedAt = DateTime.UtcNow,
-            IsFree = false,
-            FreeUntil = null,
-            StickyStatus = TorrentStickyStatus.None,
-            FilePath = filePath
-        };
     }
 }
