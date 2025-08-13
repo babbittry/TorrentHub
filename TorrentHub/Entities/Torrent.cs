@@ -100,6 +100,13 @@ public class Torrent
     [DefaultValue(TorrentStickyStatus.None)]
     public TorrentStickyStatus StickyStatus { get; set; } = TorrentStickyStatus.None;
 
+    /// <summary>
+    /// Number of times the torrent has been snatched (completed).
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public int Snatched { get; set; } = 0;
+
     // --- TMDb Fields ---
 
     [StringLength(15)]

@@ -154,6 +154,12 @@ public class AnnounceService : IAnnounceService
                 _logger.LogInformation("Peer {PeerId} completed torrent {TorrentId} (User: {UserId}).", peerId, torrent.Id, user.Id);
                 if (peer != null)
                 {
+                    // Only increment snatched count if the peer was not a seeder before this event.
+                    if (!peer.IsSeeder)
+                    {
+                        torrent.Snatched++;
+                        _logger.LogInformation("Torrent {TorrentId} snatched count incremented to {SnatchedCount}.", torrent.Id, torrent.Snatched);
+                    }
                     peer.LastAnnounce = DateTime.UtcNow;
                     peer.IsSeeder = true; // Peer completed, so it's now a seeder
                 }

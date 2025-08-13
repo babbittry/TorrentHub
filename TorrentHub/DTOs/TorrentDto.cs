@@ -14,6 +14,9 @@ public class TorrentDto
     public bool IsFree { get; set; }
     public DateTime? FreeUntil { get; set; }
     public TorrentStickyStatus StickyStatus { get; set; }
+    public int Seeders { get; set; }
+    public int Leechers { get; set; }
+    public int Snatched { get; set; }
 
     // TMDb Fields
     public string? ImdbId { get; set; }

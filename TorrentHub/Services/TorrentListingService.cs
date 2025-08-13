@@ -68,7 +68,34 @@ public class TorrentListingService : ITorrentListingService
             .Take(filter.PageSize)
             .ToListAsync();
 
-        var torrentDtos = torrents.Select(t => Mapper.ToTorrentDto(t)).ToList();
+        // Get peer counts efficiently
+        var torrentIds = torrents.Select(t => t.Id).ToList();
+        var peerCounts = await _context.Peers
+            .Where(p => torrentIds.Contains(p.TorrentId))
+            .GroupBy(p => p.TorrentId)
+            .Select(g => new
+            {
+                TorrentId = g.Key,
+                Seeders = g.Count(p => p.IsSeeder),
+                Leechers = g.Count(p => !p.IsSeeder)
+            })
+            .ToDictionaryAsync(x => x.TorrentId, x => x);
+
+        var torrentDtos = torrents.Select(t =>
+        {
+            var dto = Mapper.ToTorrentDto(t);
+            if (peerCounts.TryGetValue(t.Id, out var counts))
+            {
+                dto.Seeders = counts.Seeders;
+                dto.Leechers = counts.Leechers;
+            }
+            else
+            {
+                dto.Seeders = 0;
+                dto.Leechers = 0;
+            }
+            return dto;
+        }).ToList();
 
         // Cache the result
         var cacheOptions = new DistributedCacheEntryOptions
