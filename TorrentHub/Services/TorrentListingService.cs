@@ -1,108 +1,131 @@
+
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
-using TorrentHub.Enums;
-using System.Text.Json;
+using StackExchange.Redis;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
 using TorrentHub.Mappers;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 
 namespace TorrentHub.Services;
 
 public class TorrentListingService : ITorrentListingService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IDistributedCache _cache;
+    private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<TorrentListingService> _logger;
     private readonly IElasticsearchService _elasticsearchService;
 
-    public TorrentListingService(ApplicationDbContext context, IDistributedCache cache, ILogger<TorrentListingService> logger, IElasticsearchService elasticsearchService)
+    public TorrentListingService(ApplicationDbContext context, IConnectionMultiplexer redis, ILogger<TorrentListingService> logger, IElasticsearchService elasticsearchService)
     {
         _context = context;
-        _cache = cache;
+        _redis = redis;
         _logger = logger;
         _elasticsearchService = elasticsearchService;
     }
 
     public async Task<List<TorrentDto>> GetTorrentsAsync(TorrentFilterDto filter)
     {
-        // Generate a unique cache key based on filter parameters
-        var cacheKey = $"TorrentsList:{filter.PageNumber}:{filter.PageSize}:{filter.Category}:{filter.SearchTerm}:{filter.SortBy}:{filter.SortOrder}";
-
-        var cachedData = await _cache.GetStringAsync(cacheKey);
-        if (cachedData != null)
-        {
-            _logger.LogDebug("Retrieving torrents from cache for key: {CacheKey}", cacheKey);
-            return JsonSerializer.Deserialize<List<TorrentDto>>(cachedData) ?? new List<TorrentDto>();
-        }
-
-        _logger.LogInformation("Cache miss for torrents list for key: {CacheKey}. Querying DB.", cacheKey);
-
-        IQueryable<Torrent> query = _context.Torrents
-            .Include(t => t.UploadedByUser) // Include the uploader's information
-            .Where(t => !t.IsDeleted);
-
-        // Apply filters
-        if (filter.Category.HasValue)
-        {
-            query = query.Where(t => t.Category == filter.Category.Value);
-        }
+        _logger.LogInformation("Querying torrents with filter: {@Filter}", filter);
 
         if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
+            // TODO: When using Elasticsearch, we need to enrich the results with peer counts from Redis as well.
             return (await _elasticsearchService.SearchTorrentsAsync(filter.SearchTerm, filter.PageNumber, filter.PageSize)).Select(t => Mapper.ToTorrentDto(t)).ToList();
         }
 
-        // Apply sorting
-        query = filter.SortBy.ToLower() switch
+        List<Torrent> torrents;
+        long[]? sortedIds = null;
+        var sortBy = filter.SortBy.ToLower();
+
+        if (sortBy == "seeders" || sortBy == "leechers")
         {
-            "createdat" => filter.SortOrder.ToLower() == "desc" ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt),
-            "name" => filter.SortOrder.ToLower() == "desc" ? query.OrderByDescending(t => t.Name) : query.OrderBy(t => t.Name),
-            "size" => filter.SortOrder.ToLower() == "desc" ? query.OrderByDescending(t => t.Size) : query.OrderBy(t => t.Size),
-            _ => query.OrderByDescending(t => t.CreatedAt) // Default sort
-        };
+            var redisDb = _redis.GetDatabase();
+            var sortKey = sortBy == "seeders" ? PeerCountUpdateService.SeedersSortKey : PeerCountUpdateService.LeechersSortKey;
+            
+            long start = (filter.PageNumber - 1) * filter.PageSize;
+            long stop = start + filter.PageSize - 1;
 
-        // Apply pagination
-        var torrents = await query
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .ToListAsync();
-
-        // Get peer counts efficiently
-        var torrentIds = torrents.Select(t => t.Id).ToList();
-        var peerCounts = await _context.Peers
-            .Where(p => torrentIds.Contains(p.TorrentId))
-            .GroupBy(p => p.TorrentId)
-            .Select(g => new
+            var redisResult = await redisDb.SortedSetRangeByRankAsync(sortKey, start, stop, Order.Descending);
+            if (redisResult.Length == 0)
             {
-                TorrentId = g.Key,
-                Seeders = g.Count(p => p.IsSeeder),
-                Leechers = g.Count(p => !p.IsSeeder)
-            })
-            .ToDictionaryAsync(x => x.TorrentId, x => x);
-
-        var torrentDtos = torrents.Select(t =>
-        {
-            var dto = Mapper.ToTorrentDto(t);
-            if (peerCounts.TryGetValue(t.Id, out var counts))
-            {
-                dto.Seeders = counts.Seeders;
-                dto.Leechers = counts.Leechers;
+                return new List<TorrentDto>();
             }
-            else
-            {
-                dto.Seeders = 0;
-                dto.Leechers = 0;
-            }
-            return dto;
-        }).ToList();
 
-        // Cache the result
-        var cacheOptions = new DistributedCacheEntryOptions
+            sortedIds = redisResult.Select(v => (long)v).ToArray();
+            
+            torrents = await _context.Torrents
+                .Include(t => t.UploadedByUser)
+                .Where(t => sortedIds.Contains(t.Id))
+                .ToListAsync();
+
+            // Re-order the results to match the order from Redis
+            var torrentsDict = torrents.ToDictionary(t => (long)t.Id);
+            torrents = sortedIds.Where(id => torrentsDict.ContainsKey(id)).Select(id => torrentsDict[id]).ToList();
+        }
+        else
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) // Cache for 5 minutes
-        };
-        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(torrentDtos), cacheOptions);
+            IQueryable<Torrent> query = _context.Torrents
+                .Include(t => t.UploadedByUser)
+                .Where(t => !t.IsDeleted);
+
+            if (filter.Category.HasValue)
+            {
+                query = query.Where(t => t.Category == filter.Category.Value);
+            }
+
+            query = sortBy switch
+            {
+                "createdat" => filter.SortOrder.ToLower() == "desc" ? query.OrderByDescending(t => t.CreatedAt) : query.OrderBy(t => t.CreatedAt),
+                "name" => filter.SortOrder.ToLower() == "desc" ? query.OrderByDescending(t => t.Name) : query.OrderBy(t => t.Name),
+                "size" => filter.SortOrder.ToLower() == "desc" ? query.OrderByDescending(t => t.Size) : query.OrderBy(t => t.Size),
+                _ => query.OrderByDescending(t => t.CreatedAt)
+            };
+
+            torrents = await query
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToListAsync();
+        }
+
+        if (!torrents.Any())
+        {
+            return new List<TorrentDto>();
+        }
+
+        var torrentDtos = torrents.Select(Mapper.ToTorrentDto).ToList();
+        var torrentIds = torrents.Select(t => t.Id).ToArray();
+
+        // Get peer counts from Redis Hashes
+        var redisDbForHashes = _redis.GetDatabase();
+        var redisTorrentIds = torrentIds.Select(id => (RedisValue)id.ToString()).ToArray();
+
+        var seedersTask = redisDbForHashes.HashGetAsync(PeerCountUpdateService.SeedersKey, redisTorrentIds);
+        var leechersTask = redisDbForHashes.HashGetAsync(PeerCountUpdateService.LeechersKey, redisTorrentIds);
+
+        await Task.WhenAll(seedersTask, leechersTask);
+
+        var seeders = seedersTask.Result;
+        var leechers = leechersTask.Result;
+        var dtoDict = torrentDtos.ToDictionary(d => d.Id);
+
+        for (int i = 0; i < torrentIds.Length; i++)
+        {
+            var id = torrentIds[i];
+            if (dtoDict.TryGetValue(id, out var dto))
+            {
+                if (seeders[i].HasValue)
+                {
+                    dto.Seeders = (int)seeders[i];
+                }
+                if (leechers[i].HasValue)
+                {
+                    dto.Leechers = (int)leechers[i];
+                }
+            }
+        }
 
         return torrentDtos;
     }

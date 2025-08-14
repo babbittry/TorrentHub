@@ -128,6 +128,7 @@ namespace TorrentHub
             builder.Services.AddHostedService<CoinGenerationService>();
             builder.Services.AddHostedService<UserLevelBackgroundService>();
             builder.Services.AddHostedService<TopPlayersCacheRefreshService>();
+            builder.Services.AddHostedService<PeerCountUpdateService>();
 
             // Add Authentication
             var jwtKey = builder.Configuration["Jwt:Key"];
