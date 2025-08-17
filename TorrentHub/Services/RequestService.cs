@@ -120,12 +120,38 @@ public class RequestService : IRequestService
     /// </summary>
     /// <param name="status">The status to filter by.</param>
     /// <returns>A list of Request entities.</returns>
-    public async Task<List<Request>> GetRequestsAsync(RequestStatus? status)
+    public async Task<List<Request>> GetRequestsAsync(RequestStatus? status, string sortBy, string sortOrder)
     {
-        var requests = await _context.Requests
-            .Where(r => r.Status == status) // 根据状态过滤
-            .Include(r => r.RequestedByUser) // 加载关联的请求者用户信息
-            .OrderByDescending(r => r.CreatedAt) // 按创建时间降序排序
+        var query = _context.Requests.AsQueryable();
+
+        // 1. 如果提供了 status，则按状态进行筛选
+        if (status.HasValue)
+        {
+            query = query.Where(r => r.Status == status.Value);
+        }
+
+        // 2. 根据 sortBy 和 sortOrder 参数进行排序
+        var isAscending = sortOrder.Equals("asc", StringComparison.OrdinalIgnoreCase);
+
+        query = sortBy.ToLower() switch
+        {
+            "bountyamount" => isAscending 
+                ? query.OrderBy(r => r.BountyAmount) 
+                : query.OrderByDescending(r => r.BountyAmount),
+            "createdat" => isAscending 
+                ? query.OrderBy(r => r.CreatedAt) 
+                : query.OrderByDescending(r => r.CreatedAt),
+            "status" => isAscending 
+                ? query.OrderBy(r => r.Status) 
+                : query.OrderByDescending(r => r.Status),
+            // 默认按创建日期降序排序
+            _ => query.OrderByDescending(r => r.CreatedAt)
+        };
+
+        // 3. 加载关联数据并执行查询
+        var requests = await query
+            .Include(r => r.RequestedByUser) // 加载请求者信息
+            .Include(r => r.FilledByUser)    // 加载完成者信息
             .ToListAsync();
 
         return requests;

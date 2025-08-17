@@ -75,10 +75,9 @@ public class RequestsController : ControllerBase
     /// <param name="status">The status to filter by (Pending, Filled, Expired). Defaults to Pending.</param>
     /// <returns>A list of request objects.</returns>
     [HttpGet]
-    public async Task<ActionResult<List<RequestDto>>> GetRequests([FromQuery] RequestStatus? status)
+    public async Task<ActionResult<List<RequestDto>>> GetRequests([FromQuery] RequestStatus? status, [FromQuery] string sortBy = "createdAt", [FromQuery] string sortOrder = "desc")
     {
-        // 如果调用方没有提供 status，则默认为 Pending
-        var requests = await _requestService.GetRequestsAsync(status ?? RequestStatus.Pending);
+        var requests = await _requestService.GetRequestsAsync(status, sortBy, sortOrder);
         return Ok(requests.Select(r => Mapper.ToRequestDto(r)).ToList());
     }
 
