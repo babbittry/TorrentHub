@@ -20,7 +20,7 @@ public class User
     /// User's chosen username. Must be unique.
     /// </summary>
     [Required]
-    [StringLength(50, MinimumLength = 2)]
+    [StringLength(20, MinimumLength = 2)]
     public required string UserName { get; set; }
 
     /// <summary>

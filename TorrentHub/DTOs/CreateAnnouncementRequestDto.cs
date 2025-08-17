@@ -5,6 +5,7 @@ namespace TorrentHub.DTOs;
 public class CreateAnnouncementRequestDto
 {
     [Required]
+    [StringLength(100)]
     public required string Title { get; set; }
 
     [Required]
