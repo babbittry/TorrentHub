@@ -26,7 +26,7 @@ public class StoreController : ControllerBase
     public async Task<ActionResult<List<StoreItemDto>>> GetStoreItems()
     {
         var items = await _storeService.GetAvailableItemsAsync();
-        return Ok(items.Select(i => Mapper.ToStoreItemDto(i)).ToList());
+        return Ok(items);
     }
 
     [HttpPost("items/{itemId}/purchase")]

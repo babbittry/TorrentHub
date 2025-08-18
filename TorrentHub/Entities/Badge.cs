@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TorrentHub.Enums;
 
 namespace TorrentHub.Entities;
 
@@ -11,17 +12,5 @@ public class Badge
     public int Id { get; set; }
 
     [Required]
-    [StringLength(100)]
-    public required string Name { get; set; }
-
-    [StringLength(500)]
-    public string? Description { get; set; }
-
-    [StringLength(512)]
-    public string? ImageUrl { get; set; }
-
-    /// <summary>
-    /// Indicates if this badge is available for purchase in the store.
-    /// </summary>
-    public bool IsPurchasable { get; set; } = false;
+    public BadgeCode Code { get; set; }
 }

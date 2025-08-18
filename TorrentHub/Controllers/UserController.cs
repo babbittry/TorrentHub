@@ -177,7 +177,7 @@ public class UsersController : ControllerBase
 
     [HttpGet("{userId}/badges")]
     [Authorize]
-    public async Task<IActionResult> GetUserBadges(int userId)
+    public async Task<ActionResult<List<BadgeDto>>> GetUserBadges(int userId)
     {
         var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
@@ -185,7 +185,7 @@ public class UsersController : ControllerBase
 
     [HttpGet("me/badges")]
     [Authorize]
-    public async Task<IActionResult> GetMyBadges()
+    public async Task<ActionResult<List<BadgeDto>>> GetMyBadges()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {

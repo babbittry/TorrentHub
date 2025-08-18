@@ -10,7 +10,7 @@ public interface IUserService
     Task<bool> AddCoinsAsync(int userId, UpdateCoinsRequestDto request);
     Task<bool> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount);
     Task<User?> GetUserByIdAsync(int userId);
-    Task<List<Badge>> GetUserBadgesAsync(int userId);
+    Task<List<BadgeDto>> GetUserBadgesAsync(int userId);
     Task<User> UpdateUserProfileAsync(int userId, UpdateUserProfileDto profileDto);
     Task ChangePasswordAsync(int userId, ChangePasswordDto changePasswordDto);
     Task<IEnumerable<User>> GetUsersAsync(int page, int pageSize, string? searchTerm);

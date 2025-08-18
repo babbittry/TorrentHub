@@ -205,21 +205,27 @@ public class UserService : IUserService
         return await _context.Users.FindAsync(userId);
     }
 
-    public async Task<List<Badge>> GetUserBadgesAsync(int userId)
+    public async Task<List<BadgeDto>> GetUserBadgesAsync(int userId)
     {
         var cacheKey = $"{UserBadgesCacheKeyPrefix}{userId}";
         var cachedData = await _cache.GetStringAsync(cacheKey);
         if (cachedData != null)
         {
             _logger.LogDebug("Retrieving user badges for user {UserId} from cache.", userId);
-            return JsonSerializer.Deserialize<List<Badge>>(cachedData) ?? new List<Badge>();
+            return JsonSerializer.Deserialize<List<BadgeDto>>(cachedData) ?? new List<BadgeDto>();
         }
 
         _logger.LogInformation("Cache miss for user badges for user {UserId}. Refreshing from DB.", userId);
         var badges = await _context.UserBadges
             .Where(ub => ub.UserId == userId)
             .Select(ub => ub.Badge!)
+            .Select(b => new BadgeDto
+            {
+                Id = b.Id,
+                Code = b.Code
+            })
             .ToListAsync();
+            
         await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(badges), _cacheOptions);
         return badges;
     }

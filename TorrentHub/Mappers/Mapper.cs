@@ -103,9 +103,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Request.FilledWithTorrent))] // Assuming we don't need the full torrent object in RequestDto
     public static partial RequestDto ToRequestDto(Request request);
 
-    [MapperIgnoreSource(nameof(StoreItem.Badge))]
-    public static partial StoreItemDto ToStoreItemDto(StoreItem storeItem);
-
     [MapProperty(nameof(Comment.User), nameof(CommentDto.User))]
     [MapperIgnoreSource(nameof(Comment.Torrent))] // Assuming we don't need the full torrent object in CommentDto
     [MapperIgnoreSource(nameof(Comment.UserId))] // Mapped via User navigation property

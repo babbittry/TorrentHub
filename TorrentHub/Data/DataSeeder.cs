@@ -39,9 +39,7 @@ namespace TorrentHub.Data
             // Seed Announcements
             await SeedAnnouncementsAsync(context, logger, users.Where(u => u.Role == UserRole.Administrator || u.Role == UserRole.Moderator).ToList(), 5); // Seed 5 announcements
 
-            // Seed Badges and StoreItems
-            List<Badge> badges = await SeedBadgesAsync(context, logger, 10); // Seed 10 badges
-            await SeedStoreItemsAsync(context, logger, badges, 15); // Seed 15 store items
+            var badges = await context.Badges.ToListAsync();
 
             // Seed Requests
             await SeedRequestsAsync(context, logger, users, torrents, 20); // Seed 20 requests
@@ -305,52 +303,6 @@ namespace TorrentHub.Data
             else
             {
                 logger.LogInformation("Announcements already exist or no admin/moderator users, skipping seeding.");
-            }
-        }
-
-        public static async Task<List<Badge>> SeedBadgesAsync(ApplicationDbContext context, ILogger logger, int count)
-        {
-            if (!await context.Badges.AnyAsync())
-            {
-                var badgeFaker = new Faker<Badge>()
-                    .RuleFor(b => b.Name, f => f.Commerce.ProductAdjective() + " Badge")
-                    .RuleFor(b => b.Description, f => f.Lorem.Sentence())
-                    .RuleFor(b => b.ImageUrl, f => f.Image.DataUri(100, 100)) // Placeholder image
-                    .RuleFor(b => b.IsPurchasable, f => f.Random.Bool(0.5f)); // 50% chance of being purchasable
-
-                var badges = badgeFaker.Generate(count);
-                context.Badges.AddRange(badges);
-                await context.SaveChangesAsync();
-                logger.LogInformation("{Count} badges seeded successfully.", count);
-                return badges;
-            }
-            else
-            {
-                logger.LogInformation("Badges already exist, skipping seeding.");
-                return await context.Badges.ToListAsync();
-            }
-        }
-
-        public static async Task SeedStoreItemsAsync(ApplicationDbContext context, ILogger logger, List<Badge> badges, int count)
-        {
-            if (!await context.StoreItems.AnyAsync())
-            {
-                var storeItemFaker = new Faker<StoreItem>()
-                    .RuleFor(si => si.ItemCode, f => f.PickRandom<StoreItemCode>())
-                    .RuleFor(si => si.Name, (f, si) => si.ItemCode.ToString() + " Item")
-                    .RuleFor(si => si.Description, f => f.Lorem.Sentence())
-                    .RuleFor(si => si.Price, f => (ulong)f.Random.Long(10, 1000))
-                    .RuleFor(si => si.IsAvailable, f => f.Random.Bool(0.8f)) // 80% chance of being available
-                    .RuleFor(si => si.Badge, (f, si) => si.ItemCode == StoreItemCode.Badge && badges.Any() ? f.PickRandom(badges) : null);
-
-                var storeItems = storeItemFaker.Generate(count);
-                context.StoreItems.AddRange(storeItems);
-                await context.SaveChangesAsync();
-                logger.LogInformation("{Count} store items seeded successfully.", count);
-            }
-            else
-            {
-                logger.LogInformation("Store items already exist, skipping seeding.");
             }
         }
 

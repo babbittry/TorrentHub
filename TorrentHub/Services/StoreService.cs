@@ -2,13 +2,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using TorrentHub.Data;
+using TorrentHub.DTOs;
 using TorrentHub.Entities;
 
 namespace TorrentHub.Services;
 
 public interface IStoreService
 {
-    Task<List<StoreItem>> GetAvailableItemsAsync();
+    Task<List<StoreItemDto>> GetAvailableItemsAsync();
     Task<bool> PurchaseItemAsync(int userId, int itemId);
 }
 
@@ -33,17 +34,28 @@ public class StoreService : IStoreService
         _cache = cache;
     }
 
-    public async Task<List<StoreItem>> GetAvailableItemsAsync()
+    public async Task<List<StoreItemDto>> GetAvailableItemsAsync()
     {
         var cachedData = await _cache.GetStringAsync(StoreItemsCacheKey);
         if (cachedData != null)
         {
             _logger.LogDebug("Retrieving store items from cache.");
-            return JsonSerializer.Deserialize<List<StoreItem>>(cachedData) ?? new List<StoreItem>();
+            return JsonSerializer.Deserialize<List<StoreItemDto>>(cachedData) ?? new List<StoreItemDto>();
         }
 
         _logger.LogInformation("Cache miss for store items. Refreshing from DB.");
-        var items = await _context.StoreItems.Where(i => i.IsAvailable).ToListAsync();
+        var items = await _context.StoreItems
+            .Where(i => i.IsAvailable)
+            .Select(i => new StoreItemDto
+            {
+                Id = i.Id,
+                ItemCode = i.ItemCode,
+                Price = i.Price,
+                IsAvailable = i.IsAvailable,
+                BadgeId = i.BadgeId
+            })
+            .ToListAsync();
+            
         await _cache.SetStringAsync(StoreItemsCacheKey, JsonSerializer.Serialize(items), _cacheOptions);
         return items;
     }
@@ -141,7 +153,7 @@ public class StoreService : IStoreService
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            _logger.LogInformation("User {UserId} successfully purchased item {ItemId} ('{ItemName}').", userId, itemId, item.Name);
+            _logger.LogInformation("User {UserId} successfully purchased item {ItemId} ({ItemCode}).", userId, itemId, item.ItemCode);
             return true;
         }
         catch (Exception ex)
