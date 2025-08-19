@@ -1,4 +1,3 @@
-
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 using TorrentHub.Data;
@@ -16,14 +15,14 @@ public class TorrentListingService : ITorrentListingService
     private readonly ApplicationDbContext _context;
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<TorrentListingService> _logger;
-    private readonly IElasticsearchService _elasticsearchService;
+    private readonly IMeiliSearchService _meiliSearchService;
 
-    public TorrentListingService(ApplicationDbContext context, IConnectionMultiplexer redis, ILogger<TorrentListingService> logger, IElasticsearchService elasticsearchService)
+    public TorrentListingService(ApplicationDbContext context, IConnectionMultiplexer redis, ILogger<TorrentListingService> logger, IMeiliSearchService meiliSearchService)
     {
         _context = context;
         _redis = redis;
         _logger = logger;
-        _elasticsearchService = elasticsearchService;
+        _meiliSearchService = meiliSearchService;
     }
 
     public async Task<List<TorrentDto>> GetTorrentsAsync(TorrentFilterDto filter)
@@ -32,8 +31,9 @@ public class TorrentListingService : ITorrentListingService
 
         if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
-            // TODO: When using Elasticsearch, we need to enrich the results with peer counts from Redis as well.
-            return (await _elasticsearchService.SearchTorrentsAsync(filter.SearchTerm, filter.PageNumber, filter.PageSize)).Select(t => Mapper.ToTorrentDto(t)).ToList();
+            var searchResults = await _meiliSearchService.SearchAsync<Torrent>("torrents", filter.SearchTerm, filter.PageNumber, filter.PageSize);
+            // TODO: When using MeiliSearch, we need to enrich the results with peer counts from Redis as well.
+            return searchResults.Select(t => Mapper.ToTorrentDto(t)).ToList();
         }
 
         List<Torrent> torrents;

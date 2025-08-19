@@ -20,3 +20,9 @@ Private Tracker back-end.
 ## 未实现
 
 - 为管理员提供一个界面来管理用户、公告、举报等
+
+## 使用到的开源库/鸣谢
+
+- MeiliSearch
+- gemini cli
+- PostgreSql

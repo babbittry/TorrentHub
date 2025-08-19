@@ -8,6 +8,7 @@ using NpgsqlTypes;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
+using TorrentHub.Mappers;
 using TorrentHub.Enums;
 using Torrent = TorrentHub.Entities.Torrent;
 
@@ -21,17 +22,17 @@ public class TorrentService : ITorrentService
     private readonly CoinSettings _coinSettings;
     private readonly ILogger<TorrentService> _logger;
     private readonly TorrentSettings _torrentSettings;
-    private readonly IElasticsearchService _elasticsearchService;
+    private readonly IMeiliSearchService _meiliSearchService;
     private readonly BencodeParser _bencodeParser = new();
 
-    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> coinSettings, ILogger<TorrentService> logger, IOptions<TorrentSettings> torrentSettings, IElasticsearchService elasticsearchService, ITMDbService tmdbService)
+    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> coinSettings, ILogger<TorrentService> logger, IOptions<TorrentSettings> torrentSettings, IMeiliSearchService meiliSearchService, ITMDbService tmdbService)
     {
         _context = context;
         _userService = userService;
         _coinSettings = coinSettings.Value;
         _logger = logger;
         _torrentSettings = torrentSettings.Value;
-        _elasticsearchService = elasticsearchService;
+        _meiliSearchService = meiliSearchService;
         _tmdbService = tmdbService;
     }
 
@@ -67,8 +68,9 @@ public class TorrentService : ITorrentService
             // Grant Coins to the uploader
             await _userService.AddCoinsAsync(torrentEntity.UploadedByUserId, new UpdateCoinsRequestDto { Amount = _coinSettings.UploadTorrentBonus });
 
-            // Index torrent in Elasticsearch
-            await _elasticsearchService.IndexTorrentAsync(torrentEntity);
+            // Index torrent in MeiliSearch
+            var torrentSearchDto = Mapper.ToTorrentSearchDto(torrentEntity);
+            await _meiliSearchService.IndexTorrentAsync(torrentSearchDto);
 
             _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, userId);
             return (true, "Torrent uploaded successfully.", infoHash);
@@ -172,7 +174,7 @@ public class TorrentService : ITorrentService
         await _context.SaveChangesAsync();
 
         // Delete from Elasticsearch
-        await _elasticsearchService.DeleteTorrentAsync(torrentId);
+        await _meiliSearchService.DeleteTorrentAsync(torrentId);
 
         _logger.LogInformation("Torrent {TorrentId} deleted by user {UserId}.", torrentId, userId);
         return (true, "Torrent deleted successfully.");

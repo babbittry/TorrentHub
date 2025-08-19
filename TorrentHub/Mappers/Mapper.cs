@@ -132,4 +132,11 @@ public static partial class Mapper
     [MapProperty(nameof(Invite.UsedByUser.UserName), nameof(InviteDto.UsedByUsername))]
     [MapperIgnoreSource(nameof(Invite.GeneratorUserId))]
     public static partial InviteDto ToInviteDto(Invite invite);
+    
+    [MapperIgnoreSource(nameof(Torrent.InfoHash))]
+    [MapperIgnoreSource(nameof(Torrent.FilePath))]
+    [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
+    [MapperIgnoreSource(nameof(Torrent.UploadedByUser))]
+    [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
+    public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
 }

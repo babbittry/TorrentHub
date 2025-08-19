@@ -1,6 +1,4 @@
 using System.Text;
-using Elastic.Clients.Elasticsearch;
-using Elastic.Transport;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -10,6 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using HealthChecks.Redis;
 using TorrentHub.Data;
 using TorrentHub.Services;
+using Meilisearch;
 
 namespace TorrentHub
 {
@@ -59,7 +58,7 @@ namespace TorrentHub
             builder.Services.AddScoped<IUserLevelService, UserLevelService>();
             builder.Services.AddScoped<ITopPlayersService, TopPlayersService>();
             builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
-            builder.Services.AddScoped<IElasticsearchService, ElasticsearchService>();
+            builder.Services.AddScoped<IMeiliSearchService, MeiliSearchService>();
             builder.Services.AddScoped<IStatsService, StatsService>();
             builder.Services.AddScoped<IForumService, ForumService>();
 
@@ -98,32 +97,20 @@ namespace TorrentHub
             builder.Services.Configure<TMDbSettings>(builder.Configuration.GetSection("TMDbSettings"));
             builder.Services.AddHttpClient<ITMDbService, TMDbService>();
 
-            // Configure Elasticsearch
-            var esUri = builder.Configuration["Elasticsearch:Uri"];
-            var esUsername = builder.Configuration["Elasticsearch:Username"];
-            var esPassword = builder.Configuration["Elasticsearch:Password"];
-
-            if (string.IsNullOrEmpty(esUri))
+            // Configure MeiliSearch
+            builder.Services.AddSingleton(sp =>
             {
-                throw new InvalidOperationException("Elasticsearch URI is not configured.");
-            }
+                var configuration = sp.GetRequiredService<IConfiguration>();
+                var url = configuration.GetValue<string>("MeiliSearch:Url");
+                var apiKey = configuration.GetValue<string>("MeiliSearch:ApiKey");
 
-            if (string.IsNullOrEmpty(esUsername))
-            {
-                throw new InvalidOperationException("Elasticsearch Username is not configured.");
-            }
-
-            if (string.IsNullOrEmpty(esPassword))
-            {
-                throw new InvalidOperationException("Elasticsearch Password is not configured.");
-            }
-
-            var settings = new ElasticsearchClientSettings(new Uri(esUri))
-                .DefaultIndex("torrents")
-                .Authentication(new BasicAuthentication(esUsername, esPassword));
-
-            var client = new ElasticsearchClient(settings);
-            builder.Services.AddSingleton(client);
+                if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(apiKey))
+                {
+                    throw new InvalidOperationException("MeiliSearch URL or ApiKey is not configured.");
+                }
+                
+                return new MeilisearchClient(url, apiKey);
+            });
 
             // Add background services
             builder.Services.AddHostedService<CoinGenerationService>();
