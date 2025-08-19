@@ -56,6 +56,9 @@ namespace TorrentHub.Data
             // Seed UserDailyStats
             await SeedUserDailyStatsAsync(context, logger, users, 50); // Seed 50 daily stats entries
 
+            // Seed Forum Data
+            await SeedForumDataAsync(context, logger, users);
+
             logger.LogInformation("All mock data seeding completed.");
         }
 
@@ -437,6 +440,87 @@ namespace TorrentHub.Data
             else
             {
                 logger.LogInformation("User daily stats already exist or no users, skipping seeding.");
+            }
+        }
+
+        public static async Task SeedForumDataAsync(ApplicationDbContext context, ILogger logger, List<User> users)
+        {
+            // 1. Seed Forum Categories
+            if (!await context.ForumCategories.AnyAsync())
+            {
+                var categories = Enum.GetValues(typeof(ForumCategoryCode))
+                    .Cast<ForumCategoryCode>()
+                    .Select((code, index) => new ForumCategory
+                    {
+                        Code = code,
+                        DisplayOrder = index + 1
+                    })
+                    .ToList();
+
+                context.ForumCategories.AddRange(categories);
+                await context.SaveChangesAsync();
+                logger.LogInformation("{Count} forum categories seeded successfully.", categories.Count);
+            }
+            else
+            {
+                logger.LogInformation("Forum categories already exist, skipping seeding.");
+            }
+
+            var forumCategories = await context.ForumCategories.ToListAsync();
+
+            // 2. Seed Forum Topics and Posts
+            if (!await context.ForumTopics.AnyAsync() && users.Any() && forumCategories.Any())
+            {
+                var topicFaker = new Faker<ForumTopic>()
+                    .RuleFor(t => t.Title, f => f.Lorem.Sentence(5))
+                    .RuleFor(t => t.Author, f => f.PickRandom(users))
+                    .RuleFor(t => t.Category, f => f.PickRandom(forumCategories))
+                    .RuleFor(t => t.CreatedAt, f => f.Date.Past(1).ToUniversalTime())
+                    .RuleFor(t => t.IsSticky, f => f.Random.Bool(0.1f))
+                    .RuleFor(t => t.IsLocked, f => f.Random.Bool(0.05f));
+
+                var topics = topicFaker.Generate(25); // Create 25 topics
+
+                var postFaker = new Faker<ForumPost>()
+                    .RuleFor(p => p.Content, f => string.Join("\n", f.Lorem.Paragraphs(f.Random.Int(1, 4))))
+                    .RuleFor(p => p.Author, f => f.PickRandom(users));
+
+                var dateFaker = new Faker();
+
+                foreach (var topic in topics)
+                {
+                    var postCount = new Faker().Random.Int(1, 15);
+                    var posts = new List<ForumPost>();
+
+                    // Ensure the first post is by the topic author
+                    var firstPost = postFaker.Clone()
+                        .RuleFor(p => p.Author, (f, p) => topic.Author)
+                        .Generate();
+                    
+                    firstPost.Topic = topic;
+                    firstPost.CreatedAt = topic.CreatedAt;
+                    posts.Add(firstPost);
+
+                    // Generate subsequent posts
+                    for (int i = 1; i < postCount; i++)
+                    {
+                        var subsequentPost = postFaker.Generate();
+                        subsequentPost.Topic = topic;
+                        subsequentPost.CreatedAt = dateFaker.Date.Between(topic.CreatedAt, DateTime.UtcNow).ToUniversalTime();
+                        posts.Add(subsequentPost);
+                    }
+                    
+                    topic.Posts = posts;
+                    topic.LastPostTime = posts.Max(p => p.CreatedAt);
+                }
+
+                context.ForumTopics.AddRange(topics);
+                await context.SaveChangesAsync();
+                logger.LogInformation("{TopicCount} forum topics and their posts seeded successfully.", topics.Count);
+            }
+            else
+            {
+                logger.LogInformation("Forum topics already exist or no users/categories, skipping seeding.");
             }
         }
     }
