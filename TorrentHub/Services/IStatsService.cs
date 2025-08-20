@@ -1,6 +1,9 @@
+using TorrentHub.DTOs;
+
 namespace TorrentHub.Services;
 
 public interface IStatsService
 {
-    Task<object> GetSiteStatsAsync();
+    Task<SiteStatsDto> GetSiteStatsAsync();
+    Task<SiteStatsDto> RecalculateAndCacheSiteStatsAsync();
 }

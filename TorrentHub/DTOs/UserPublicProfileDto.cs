@@ -10,6 +10,8 @@ public class UserPublicProfileDto
    public string? Signature { get; set; }
    public ulong UploadedBytes { get; set; }
    public ulong DownloadedBytes { get; set; }
+   public ulong DisplayUploadedBytes { get; set; }
+   public ulong DisplayDownloadedBytes { get; set; }
    public UserRole Role { get; set; }
    public DateTime CreatedAt { get; set; }
    public ulong Coins { get; set; }

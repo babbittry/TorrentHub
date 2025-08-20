@@ -13,7 +13,6 @@ public enum UserRole
 
     // Functional Roles
     Uploader,       // 认证上传者
-    Archivist,      // 档案管理员
     Seeder,         // 保种用户
     
 

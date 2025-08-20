@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization;
+using TorrentHub.DTOs;
 using TorrentHub.Services;
 
 namespace TorrentHub.Controllers;
 
 [ApiController]
-[Route("api/stats")]
+[Route("api/[controller]")]
 public class StatsController : ControllerBase
 {
     private readonly IStatsService _statsService;
@@ -16,8 +16,7 @@ public class StatsController : ControllerBase
     }
 
     [HttpGet]
-    [AllowAnonymous] // Stats can be public
-    public async Task<IActionResult> GetSiteStats()
+    public async Task<ActionResult<SiteStatsDto>> GetSiteStats()
     {
         var stats = await _statsService.GetSiteStatsAsync();
         return Ok(stats);

@@ -70,6 +70,20 @@ public class User
     [Required]
     [DefaultValue(0UL)]
     public ulong DownloadedBytes { get; set; }
+    
+    /// <summary>
+    /// Total bytes uploaded by the user (for display, considering multipliers).
+    /// </summary>
+    [Required]
+    [DefaultValue(0UL)]
+    public ulong DisplayUploadedBytes { get; set; }
+
+    /// <summary>
+    /// Total bytes downloaded by the user (for display, considering multipliers).
+    /// </summary>
+    [Required]
+    [DefaultValue(0UL)]
+    public ulong DisplayDownloadedBytes { get; set; }
 
     /// <summary>
     /// Unique key for RSS feed access.

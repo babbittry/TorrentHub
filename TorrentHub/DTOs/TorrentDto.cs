@@ -1,4 +1,4 @@
-﻿using TorrentHub.Enums;
+using TorrentHub.Enums;
 
 namespace TorrentHub.DTOs;
 

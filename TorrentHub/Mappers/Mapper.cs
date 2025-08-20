@@ -58,6 +58,8 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.GeneratedInvites))]
     [MapperIgnoreTarget(nameof(User.BanReason))]
     [MapperIgnoreTarget(nameof(User.BanUntil))]
+    [MapperIgnoreTarget(nameof(User.DisplayUploadedBytes))]
+    [MapperIgnoreTarget(nameof(User.DisplayDownloadedBytes))]
     public static partial void MapTo(UpdateUserProfileDto dto, User user);
 
     [MapProperty(nameof(UpdateUserAdminDto.BanReason), nameof(User.BanReason))]
@@ -85,6 +87,8 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.Invite))]
     [MapperIgnoreTarget(nameof(User.Torrents))]
     [MapperIgnoreTarget(nameof(User.GeneratedInvites))]
+    [MapperIgnoreTarget(nameof(User.DisplayUploadedBytes))]
+    [MapperIgnoreTarget(nameof(User.DisplayDownloadedBytes))]
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
 
     [MapProperty(nameof(Torrent.UploadedByUser.UserName), nameof(TorrentDto.UploaderUsername))]
@@ -92,8 +96,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
     [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
-    [MapperIgnoreTarget(nameof(TorrentDto.Seeders))]
-    [MapperIgnoreTarget(nameof(TorrentDto.Leechers))]
     public static partial TorrentDto ToTorrentDto(Torrent torrent);
 
     [MapProperty(nameof(Request.RequestedByUser), nameof(RequestDto.RequestedByUser))]
@@ -138,5 +140,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUser))]
     [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
+    [MapperIgnoreSource(nameof(Torrent.Seeders))]
+    [MapperIgnoreSource(nameof(Torrent.Leechers))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
 }

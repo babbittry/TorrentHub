@@ -106,6 +106,20 @@ public class Torrent
     [Required]
     [DefaultValue(0)]
     public int Snatched { get; set; } = 0;
+    
+    /// <summary>
+    /// Number of seeders for this torrent.
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public int Seeders { get; set; } = 0;
+
+    /// <summary>
+    /// Number of leechers for this torrent.
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public int Leechers { get; set; } = 0;
 
     // --- TMDb Fields ---
 
