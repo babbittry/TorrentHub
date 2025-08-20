@@ -32,7 +32,7 @@ public class TMDbService : ITMDbService
         try
         {
             // Step 1: Find the TMDb ID from the IMDb ID
-            var findUrl = $"{_tmDbSettings.BaseUrl}find/{imdbId}?api_key={_tmDbSettings.ApiKey}&external_source=imdb_id";
+            var findUrl = $"find/{imdbId}?api_key={_tmDbSettings.ApiKey}&external_source=imdb_id";
             var findResponse = await _httpClient.GetAsync(findUrl);
 
             if (!findResponse.IsSuccessStatusCode)
@@ -54,7 +54,7 @@ public class TMDbService : ITMDbService
             var tmdbId = movieResult.Id;
 
             // Step 2: Get the full movie details using the TMDb ID
-            var movieUrl = $"{_tmDbSettings.BaseUrl}movie/{tmdbId}?api_key={_tmDbSettings.ApiKey}&append_to_response=credits,images&language=en-US";
+            var movieUrl = $"movie/{tmdbId}?api_key={_tmDbSettings.ApiKey}&append_to_response=credits,images&language=en-US";
             var movieResponse = await _httpClient.GetAsync(movieUrl);
 
             if (!movieResponse.IsSuccessStatusCode)
@@ -84,7 +84,7 @@ public class TMDbService : ITMDbService
 
         try
         {
-            var movieUrl = $"{_tmDbSettings.BaseUrl}movie/{tmdbId}?api_key={_tmDbSettings.ApiKey}&language={language}&append_to_response=credits,images";
+            var movieUrl = $"movie/{tmdbId}?api_key={_tmDbSettings.ApiKey}&language={language}&append_to_response=credits,images";
             var movieResponse = await _httpClient.GetAsync(movieUrl);
 
             if (!movieResponse.IsSuccessStatusCode)

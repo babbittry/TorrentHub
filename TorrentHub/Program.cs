@@ -9,6 +9,7 @@ using HealthChecks.Redis;
 using TorrentHub.Data;
 using TorrentHub.Services;
 using Meilisearch;
+using Microsoft.Extensions.Options;
 
 namespace TorrentHub
 {
@@ -95,7 +96,15 @@ namespace TorrentHub
 
             // Configure TMDb Settings and Service
             builder.Services.Configure<TMDbSettings>(builder.Configuration.GetSection("TMDbSettings"));
-            builder.Services.AddHttpClient<ITMDbService, TMDbService>();
+            builder.Services.AddHttpClient<ITMDbService, TMDbService>((serviceProvider, client) =>
+            {
+                var settings = serviceProvider.GetRequiredService<IOptions<TMDbSettings>>().Value;
+                if (string.IsNullOrEmpty(settings.BaseUrl) || !Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out _))
+                {
+                    throw new InvalidOperationException("TMDb BaseUrl is not configured or is not a valid absolute URI.");
+                }
+                client.BaseAddress = new Uri(settings.BaseUrl);
+            });
 
             // Configure MeiliSearch
             builder.Services.AddSingleton(sp =>

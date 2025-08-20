@@ -99,7 +99,7 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.UserName, f =>
                 {
                     var name = f.Internet.UserName(f.Name.FirstName(), f.Name.LastName());
-                    var namePart = name.Substring(0, Math.Min(name.Length, 15));
+                    var namePart = name.Substring(0, Math.Min(name.Length, 9));
                     var guidPart = Guid.NewGuid().ToString("N").Substring(0, 10);
                     return $"{namePart}_{guidPart}";
                 })
