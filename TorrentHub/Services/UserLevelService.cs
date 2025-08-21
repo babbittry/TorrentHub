@@ -70,7 +70,7 @@ public class UserLevelService : IUserLevelService
         const long VeteranUserSeedingTime = 180 * 24 * 60; // 6 months in minutes
 
         // Determine role based on highest achievable tier
-        if (user.Role == UserRole.Administrator || user.Role == UserRole.Moderator || user.Role == UserRole.Uploader || user.Role == UserRole.Archivist || user.Role == UserRole.VIP)
+        if (user.Role == UserRole.Administrator || user.Role == UserRole.Moderator || user.Role == UserRole.Uploader || user.Role == UserRole.VIP)
         {
             // Staff and VIP roles are not automatically demoted/promoted by this service
             return user.Role;

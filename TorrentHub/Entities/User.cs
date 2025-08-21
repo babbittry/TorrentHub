@@ -72,18 +72,18 @@ public class User
     public ulong DownloadedBytes { get; set; }
     
     /// <summary>
-    /// Total bytes uploaded by the user (for display, considering multipliers).
+    /// Nominal uploaded bytes, used for calculating share ratio (includes multipliers).
     /// </summary>
     [Required]
     [DefaultValue(0UL)]
-    public ulong DisplayUploadedBytes { get; set; }
+    public ulong NominalUploadedBytes { get; set; }
 
     /// <summary>
-    /// Total bytes downloaded by the user (for display, considering multipliers).
+    /// Nominal downloaded bytes, used for calculating share ratio (includes multipliers).
     /// </summary>
     [Required]
     [DefaultValue(0UL)]
-    public ulong DisplayDownloadedBytes { get; set; }
+    public ulong NominalDownloadedBytes { get; set; }
 
     /// <summary>
     /// Unique key for RSS feed access.

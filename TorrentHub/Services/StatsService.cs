@@ -70,25 +70,54 @@ public class StatsService : IStatsService
     {
         var totalUsers = await _context.Users.LongCountAsync();
 
-        var normalUsers = await _context.Users
-            .LongCountAsync(u => u.Role != UserRole.Moderator && u.Role != UserRole.Administrator);
+        var staffRoles = new[] { UserRole.Moderator, UserRole.Administrator };
+        var userRoleCounts = await _context.Users
+            .Where(u => !staffRoles.Contains(u.Role))
+            .GroupBy(u => u.Role)
+            .Select(g => new { Role = g.Key, Count = g.LongCount() })
+            .ToDictionaryAsync(x => x.Role.ToString(), x => x.Count);
 
         var totalTorrents = await _context.Torrents.LongCountAsync();
-
         var deadTorrents = await _context.Torrents.LongCountAsync(t => t.Seeders == 0);
-
         var totalTorrentsSize = (ulong)await _context.Torrents.SumAsync(t => t.Size);
-
         var totalPeers = await _context.Peers.LongCountAsync();
 
         var uploadStats = await _context.Users
             .GroupBy(u => 1)
+            .OrderBy(g => g.Key) // Add OrderBy to remove EF Core warning
             .Select(g => new
             {
                 TotalUploaded = (ulong)g.Sum(u => (decimal)u.UploadedBytes),
                 TotalDownloaded = (ulong)g.Sum(u => (decimal)u.DownloadedBytes),
-                DisplayTotalUploaded = (ulong)g.Sum(u => (decimal)u.DisplayUploadedBytes),
-                DisplayTotalDownloaded = (ulong)g.Sum(u => (decimal)u.DisplayDownloadedBytes)
+                NominalUploaded = (ulong)g.Sum(u => (decimal)u.NominalUploadedBytes),
+                NominalDownloaded = (ulong)g.Sum(u => (decimal)u.NominalDownloadedBytes)
+            })
+            .FirstOrDefaultAsync();
+
+        var today = DateTime.UtcNow.Date;
+        var usersRegisteredToday = await _context.Users.LongCountAsync(u => u.CreatedAt.Date == today);
+        var torrentsAddedToday = await _context.Torrents.LongCountAsync(t => t.CreatedAt.Date == today);
+
+        var requestStats = await _context.Requests
+            .GroupBy(r => 1)
+            .OrderBy(g => g.Key) // Add OrderBy to remove EF Core warning
+            .Select(g => new
+            {
+                TotalRequests = g.LongCount(),
+                FilledRequests = g.LongCount(r => r.Status == RequestStatus.Filled)
+            })
+            .FirstOrDefaultAsync();
+
+        var totalForumTopics = await _context.ForumTopics.LongCountAsync();
+        var totalForumPosts = await _context.ForumPosts.LongCountAsync();
+
+        var peerStats = await _context.Torrents
+            .GroupBy(t => 1)
+            .OrderBy(g => g.Key) // Add OrderBy to remove EF Core warning
+            .Select(g => new
+            {
+                TotalSeeders = g.Sum(t => (long)t.Seeders),
+                TotalLeechers = g.Sum(t => (long)t.Leechers)
             })
             .FirstOrDefaultAsync();
 
@@ -102,8 +131,16 @@ public class StatsService : IStatsService
             TotalPeers = totalPeers,
             TotalUploaded = uploadStats?.TotalUploaded ?? 0UL,
             TotalDownloaded = uploadStats?.TotalDownloaded ?? 0UL,
-            DisplayTotalUploaded = uploadStats?.DisplayTotalUploaded ?? 0UL,
-            DisplayTotalDownloaded = uploadStats?.DisplayTotalDownloaded ?? 0UL
+            NominalUploaded = uploadStats?.NominalUploaded ?? 0UL,
+            NominalDownloaded = uploadStats?.NominalDownloaded ?? 0UL,
+            UsersRegisteredToday = usersRegisteredToday,
+            TorrentsAddedToday = torrentsAddedToday,
+            TotalRequests = requestStats?.TotalRequests ?? 0,
+            FilledRequests = requestStats?.FilledRequests ?? 0,
+            TotalForumTopics = totalForumTopics,
+            TotalForumPosts = totalForumPosts,
+            TotalSeeders = peerStats?.TotalSeeders ?? 0,
+            TotalLeechers = peerStats?.TotalLeechers ?? 0
         };
     }
 }

@@ -173,23 +173,45 @@ public class AnnounceService : IAnnounceService
                 break;
         }
 
-        // Update user's uploaded and downloaded bytes
-        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTime.UtcNow)
+        // --- Update User Stats ---
+
+        // 1. Initialize nominal values with the real reported values
+        var nominalUpload = uploaded;
+        var nominalDownload = downloaded;
+
+        // 2. Apply torrent-specific multipliers
+        bool isFreeLeech = torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTime.UtcNow);
+        if (isFreeLeech)
         {
-            uploaded *= 2;
-            _logger.LogInformation("User {UserId} has double upload active. Uploaded bytes doubled to {ActualUploaded}.", user.Id, uploaded);
+            nominalDownload = 0;
+            _logger.LogInformation("Torrent {TorrentId} is Free Leech. Nominal download for user {UserId} is 0.", torrent.Id, user.Id);
         }
-        else if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt <= DateTime.UtcNow)
+
+        // 3. Apply user-specific multipliers
+        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt.HasValue && user.DoubleUploadExpiresAt.Value > DateTime.UtcNow)
+        {
+            nominalUpload *= 2;
+            _logger.LogInformation("User {UserId} has double upload active. Nominal upload is doubled to {NominalUpload}.", user.Id, nominalUpload);
+        }
+        else if (user.IsDoubleUploadActive && (!user.DoubleUploadExpiresAt.HasValue || user.DoubleUploadExpiresAt.Value <= DateTime.UtcNow))
         {
             // Double upload expired, reset status
             user.IsDoubleUploadActive = false;
             user.DoubleUploadExpiresAt = null;
-            _logger.LogInformation("User {UserId} double upload expired and reset.", user.Id);
+            _logger.LogInformation("User {UserId} double upload expired and has been reset.", user.Id);
         }
 
+        // 4. Update physical (real) stats
         user.UploadedBytes += uploaded;
         user.DownloadedBytes += downloaded;
-        _logger.LogInformation("User {UserId} stats updated: Uploaded {Uploaded}, Downloaded {Downloaded}.", user.Id, user.UploadedBytes, user.DownloadedBytes);
+
+        // 5. Update nominal (for ratio) stats
+        user.NominalUploadedBytes += nominalUpload;
+        user.NominalDownloadedBytes += nominalDownload;
+
+        _logger.LogInformation(
+            "User {UserId} stats updated. Physical: (U: {Uploaded}, D: {Downloaded}), Nominal: (U: {NominalUpload}, D: {NominalDownload})",
+            user.Id, user.UploadedBytes, user.DownloadedBytes, user.NominalUploadedBytes, user.NominalDownloadedBytes);
 
         // Check and reset No H&R status if expired
         if (user.IsNoHRActive && user.NoHRExpiresAt <= DateTime.UtcNow)
@@ -202,7 +224,6 @@ public class AnnounceService : IAnnounceService
         await _context.SaveChangesAsync();
         _logger.LogInformation("Announce request processed successfully for infoHash: {InfoHash}, peerId: {PeerId}.", infoHash, peerId);
 
-        // Prepare response
         // Prepare response
         var response = new BDictionary
         {
