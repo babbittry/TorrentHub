@@ -17,4 +17,8 @@ public interface IUserService
     Task<User> UpdateUserByAdminAsync(int userId, UpdateUserAdminDto updateUserAdminDto);
     Task<IEnumerable<Invite>> GetUserInvitesAsync(int userId);
     Task<Invite> GenerateInviteAsync(int userId);
+
+    Task<UserProfileDetailDto?> GetUserProfileDetailAsync(int userId);
+    Task<IEnumerable<TorrentDto>> GetUserUploadsAsync(int userId);
+    Task<IEnumerable<PeerDto>> GetUserPeersAsync(int userId);
 }

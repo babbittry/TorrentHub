@@ -336,4 +336,95 @@ public class UserService : IUserService
 
         return newInvite;
     }
+
+    public async Task<UserProfileDetailDto?> GetUserProfileDetailAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            return null;
+        }
+
+        // Get inviter
+        string? invitedBy = null;
+        if (user.InviteId.HasValue)
+        {
+            var invite = await _context.Invites
+                .Include(i => i.GeneratorUser)
+                .FirstOrDefaultAsync(i => i.Id == user.InviteId.Value);
+            invitedBy = invite?.GeneratorUser?.UserName;
+        }
+
+        // Get peer stats
+        var peerStats = await _context.Peers
+            .Where(p => p.UserId == userId)
+            .Include(p => p.Torrent)
+            .GroupBy(p => p.IsSeeder)
+            .Select(g => new
+            {
+                IsSeeder = g.Key,
+                Count = g.Count(),
+                Size = g.Sum(p => p.Torrent.Size)
+            })
+            .ToListAsync();
+
+        var seedingCount = peerStats.FirstOrDefault(s => s.IsSeeder)?.Count ?? 0;
+        var leechingCount = peerStats.FirstOrDefault(s => !s.IsSeeder)?.Count ?? 0;
+        var seedingSize = (ulong)(peerStats.FirstOrDefault(s => s.IsSeeder)?.Size ?? 0L);
+
+        // Manual mapping to DTO
+        var profileDto = new UserProfileDetailDto
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            Email = user.Email,
+            Role = user.Role.ToString(),
+            Avatar = user.Avatar,
+            CreatedAt = user.CreatedAt,
+            UploadedBytes = user.UploadedBytes,
+            DownloadedBytes = user.DownloadedBytes,
+            NominalUploadedBytes = user.NominalUploadedBytes,
+            NominalDownloadedBytes = user.NominalDownloadedBytes,
+            Coins = user.Coins,
+            TotalSeedingTimeMinutes = user.TotalSeedingTimeMinutes,
+            TotalLeechingTimeMinutes = user.TotalLeechingTimeMinutes,
+            InvitedBy = invitedBy,
+            SeedingSize = seedingSize,
+            CurrentSeedingCount = seedingCount,
+            CurrentLeechingCount = leechingCount
+        };
+
+        return profileDto;
+    }
+
+    public async Task<IEnumerable<TorrentDto>> GetUserUploadsAsync(int userId)
+    {
+        var torrents = await _context.Torrents
+            .Where(t => t.UploadedByUserId == userId)
+            .Include(t => t.UploadedByUser)
+            .ToListAsync();
+
+        return torrents.Select(Mapper.ToTorrentDto);
+    }
+
+    public async Task<IEnumerable<PeerDto>> GetUserPeersAsync(int userId)
+    {
+        var peers = await _context.Peers
+            .Where(p => p.UserId == userId)
+            .Include(p => p.Torrent)
+            .ToListAsync();
+
+        return peers.Select(p => new PeerDto
+        {
+            TorrentId = p.TorrentId,
+            TorrentName = p.Torrent.Name,
+            UserAgent = "N/A", // Not stored in Peers entity
+            IpAddress = p.IpAddress,
+            Port = p.Port,
+            Uploaded = 0, // Not stored in Peers entity
+            Downloaded = 0, // Not stored in Peers entity
+            IsSeeder = p.IsSeeder,
+            LastAnnounceAt = p.LastAnnounce
+        });
+    }
 }

@@ -152,6 +152,13 @@ public class User
     public ulong TotalSeedingTimeMinutes { get; set; } = 0UL;
 
     /// <summary>
+    /// Total time (in minutes) the user has spent leeching torrents.
+    /// </summary>
+    [Required]
+    [DefaultValue(0UL)]
+    public ulong TotalLeechingTimeMinutes { get; set; } = 0UL;
+
+    /// <summary>
     /// Indicates if the user's upload is currently doubled.
     /// </summary>
     [Required]

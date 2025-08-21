@@ -103,21 +103,30 @@ public class AnnounceService : IAnnounceService
         // Handle peer events (started, completed, stopped, none)
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
 
-        // Calculate seeding time and frequency check for existing peers
-        if (peer != null && peer.IsSeeder) // Only accumulate time if they were seeding
+        if (peer != null)
         {
-            var timeSeeding = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
-            if (timeSeeding > 0 && timeSeeding <= 3600) // Cap at 1 hour to prevent abuse from long gaps
-            {
-                user.TotalSeedingTimeMinutes += (ulong)timeSeeding;
-                _logger.LogDebug("User {UserId} accumulated {Time} minutes of seeding time. Total: {Total}", user.Id, timeSeeding, user.TotalSeedingTimeMinutes);
-            }
-            // Frequency check
+            // Frequency check for existing peers
             var minAnnounceInterval = TimeSpan.FromSeconds(30); // Define your minimum interval
             if (DateTime.UtcNow - peer.LastAnnounce < minAnnounceInterval)
             {
                 _logger.LogWarning("Announce request too frequent from user: {UserId}", user.Id);
                 throw new InvalidOperationException("Request too frequent.");
+            }
+
+            // Calculate seeding/leeching time based on the peer's state before this announce
+            var timeElapsed = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
+            if (timeElapsed > 0 && timeElapsed <= 3600) // Cap at 1 hour to prevent abuse
+            {
+                if (peer.IsSeeder)
+                {
+                    user.TotalSeedingTimeMinutes += (ulong)timeElapsed;
+                    _logger.LogDebug("User {UserId} accumulated {Time} minutes of seeding time. Total: {Total}", user.Id, timeElapsed, user.TotalSeedingTimeMinutes);
+                }
+                else // Was a leecher
+                {
+                    user.TotalLeechingTimeMinutes += (ulong)timeElapsed;
+                    _logger.LogDebug("User {UserId} accumulated {Time} minutes of leeching time. Total: {Total}", user.Id, timeElapsed, user.TotalLeechingTimeMinutes);
+                }
             }
         }
 

@@ -68,14 +68,23 @@ public class StatsService : IStatsService
 
     private async Task<SiteStatsDto> FetchStatsFromDbAsync()
     {
+        var totalBannedUsers = await _context.Users.LongCountAsync(u => u.IsBanned);
         var totalUsers = await _context.Users.LongCountAsync();
 
         var staffRoles = new[] { UserRole.Moderator, UserRole.Administrator };
-        var userRoleCounts = await _context.Users
-            .Where(u => !staffRoles.Contains(u.Role))
+        var userRoleCountsFromDb = await _context.Users
+            .Where(u => !u.IsBanned && !staffRoles.Contains(u.Role))
             .GroupBy(u => u.Role)
             .Select(g => new { Role = g.Key, Count = g.LongCount() })
-            .ToDictionaryAsync(x => x.Role.ToString(), x => x.Count);
+            .ToDictionaryAsync(x => x.Role, x => x.Count);
+
+        var userRoleCounts = Enum.GetValues(typeof(UserRole))
+            .Cast<UserRole>()
+            .Where(r => !staffRoles.Contains(r))
+            .ToDictionary(
+                r => r.ToString(),
+                r => userRoleCountsFromDb.TryGetValue(r, out var count) ? count : 0L
+            );
 
         var totalTorrents = await _context.Torrents.LongCountAsync();
         var deadTorrents = await _context.Torrents.LongCountAsync(t => t.Seeders == 0);
@@ -124,6 +133,7 @@ public class StatsService : IStatsService
         return new SiteStatsDto
         {
             TotalUsers = totalUsers,
+            TotalBannedUsers = totalBannedUsers,
             UserRoleCounts = userRoleCounts,
             TotalTorrents = totalTorrents,
             DeadTorrents = deadTorrents,

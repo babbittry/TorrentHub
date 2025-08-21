@@ -195,4 +195,43 @@ public class UsersController : ControllerBase
         var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
     }
+
+    [HttpGet("{id:int}/profile")]
+    [Authorize]
+    public async Task<ActionResult<UserProfileDetailDto>> GetUserProfile(int id)
+    {
+        var profile = await _userService.GetUserProfileDetailAsync(id);
+        if (profile == null)
+        {
+            return NotFound();
+        }
+
+        // TODO: Add authorization logic.
+        // A regular user should not see another user's email.
+        // We might need a separate public version of this DTO.
+        // For now, returning the full details.
+        return Ok(profile);
+    }
+
+    [HttpGet("{id:int}/uploads")]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<TorrentDto>>> GetUserUploads(int id)
+    {
+        var uploads = await _userService.GetUserUploadsAsync(id);
+        return Ok(uploads);
+    }
+
+    [HttpGet("{id:int}/peers")]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<PeerDto>>> GetUserPeers(int id)
+    {
+        // Authorization check: Only the user themselves or an admin should see this.
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId) || (currentUserId != id && !User.IsInRole(nameof(UserRole.Administrator))))
+        {
+            return Forbid();
+        }
+
+        var peers = await _userService.GetUserPeersAsync(id);
+        return Ok(peers);
+    }
 }

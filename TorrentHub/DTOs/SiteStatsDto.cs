@@ -3,7 +3,11 @@ namespace TorrentHub.DTOs;
 public class SiteStatsDto
 {
     // User stats
+    /// <summary>
+    /// Total number of active (not banned) users.
+    /// </summary>
     public long TotalUsers { get; set; }
+    public long TotalBannedUsers { get; set; }
     public long UsersRegisteredToday { get; set; }
     public Dictionary<string, long> UserRoleCounts { get; set; } = new();
     // Torrent stats

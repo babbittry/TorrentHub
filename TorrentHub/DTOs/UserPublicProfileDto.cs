@@ -20,5 +20,6 @@ public class UserPublicProfileDto
    public bool IsNoHRActive { get; set; }
    public DateTime? NoHRExpiresAt { get; set; }
    public ulong TotalSeedingTimeMinutes { get; set; }
+   public ulong TotalLeechingTimeMinutes { get; set; } 
    public uint InviteNum { get; set; }
 }
