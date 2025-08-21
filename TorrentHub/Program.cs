@@ -61,6 +61,7 @@ namespace TorrentHub
             builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
             builder.Services.AddScoped<IMeiliSearchService, MeiliSearchService>();
             builder.Services.AddScoped<IStatsService, StatsService>();
+builder.Services.AddScoped<ISettingsService, SettingsService>();
             builder.Services.AddScoped<IForumService, ForumService>();
 
             // Configure Garnet with resilience and health checks

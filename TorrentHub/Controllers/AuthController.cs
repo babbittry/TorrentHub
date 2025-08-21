@@ -22,6 +22,59 @@ public class AuthController : ControllerBase
         _env = env;
     }
 
+    [HttpPost("register")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Register([FromBody] UserForRegistrationDto registrationDto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var user = await _userService.RegisterAsync(registrationDto);
+
+            // Save avatar
+            if (!string.IsNullOrEmpty(registrationDto.Avatar))
+            {
+                var avatarPath = Path.Combine(_env.WebRootPath, "avatars");
+                if (!Directory.Exists(avatarPath))
+                {
+                    Directory.CreateDirectory(avatarPath);
+                }
+
+                var avatarFileName = $"{user.Id}.svg";
+                var fullPath = Path.Combine(avatarPath, avatarFileName);
+                await System.IO.File.WriteAllTextAsync(fullPath, registrationDto.Avatar);
+
+                user.Avatar = $"/avatars/{avatarFileName}";
+                await _userService.UpdateUserAsync(user);
+            }
+
+            // Auto-login after registration
+            var loginResponse = await _userService.LoginAsync(new UserForLoginDto { UserName = registrationDto.UserName, Password = registrationDto.Password });
+
+            Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = !_env.IsDevelopment(),
+                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(7),
+                Domain = "localhost"
+            });
+
+            var userProfile = Mapper.ToUserPrivateProfileDto(loginResponse.User);
+
+            return Ok(new { User = userProfile });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Registration failed for user {UserName}: {ErrorMessage}", registrationDto.UserName, ex.Message);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpPost("logout")]
     [Authorize]
     public IActionResult Logout()

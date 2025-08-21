@@ -27,6 +27,7 @@ namespace TorrentHub.Data
         public DbSet<ForumCategory> ForumCategories { get; set; }
         public DbSet<ForumTopic> ForumTopics { get; set; }
         public DbSet<ForumPost> ForumPosts { get; set; }
+        public DbSet<SiteSetting> SiteSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

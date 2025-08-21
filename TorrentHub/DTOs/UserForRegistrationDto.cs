@@ -17,6 +17,8 @@ public class UserForRegistrationDto
     [StringLength(255)]
     public required string Email { get; set; }
 
+    public string? InviteCode { get; set; }
+
     [Required]
-    public required string InviteCode { get; set; }
+    public required string Avatar { get; set; }
 }

@@ -23,6 +23,7 @@ public class UserService : IUserService
     private readonly CoinSettings _coinSettings;
     private readonly IEmailService _emailService;
     private readonly IDistributedCache _cache;
+    private readonly ISettingsService _settingsService;
 
     // Cache key prefix for user badges
     private const string UserBadgesCacheKeyPrefix = "UserBadges:";
@@ -32,7 +33,7 @@ public class UserService : IUserService
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
     };
 
-    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<CoinSettings> coinSettings, IEmailService emailService, IDistributedCache cache)
+    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<CoinSettings> coinSettings, IEmailService emailService, IDistributedCache cache, ISettingsService settingsService)
     {
         _context = context;
         _configuration = configuration;
@@ -40,6 +41,7 @@ public class UserService : IUserService
         _coinSettings = coinSettings.Value;
         _emailService = emailService;
         _cache = cache;
+        _settingsService = settingsService;
     }
     public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
     {
@@ -88,14 +90,28 @@ public class UserService : IUserService
     public async Task<User> RegisterAsync(UserForRegistrationDto userForRegistrationDto)
     {
         _logger.LogInformation("Attempting registration for user: {UserName}", userForRegistrationDto.UserName);
-        // 1. Validate Invite Code
-        var invite = await _context.Invites
-            .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTime.UtcNow);
+        
+        Invite? invite = null;
 
-        if (invite == null)
+        if (!string.IsNullOrEmpty(userForRegistrationDto.InviteCode))
         {
-            _logger.LogWarning("Registration failed for user {UserName}: Invalid or expired invite code {InviteCode}.", userForRegistrationDto.UserName, userForRegistrationDto.InviteCode);
-            throw new Exception("Invalid or expired invite code.");
+            invite = await _context.Invites
+                .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTime.UtcNow && i.UsedByUser == null);
+
+            if (invite == null)
+            {
+                _logger.LogWarning("Registration failed for user {UserName}: Invalid, expired, or already used invite code {InviteCode}.", userForRegistrationDto.UserName, userForRegistrationDto.InviteCode);
+                throw new Exception("Invalid, expired, or already used invite code.");
+            }
+        }
+        else
+        {
+            var isRegistrationOpen = await _settingsService.IsRegistrationOpenAsync();
+            if (!isRegistrationOpen)
+            {
+                _logger.LogWarning("Registration failed for user {UserName}: Registration is invite-only and no code was provided.", userForRegistrationDto.UserName);
+                throw new Exception("Registration is currently by invitation only. An invite code is required.");
+            }
         }
 
         // 2. Check for duplicate username or email
@@ -117,13 +133,17 @@ public class UserService : IUserService
             UserName = userForRegistrationDto.UserName,
             Email = userForRegistrationDto.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password), // Hashing the password
-            InviteId = invite.Id,
+            InviteId = invite?.Id,
             CreatedAt = DateTime.UtcNow,
             Passkey = Guid.NewGuid().ToString("N") // Generate a new Passkey
         };
 
         // 4. Update invite and save changes
-        invite.UsedByUser = user;
+        if (invite != null)
+        {
+            invite.UsedByUser = user;
+        }
+        
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
         _logger.LogInformation("User {UserName} registered successfully with ID {UserId}.", user.UserName, user.Id);
@@ -292,6 +312,13 @@ public class UserService : IUserService
         await _context.SaveChangesAsync();
         _logger.LogInformation("User {UserId} updated by admin successfully.", userId);
         return user;
+    }
+
+    public async Task UpdateUserAsync(User user)
+    {
+        _context.Entry(user).State = EntityState.Modified;
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User {UserId} updated successfully.", user.Id);
     }
 
     public async Task<IEnumerable<Invite>> GetUserInvitesAsync(int userId)

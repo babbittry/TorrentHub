@@ -13,7 +13,8 @@ namespace TorrentHub.Data
 {
     public static class DataSeeder
     {
-        public static async Task SeedAllDataAsync(ApplicationDbContext context, ILogger logger, ITMDbService tmdbService)
+        public static async Task SeedAllDataAsync(ApplicationDbContext context, ILogger logger,
+            ITMDbService tmdbService)
         {
             await context.Database.MigrateAsync();
 
@@ -37,7 +38,9 @@ namespace TorrentHub.Data
             await SeedMessagesAsync(context, logger, users, 50); // Seed 50 messages
 
             // Seed Announcements
-            await SeedAnnouncementsAsync(context, logger, users.Where(u => u.Role == UserRole.Administrator || u.Role == UserRole.Moderator).ToList(), 5); // Seed 5 announcements
+            await SeedAnnouncementsAsync(context, logger,
+                users.Where(u => u.Role == UserRole.Administrator || u.Role == UserRole.Moderator).ToList(),
+                5); // Seed 5 announcements
 
             var badges = await context.Badges.ToListAsync();
 
@@ -87,7 +90,8 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task<List<User>> SeedUsersAsync(ApplicationDbContext context, ILogger logger, User adminUser, int count)
+        public static async Task<List<User>> SeedUsersAsync(ApplicationDbContext context, ILogger logger,
+            User adminUser, int count)
         {
             if (await context.Users.CountAsync() > 1) // Check if more than just admin exists
             {
@@ -109,7 +113,8 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.Signature, f => f.Lorem.Sentence(5))
                 .RuleFor(u => u.Language, f => f.PickRandom("en-US", "zh-CN"))
                 .RuleFor(u => u.UploadedBytes, f => (ulong)f.Random.Long(0, 100_000_000_000)) // Up to 100 GB
-                .RuleFor(u => u.DownloadedBytes, (f, u) => (ulong)f.Random.Long(0, (long)u.UploadedBytes)) // Downloaded less than uploaded
+                .RuleFor(u => u.DownloadedBytes,
+                    (f, u) => (ulong)f.Random.Long(0, (long)u.UploadedBytes)) // Downloaded less than uploaded
                 .RuleFor(u => u.RssKey, f => f.Random.Guid().ToString("N").Substring(0, 32))
                 .RuleFor(u => u.Passkey, f => f.Random.Guid().ToString("N").Substring(0, 32))
                 .RuleFor(u => u.Role, f => f.PickRandom<UserRole>(UserRole.User, UserRole.Moderator))
@@ -121,9 +126,11 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.Coins, f => (ulong)f.Random.Long(0, 1000))
                 .RuleFor(u => u.TotalSeedingTimeMinutes, f => (ulong)f.Random.Long(0, 10000))
                 .RuleFor(u => u.IsDoubleUploadActive, f => f.Random.Bool(0.05f))
-                .RuleFor(u => u.DoubleUploadExpiresAt, (f, u) => u.IsDoubleUploadActive ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
+                .RuleFor(u => u.DoubleUploadExpiresAt,
+                    (f, u) => u.IsDoubleUploadActive ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
                 .RuleFor(u => u.IsNoHRActive, f => f.Random.Bool(0.05f))
-                .RuleFor(u => u.NoHRExpiresAt, (f, u) => u.IsNoHRActive ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
+                .RuleFor(u => u.NoHRExpiresAt,
+                    (f, u) => u.IsNoHRActive ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
                 .RuleFor(u => u.InviteId, f => null); // Explicitly set InviteId to null
 
             var users = userFaker.Generate(count);
@@ -133,7 +140,8 @@ namespace TorrentHub.Data
             return users;
         }
 
-        public static async Task SeedInvitesAsync(ApplicationDbContext context, ILogger logger, List<User> users, int count)
+        public static async Task SeedInvitesAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            int count)
         {
             if (!await context.Invites.AnyAsync())
             {
@@ -155,7 +163,8 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task<List<Torrent>> SeedTorrentsAsync(ApplicationDbContext context, ILogger logger, List<User> users, ITMDbService tmdbService)
+        public static async Task<List<Torrent>> SeedTorrentsAsync(ApplicationDbContext context, ILogger logger,
+            List<User> users, ITMDbService tmdbService)
         {
             if (await context.Torrents.AnyAsync())
             {
@@ -170,7 +179,7 @@ namespace TorrentHub.Data
                 "240", // The Godfather Part II
                 "155", // The Dark Knight
                 "680", // Pulp Fiction
-                "13",  // Forrest Gump
+                "13", // Forrest Gump
                 "550", // Fight Club
                 "122", // The Lord of the Rings: The Return of the King
                 "27205", // Inception
@@ -187,12 +196,12 @@ namespace TorrentHub.Data
                     var movie = await tmdbService.GetMovieByTmdbIdAsync(movieId, "zh-CN");
                     if (movie != null)
                     {
-                        var infoHash = faker.Random.Hexadecimal(40, ""); 
+                        var infoHash = faker.Random.Hexadecimal(40, "");
                         var torrent = new Torrent
                         {
                             Name = movie.Title ?? "unknown",
-                            InfoHash = infoHash, 
-                            FilePath = $"/torrents/{infoHash}.torrent", 
+                            InfoHash = infoHash,
+                            FilePath = $"/torrents/{infoHash}.torrent",
                             Description = movie.Overview,
                             UploadedByUser = faker.PickRandom(users),
                             Category = TorrentCategory.Movie,
@@ -202,27 +211,31 @@ namespace TorrentHub.Data
                             IsFree = faker.Random.Bool(0.1f),
                             FreeUntil = null,
                             StickyStatus = faker.PickRandom<TorrentStickyStatus>(),
-                            
+
                             // TMDb Fields
                             ImdbId = movie.ImdbId,
                             TMDbId = movie.Id,
                             OriginalTitle = movie.OriginalTitle,
                             Tagline = movie.Tagline,
-                            Year = !string.IsNullOrEmpty(movie.ReleaseDate) && DateTime.TryParse(movie.ReleaseDate, out var releaseDate) ? releaseDate.Year : null,
+                            Year = !string.IsNullOrEmpty(movie.ReleaseDate) &&
+                                   DateTime.TryParse(movie.ReleaseDate, out var releaseDate)
+                                ? releaseDate.Year
+                                : null,
                             PosterPath = movie.PosterPath,
                             BackdropPath = movie.BackdropPath,
                             Runtime = movie.Runtime,
                             Genres = string.Join(", ", movie.Genres.Select(g => g.Name)),
                             Rating = movie.VoteAverage
                         };
-                        
+
                         if (torrent.IsFree)
                         {
                             torrent.FreeUntil = faker.Date.Future(1).ToUniversalTime();
                         }
 
                         torrents.Add(torrent);
-                        logger.LogInformation("Successfully fetched and created torrent for movie: {MovieTitle}", movie.Title);
+                        logger.LogInformation("Successfully fetched and created torrent for movie: {MovieTitle}",
+                            movie.Title);
                     }
                 }
                 catch (Exception ex)
@@ -242,7 +255,8 @@ namespace TorrentHub.Data
         }
 
 
-        public static async Task SeedCommentsAsync(ApplicationDbContext context, ILogger logger, List<User> users, List<Torrent> torrents, int count)
+        public static async Task SeedCommentsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            List<Torrent> torrents, int count)
         {
             if (!await context.Comments.AnyAsync() && torrents.Any() && users.Any())
             {
@@ -263,13 +277,16 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedMessagesAsync(ApplicationDbContext context, ILogger logger, List<User> users, int count)
+        public static async Task SeedMessagesAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            int count)
         {
             if (!await context.Messages.AnyAsync() && users.Count >= 2)
             {
                 var messageFaker = new Faker<Message>()
                     .RuleFor(m => m.Sender, f => f.PickRandom(users))
-                    .RuleFor(m => m.Receiver, (f, m) => f.PickRandom(users.Where(u => u.Id != m.Sender!.Id).ToList())) // Ensure sender != receiver
+                    .RuleFor(m => m.Receiver,
+                        (f, m) => f.PickRandom(users.Where(u => u.Id != m.Sender!.Id)
+                            .ToList())) // Ensure sender != receiver
                     .RuleFor(m => m.Subject, f => f.Lorem.Sentence(5))
                     .RuleFor(m => m.Content, f => f.Lorem.Paragraph())
                     .RuleFor(m => m.SentAt, f => f.Date.Past(1).ToUniversalTime())
@@ -288,7 +305,8 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedAnnouncementsAsync(ApplicationDbContext context, ILogger logger, List<User> adminModerators, int count)
+        public static async Task SeedAnnouncementsAsync(ApplicationDbContext context, ILogger logger,
+            List<User> adminModerators, int count)
         {
             if (!await context.Announcements.AnyAsync() && adminModerators.Any())
             {
@@ -309,7 +327,8 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedRequestsAsync(ApplicationDbContext context, ILogger logger, List<User> users, List<Torrent> torrents, int count)
+        public static async Task SeedRequestsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            List<Torrent> torrents, int count)
         {
             if (!await context.Requests.AnyAsync() && users.Any())
             {
@@ -319,10 +338,19 @@ namespace TorrentHub.Data
                     .RuleFor(r => r.RequestedByUser, f => f.PickRandom(users))
                     .RuleFor(r => r.Status, f => f.PickRandom<RequestStatus>())
                     .RuleFor(r => r.CreatedAt, f => f.Date.Past(1).ToUniversalTime())
-                    .RuleFor(r => r.FilledAt, (f, r) => r.Status == RequestStatus.Filled ? f.Date.Between(r.CreatedAt, DateTime.UtcNow).ToUniversalTime() : (DateTime?)null)
+                    .RuleFor(r => r.FilledAt,
+                        (f, r) => r.Status == RequestStatus.Filled
+                            ? f.Date.Between(r.CreatedAt, DateTime.UtcNow).ToUniversalTime()
+                            : (DateTime?)null)
                     .RuleFor(r => r.BountyAmount, f => (ulong)f.Random.Long(100, 5000))
-                    .RuleFor(r => r.FilledByUser, (f, r) => r.Status == RequestStatus.Filled ? f.PickRandom(users.Where(u => u.Id != r.RequestedByUser!.Id).ToList()) : null)
-                    .RuleFor(r => r.FilledWithTorrent, (f, r) => r.Status == RequestStatus.Filled && torrents.Any() ? f.PickRandom(torrents.ToList()) : null);
+                    .RuleFor(r => r.FilledByUser,
+                        (f, r) => r.Status == RequestStatus.Filled
+                            ? f.PickRandom(users.Where(u => u.Id != r.RequestedByUser!.Id).ToList())
+                            : null)
+                    .RuleFor(r => r.FilledWithTorrent,
+                        (f, r) => r.Status == RequestStatus.Filled && torrents.Any()
+                            ? f.PickRandom(torrents.ToList())
+                            : null);
 
                 var requests = requestFaker.Generate(count);
                 context.Requests.AddRange(requests);
@@ -335,7 +363,8 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedReportsAsync(ApplicationDbContext context, ILogger logger, List<User> users, List<Torrent> torrents, int count)
+        public static async Task SeedReportsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            List<Torrent> torrents, int count)
         {
             if (!await context.Reports.AnyAsync() && users.Any() && torrents.Any())
             {
@@ -346,8 +375,15 @@ namespace TorrentHub.Data
                     .RuleFor(r => r.Details, f => f.Lorem.Sentence())
                     .RuleFor(r => r.ReportedAt, f => f.Date.Past(1).ToUniversalTime())
                     .RuleFor(r => r.IsProcessed, f => f.Random.Bool(0.5f)) // 50% chance of being processed
-                    .RuleFor(r => r.ProcessedByUser, (f, r) => r.IsProcessed ? f.PickRandom(users.Where(u => u.Role == UserRole.Administrator || u.Role == UserRole.Moderator).ToList()) : null)
-                    .RuleFor(r => r.ProcessedAt, (f, r) => r.IsProcessed ? f.Date.Between(r.ReportedAt, DateTime.UtcNow).ToUniversalTime() : (DateTime?)null)
+                    .RuleFor(r => r.ProcessedByUser,
+                        (f, r) => r.IsProcessed
+                            ? f.PickRandom(users.Where(u =>
+                                u.Role == UserRole.Administrator || u.Role == UserRole.Moderator).ToList())
+                            : null)
+                    .RuleFor(r => r.ProcessedAt,
+                        (f, r) => r.IsProcessed
+                            ? f.Date.Between(r.ReportedAt, DateTime.UtcNow).ToUniversalTime()
+                            : (DateTime?)null)
                     .RuleFor(r => r.AdminNotes, (f, r) => r.IsProcessed ? f.Lorem.Sentence() : null);
 
                 var reports = reportFaker.Generate(count);
@@ -361,12 +397,14 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedPeersAsync(ApplicationDbContext context, ILogger logger, List<User> users, List<Torrent> torrents, int count)
+        public static async Task SeedPeersAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            List<Torrent> torrents, int count)
         {
             if (!await context.Peers.AnyAsync() && users.Any() && torrents.Any())
             {
-                var allPossiblePairs = users.SelectMany(user => torrents.Select(torrent => new { user, torrent })).ToList();
-                
+                var allPossiblePairs = users.SelectMany(user => torrents.Select(torrent => new { user, torrent }))
+                    .ToList();
+
                 var faker = new Faker();
                 var uniquePairs = faker.PickRandom(allPossiblePairs, Math.Min(count, allPossiblePairs.Count)).ToList();
 
@@ -390,12 +428,13 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedUserBadgesAsync(ApplicationDbContext context, ILogger logger, List<User> users, List<Badge> badges, int count)
+        public static async Task SeedUserBadgesAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            List<Badge> badges, int count)
         {
             if (!await context.UserBadges.AnyAsync() && users.Any() && badges.Any())
             {
                 var allPossiblePairs = users.SelectMany(user => badges.Select(badge => new { user, badge })).ToList();
-                
+
                 var faker = new Faker();
                 var uniquePairs = faker.PickRandom(allPossiblePairs, Math.Min(count, allPossiblePairs.Count)).ToList();
 
@@ -416,13 +455,14 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedUserDailyStatsAsync(ApplicationDbContext context, ILogger logger, List<User> users, int count)
+        public static async Task SeedUserDailyStatsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            int count)
         {
             if (!await context.UserDailyStats.AnyAsync() && users.Any())
             {
                 var faker = new Faker();
                 var dates = Enumerable.Range(0, 30).Select(i => faker.Date.Past(i).Date).Distinct().ToList();
-                
+
                 var allPossiblePairs = users.SelectMany(user => dates.Select(date => new { user, date })).ToList();
                 var uniquePairs = faker.PickRandom(allPossiblePairs, Math.Min(count, allPossiblePairs.Count)).ToList();
 
@@ -496,7 +536,7 @@ namespace TorrentHub.Data
                     var firstPost = postFaker.Clone()
                         .RuleFor(p => p.Author, (f, p) => topic.Author)
                         .Generate();
-                    
+
                     firstPost.Topic = topic;
                     firstPost.CreatedAt = topic.CreatedAt;
                     posts.Add(firstPost);
@@ -506,10 +546,11 @@ namespace TorrentHub.Data
                     {
                         var subsequentPost = postFaker.Generate();
                         subsequentPost.Topic = topic;
-                        subsequentPost.CreatedAt = dateFaker.Date.Between(topic.CreatedAt, DateTime.UtcNow).ToUniversalTime();
+                        subsequentPost.CreatedAt =
+                            dateFaker.Date.Between(topic.CreatedAt, DateTime.UtcNow).ToUniversalTime();
                         posts.Add(subsequentPost);
                     }
-                    
+
                     topic.Posts = posts;
                     topic.LastPostTime = posts.Max(p => p.CreatedAt);
                 }
@@ -522,6 +563,16 @@ namespace TorrentHub.Data
             {
                 logger.LogInformation("Forum topics already exist or no users/categories, skipping seeding.");
             }
+
+            // Seed Site Settings
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "IsRegistrationOpen"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "IsRegistrationOpen", Value = "false" });
+                await context.SaveChangesAsync();
+                logger.LogInformation("Default site settings seeded successfully.");
+            }
+
+            logger.LogInformation("All mock data seeding completed.");
         }
     }
 }
