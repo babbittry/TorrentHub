@@ -7,6 +7,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
+using System.IO; // Added for Path and Directory operations
+using Microsoft.AspNetCore.Hosting; // Added for IWebHostEnvironment
 using TorrentHub.Enums;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
@@ -24,6 +26,7 @@ public class UserService : IUserService
     private readonly IEmailService _emailService;
     private readonly IDistributedCache _cache;
     private readonly ISettingsService _settingsService;
+    private readonly IWebHostEnvironment _webHostEnvironment; // Added IWebHostEnvironment
 
     // Cache key prefix for user badges
     private const string UserBadgesCacheKeyPrefix = "UserBadges:";
@@ -33,7 +36,7 @@ public class UserService : IUserService
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
     };
 
-    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<CoinSettings> coinSettings, IEmailService emailService, IDistributedCache cache, ISettingsService settingsService)
+    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<CoinSettings> coinSettings, IEmailService emailService, IDistributedCache cache, ISettingsService settingsService, IWebHostEnvironment webHostEnvironment) // Added IWebHostEnvironment to constructor
     {
         _context = context;
         _configuration = configuration;
@@ -42,6 +45,7 @@ public class UserService : IUserService
         _emailService = emailService;
         _cache = cache;
         _settingsService = settingsService;
+        _webHostEnvironment = webHostEnvironment; // Assigned IWebHostEnvironment
     }
     public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
     {
@@ -147,6 +151,33 @@ public class UserService : IUserService
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
         _logger.LogInformation("User {UserName} registered successfully with ID {UserId}.", user.UserName, user.Id);
+
+        // Save user avatar if provided
+        if (!string.IsNullOrEmpty(userForRegistrationDto.AvatarSvg))
+        {
+            try
+            {
+                var avatarDirectory = Path.Combine(_webHostEnvironment.WebRootPath, "avatars");
+                if (!Directory.Exists(avatarDirectory))
+                {
+                    Directory.CreateDirectory(avatarDirectory);
+                }
+
+                var avatarFileName = $"{user.Id}.svg";
+                var avatarFilePath = Path.Combine(avatarDirectory, avatarFileName);
+                await File.WriteAllTextAsync(avatarFilePath, userForRegistrationDto.AvatarSvg);
+
+                user.Avatar = $"/avatars/{avatarFileName}";
+                await _context.SaveChangesAsync(); // Save avatar path to DB
+                _logger.LogInformation("User {UserName} avatar saved to {AvatarPath}.", user.UserName, user.Avatar);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save avatar for user {UserName}.", user.UserName);
+                // Optionally, you might want to delete the user or mark them as needing avatar setup
+                // For now, we'll just log the error and proceed without an avatar
+            }
+        }
 
         // Send registration confirmation email
         var subject = "Welcome to TorrentHub!";

@@ -20,5 +20,5 @@ public class UserForRegistrationDto
     public string? InviteCode { get; set; }
 
     [Required]
-    public required string Avatar { get; set; }
+    public required string AvatarSvg { get; set; }
 }

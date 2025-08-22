@@ -35,23 +35,6 @@ public class AuthController : ControllerBase
         {
             var user = await _userService.RegisterAsync(registrationDto);
 
-            // Save avatar
-            if (!string.IsNullOrEmpty(registrationDto.Avatar))
-            {
-                var avatarPath = Path.Combine(_env.WebRootPath, "avatars");
-                if (!Directory.Exists(avatarPath))
-                {
-                    Directory.CreateDirectory(avatarPath);
-                }
-
-                var avatarFileName = $"{user.Id}.svg";
-                var fullPath = Path.Combine(avatarPath, avatarFileName);
-                await System.IO.File.WriteAllTextAsync(fullPath, registrationDto.Avatar);
-
-                user.Avatar = $"/avatars/{avatarFileName}";
-                await _userService.UpdateUserAsync(user);
-            }
-
             // Auto-login after registration
             var loginResponse = await _userService.LoginAsync(new UserForLoginDto { UserName = registrationDto.UserName, Password = registrationDto.Password });
 
@@ -124,6 +107,36 @@ public class AuthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to refresh token for user {UserId}: {ErrorMessage}", userId, ex.Message);
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("login")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Login(UserForLoginDto userForLoginDto)
+    {
+        _logger.LogInformation("Login request received for user: {UserName}", userForLoginDto.UserName);
+        try
+        {
+            var loginResponse = await _userService.LoginAsync(userForLoginDto);
+            _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
+
+            Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = !_env.IsDevelopment(),
+                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
+                Expires = DateTime.UtcNow.AddDays(7),
+                Domain = "localhost"
+            });
+            
+            var userProfile = Mapper.ToUserPrivateProfileDto(loginResponse.User);
+
+            return Ok(new { User = userProfile });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Login failed for user {UserName}: {ErrorMessage}", userForLoginDto.UserName, ex.Message);
             return Unauthorized(new { message = ex.Message });
         }
     }
