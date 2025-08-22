@@ -189,12 +189,12 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
                     {
                         var context = services.GetRequiredService<ApplicationDbContext>();
                         var logger = services.GetRequiredService<ILogger<Program>>();
-                        var tmdbService = services.GetRequiredService<ITMDbService>();
+                                                var tmdbService = services.GetRequiredService<ITMDbService>();
 
                         // 确保数据库已迁移到最新版本
                         await context.Database.MigrateAsync();
 
-                        await DataSeeder.SeedAllDataAsync(context, logger, tmdbService);
+                        await DataSeeder.SeedAllDataAsync(context, logger, tmdbService, app.Environment);
                     }
                     catch (Exception ex)
                     {
@@ -205,6 +205,7 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
             }
 
             app.UseHttpsRedirection();
+            app.UseStaticFiles(); // Added to serve static files
 
             // Use CORS policy
             app.UseCors("AllowSpecificOrigin");

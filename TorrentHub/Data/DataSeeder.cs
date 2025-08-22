@@ -8,13 +8,15 @@ using Bogus;
 using TorrentHub.Entities;
 using TorrentHub.Enums;
 using TorrentHub.Services;
+using System.IO; // Added for Path and Directory operations
+using Microsoft.AspNetCore.Hosting; // Added for IWebHostEnvironment
 
 namespace TorrentHub.Data
 {
     public static class DataSeeder
     {
         public static async Task SeedAllDataAsync(ApplicationDbContext context, ILogger logger,
-            ITMDbService tmdbService)
+            ITMDbService tmdbService, IWebHostEnvironment env)
         {
             await context.Database.MigrateAsync();
 
@@ -22,7 +24,7 @@ namespace TorrentHub.Data
             User adminUser = await SeedDefaultAdminUserAsync(context, logger);
 
             // Seed other users
-            List<User> users = await SeedUsersAsync(context, logger, adminUser, 10); // Seed 10 additional users
+            List<User> users = await SeedUsersAsync(context, logger, adminUser, 10, env); // Pass env
             users.Insert(0, adminUser); // Add admin to the list of all users
 
             // Seed Invites
@@ -91,7 +93,7 @@ namespace TorrentHub.Data
         }
 
         public static async Task<List<User>> SeedUsersAsync(ApplicationDbContext context, ILogger logger,
-            User adminUser, int count)
+            User adminUser, int count, IWebHostEnvironment env)
         {
             if (await context.Users.CountAsync() > 1) // Check if more than just admin exists
             {
@@ -109,7 +111,24 @@ namespace TorrentHub.Data
                 })
                 .RuleFor(u => u.Email, (f, u) => f.Internet.Email(u.UserName))
                 .RuleFor(u => u.PasswordHash, f => BCrypt.Net.BCrypt.HashPassword(f.Internet.Password()))
-                .RuleFor(u => u.Avatar, f => f.Internet.Avatar())
+                .RuleFor(u => u.Avatar, (f, u) =>
+                {
+                    var firstLetter = u.UserName.Length > 0 ? u.UserName[0].ToString().ToUpper() : "U";
+                    var color = f.Internet.Color().Replace("#", ""); // Get a hex color without #
+                    var svgContent = GenerateSimpleAvatarSvg(firstLetter, color);
+
+                    var avatarDirectory = Path.Combine(env.WebRootPath, "avatars");
+                    if (!Directory.Exists(avatarDirectory))
+                    {
+                        Directory.CreateDirectory(avatarDirectory);
+                    }
+
+                    var avatarFileName = $"{Guid.NewGuid().ToString("N")}.svg";
+                    var fullPath = Path.Combine(avatarDirectory, avatarFileName);
+                    File.WriteAllText(fullPath, svgContent); // Use WriteAllText for sync in faker rule
+
+                    return $"/avatars/{avatarFileName}";
+                })
                 .RuleFor(u => u.Signature, f => f.Lorem.Sentence(5))
                 .RuleFor(u => u.Language, f => f.PickRandom("en-US", "zh-CN"))
                 .RuleFor(u => u.UploadedBytes, f => (ulong)f.Random.Long(0, 100_000_000_000)) // Up to 100 GB
@@ -573,6 +592,13 @@ namespace TorrentHub.Data
             }
 
             logger.LogInformation("All mock data seeding completed.");
+        }
+    private static string GenerateSimpleAvatarSvg(string letter, string color)
+        {
+            return $@"<svg width=""100"" height=""100"" viewBox=""0 0 100 100"" xmlns=""http://www.w3.org/2000/svg"">
+                <rect width=""100"" height=""100"" fill=""#{color}"" />
+                <text x=""50%"" y=""50%"" dominant-baseline=""middle"" text-anchor=""middle"" font-family=""Arial, sans-serif"" font-size=""50"" fill=""white"">{letter}</text>
+            </svg>";
         }
     }
 }
