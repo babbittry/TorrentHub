@@ -24,7 +24,7 @@ public class Comment
     public User? User { get; set; }
 
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    public DateTime? EditedAt { get; set; }
+    public DateTimeOffset? EditedAt { get; set; }
 }

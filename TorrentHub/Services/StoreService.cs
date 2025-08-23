@@ -118,13 +118,13 @@ public class StoreService : IStoreService
                     // Activate double upload status for 24 hours.
                     // If already active, this extends or resets the duration.
                     user.IsDoubleUploadActive = true;
-                    user.DoubleUploadExpiresAt = DateTime.UtcNow.AddHours(24);
+                    user.DoubleUploadExpiresAt = DateTimeOffset.UtcNow.AddHours(24);
                     break;
                 case Enums.StoreItemCode.NoHitAndRun:
                     // Activate no Hit & Run status for 72 hours.
                     // If already active, this extends or resets the duration.
                     user.IsNoHRActive = true;
-                    user.NoHRExpiresAt = DateTime.UtcNow.AddHours(72);
+                    user.NoHRExpiresAt = DateTimeOffset.UtcNow.AddHours(72);
                     break;
                 case Enums.StoreItemCode.Badge:
                     // Grant a specific badge to the user.
@@ -139,7 +139,7 @@ public class StoreService : IStoreService
                         _logger.LogWarning("Purchase failed: User {UserId} already owns badge {BadgeId}.", userId, item.BadgeId.Value);
                         return false;
                     }
-                    _context.UserBadges.Add(new UserBadge { UserId = userId, BadgeId = item.BadgeId.Value, AcquiredAt = DateTime.UtcNow });
+                    _context.UserBadges.Add(new UserBadge { UserId = userId, BadgeId = item.BadgeId.Value, AcquiredAt = DateTimeOffset.UtcNow });
                     // Invalidate user's badges cache after purchasing a new badge
                     await _cache.RemoveAsync($"UserBadges:{userId}");
                     _logger.LogInformation("User badges cache invalidated for user {UserId}.", userId);

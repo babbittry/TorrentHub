@@ -44,11 +44,11 @@ public class Invite
     /// The date and time when the invite expires.
     /// </summary>
     [Required]
-    public DateTime ExpiresAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
 
     /// <summary>
     /// Timestamp when the invite was created.
     /// </summary>
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

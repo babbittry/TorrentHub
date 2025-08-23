@@ -34,12 +34,13 @@ public class Request
     public Torrent? FilledWithTorrent { get; set; }
 
     [Required]
+    [Column(TypeName = "request_status")]
     public RequestStatus Status { get; set; } = RequestStatus.Pending;
 
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    public DateTime? FilledAt { get; set; }
+    public DateTimeOffset? FilledAt { get; set; }
 
     /// <summary>
     /// The total amount of Coins offered as a bounty for this request.

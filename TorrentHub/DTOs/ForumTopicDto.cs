@@ -11,8 +11,8 @@ public class ForumTopicDto
     
     public int PostCount { get; set; }
     
-    public DateTime CreatedAt { get; set; }
-    public DateTime? LastPostTime { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? LastPostTime { get; set; }
     
     public bool IsSticky { get; set; }
     public bool IsLocked { get; set; }

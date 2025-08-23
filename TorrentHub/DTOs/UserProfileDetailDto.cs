@@ -10,7 +10,7 @@ public class UserProfileDetailDto
     public required string Email { get; set; }
     public required string Role { get; set; }
     public string? Avatar { get; set; }
-    public DateTime CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
     public ulong UploadedBytes { get; set; }
     public ulong DownloadedBytes { get; set; }
     public ulong NominalUploadedBytes { get; set; }

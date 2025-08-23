@@ -103,7 +103,7 @@ public class ForumService : IForumService
             throw new KeyNotFoundException("User not found");
         }
 
-        var now = DateTime.UtcNow;
+        var now = DateTimeOffset.UtcNow;
 
         var topic = new ForumTopic
         {
@@ -172,7 +172,7 @@ public class ForumService : IForumService
             throw new KeyNotFoundException("User not found");
         }
 
-        var now = DateTime.UtcNow;
+        var now = DateTimeOffset.UtcNow;
 
         var post = new ForumPost
         {
@@ -241,7 +241,7 @@ public class ForumService : IForumService
         }
 
         post.Content = updatePostDto.Content;
-        post.EditedAt = DateTime.UtcNow;
+        post.EditedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync();
     }
 

@@ -54,7 +54,7 @@ public class RequestService : IRequestService
             Description = createRequestDto.Description,
             RequestedByUserId = userId,
             Status = RequestStatus.Pending, // 初始状态为“待处理”
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
             BountyAmount = createRequestDto.InitialBounty
         };
 
@@ -183,7 +183,7 @@ public class RequestService : IRequestService
         request.Status = RequestStatus.Filled;
         request.FilledWithTorrentId = fillRequestDto.TorrentId;
         request.FilledByUserId = fillerUserId;
-        request.FilledAt = DateTime.UtcNow;
+        request.FilledAt = DateTimeOffset.UtcNow;
         
         await _userService.AddCoinsAsync(fillerUserId, new UpdateCoinsRequestDto { Amount = _settings.FillRequestBonus + request.BountyAmount });
         _logger.LogInformation("User {FillerUserId} filled request {RequestId} with torrent {TorrentId} and earned {Bonus} Coins. basic bonus: {FillRequestBonus} Bounty: {BountyAmount}", fillerUserId, requestId, fillRequestDto.TorrentId, _settings.FillRequestBonus + request.BountyAmount, _settings.FillRequestBonus, request.BountyAmount);

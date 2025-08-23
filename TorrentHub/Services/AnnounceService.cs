@@ -37,8 +37,8 @@ public class AnnounceService : IAnnounceService
         string? @event,
         int numWant,
         string? key,
-        string? ipAddress,
-        string passkey)
+        System.Net.IPAddress ipAddress,
+        Guid passkey)
     {
         _logger.LogInformation("Processing announce request for infoHash: {InfoHash}, peerId: {PeerId}, event: {Event}", infoHash, peerId, @event);
 
@@ -46,7 +46,7 @@ public class AnnounceService : IAnnounceService
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == passkey);
         if (user == null)
         {
-            _logger.LogWarning("Announce request with invalid passkey: {Passkey}", passkey);
+            _logger.LogWarning("Announce request with invalid passkey: {Passkey}", passkey.ToString());
             throw new UnauthorizedAccessException("Invalid passkey.");
         }
 
@@ -84,21 +84,14 @@ public class AnnounceService : IAnnounceService
             throw new ArgumentException("Invalid info_hash format.", ex);
         }
 
-        var infoHashString = BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant();
-
-
-        var torrent = await _context.Torrents.FirstOrDefaultAsync(t => t.InfoHash == infoHashString);
+        var torrent = await _context.Torrents.FirstOrDefaultAsync(t => t.InfoHash == infoHashBytes);
         if (torrent == null)
         {
-            _logger.LogWarning("Announce request for non-existent torrent: {InfoHashString}", infoHashString);
+            _logger.LogWarning("Announce request for non-existent torrent: {infoHashBytes}", infoHashBytes);
             throw new KeyNotFoundException("Torrent not found.");
         }
 
-        if (string.IsNullOrEmpty(ipAddress))
-        {
-            _logger.LogError("Could not determine client IP address for announce request.");
-            throw new ArgumentException("Could not determine client IP address.");
-        }
+        
 
         // Handle peer events (started, completed, stopped, none)
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
@@ -107,14 +100,14 @@ public class AnnounceService : IAnnounceService
         {
             // Frequency check for existing peers
             var minAnnounceInterval = TimeSpan.FromSeconds(30); // Define your minimum interval
-            if (DateTime.UtcNow - peer.LastAnnounce < minAnnounceInterval)
+            if (DateTimeOffset.UtcNow - peer.LastAnnounce < minAnnounceInterval)
             {
                 _logger.LogWarning("Announce request too frequent from user: {UserId}", user.Id);
                 throw new InvalidOperationException("Request too frequent.");
             }
 
             // Calculate seeding/leeching time based on the peer's state before this announce
-            var timeElapsed = (DateTime.UtcNow - peer.LastAnnounce).TotalMinutes;
+            var timeElapsed = (DateTimeOffset.UtcNow - peer.LastAnnounce).TotalMinutes;
             if (timeElapsed > 0 && timeElapsed <= 3600) // Cap at 1 hour to prevent abuse
             {
                 if (peer.IsSeeder)
@@ -145,7 +138,7 @@ public class AnnounceService : IAnnounceService
                         User = user,
                         IpAddress = ipAddress,
                         Port = port,
-                        LastAnnounce = DateTime.UtcNow,
+                        LastAnnounce = DateTimeOffset.UtcNow,
                         IsSeeder = (left == 0)
                     };
                     _context.Peers.Add(peer);
@@ -155,7 +148,7 @@ public class AnnounceService : IAnnounceService
                     _logger.LogInformation("Peer {PeerId} re-announced for torrent {TorrentId} (User: {UserId}).", peerId, torrent.Id, user.Id);
                     peer.IpAddress = ipAddress;
                     peer.Port = port;
-                    peer.LastAnnounce = DateTime.UtcNow;
+                    peer.LastAnnounce = DateTimeOffset.UtcNow;
                     peer.IsSeeder = (left == 0);
                 }
                 break;
@@ -169,7 +162,7 @@ public class AnnounceService : IAnnounceService
                         torrent.Snatched++;
                         _logger.LogInformation("Torrent {TorrentId} snatched count incremented to {SnatchedCount}.", torrent.Id, torrent.Snatched);
                     }
-                    peer.LastAnnounce = DateTime.UtcNow;
+                    peer.LastAnnounce = DateTimeOffset.UtcNow;
                     peer.IsSeeder = true; // Peer completed, so it's now a seeder
                 }
                 break;
@@ -189,7 +182,7 @@ public class AnnounceService : IAnnounceService
         var nominalDownload = downloaded;
 
         // 2. Apply torrent-specific multipliers
-        bool isFreeLeech = torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTime.UtcNow);
+        bool isFreeLeech = torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTimeOffset.UtcNow);
         if (isFreeLeech)
         {
             nominalDownload = 0;
@@ -197,12 +190,12 @@ public class AnnounceService : IAnnounceService
         }
 
         // 3. Apply user-specific multipliers
-        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt.HasValue && user.DoubleUploadExpiresAt.Value > DateTime.UtcNow)
+        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt.HasValue && user.DoubleUploadExpiresAt.Value > DateTimeOffset.UtcNow)
         {
             nominalUpload *= 2;
             _logger.LogInformation("User {UserId} has double upload active. Nominal upload is doubled to {NominalUpload}.", user.Id, nominalUpload);
         }
-        else if (user.IsDoubleUploadActive && (!user.DoubleUploadExpiresAt.HasValue || user.DoubleUploadExpiresAt.Value <= DateTime.UtcNow))
+        else if (user.IsDoubleUploadActive && (!user.DoubleUploadExpiresAt.HasValue || user.DoubleUploadExpiresAt.Value <= DateTimeOffset.UtcNow))
         {
             // Double upload expired, reset status
             user.IsDoubleUploadActive = false;
@@ -223,7 +216,7 @@ public class AnnounceService : IAnnounceService
             user.Id, user.UploadedBytes, user.DownloadedBytes, user.NominalUploadedBytes, user.NominalDownloadedBytes);
 
         // Check and reset No H&R status if expired
-        if (user.IsNoHRActive && user.NoHRExpiresAt <= DateTime.UtcNow)
+        if (user.IsNoHRActive && user.NoHRExpiresAt <= DateTimeOffset.UtcNow)
         {
             user.IsNoHRActive = false;
             user.NoHRExpiresAt = null;
@@ -252,7 +245,7 @@ public class AnnounceService : IAnnounceService
             var peerDict = new BDictionary
             {
                 { "peer id", new BString(p.UserId.ToString()) }, // Using UserId as peer id for now
-                { "ip", new BString(p.IpAddress) },
+                { "ip", new BString(p.IpAddress.ToString()) },
                 { "port", new BNumber(p.Port) }
             };
             peerList.Add(peerDict);

@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using TorrentHub.Enums;
-
+using System.ComponentModel.DataAnnotations.Schema;
 namespace TorrentHub.Entities;
 
 /// <summary>
@@ -11,6 +11,6 @@ public class Badge
     [Key]
     public int Id { get; set; }
 
-    [Required]
-    public BadgeCode Code { get; set; }
+    [Column(TypeName = "badge_code")]
+    public required BadgeCode Code { get; set; }
 }

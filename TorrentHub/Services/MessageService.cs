@@ -43,7 +43,7 @@ public class MessageService : IMessageService
             ReceiverId = request.ReceiverId,
             Subject = request.Subject,
             Content = request.Content,
-            SentAt = DateTime.UtcNow,
+            SentAt = DateTimeOffset.UtcNow,
             IsRead = false // New messages are unread by default.
         };
 

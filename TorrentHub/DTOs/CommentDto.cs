@@ -6,6 +6,6 @@ public class CommentDto
     public required string Text { get; set; }
     public int TorrentId { get; set; }
     public UserPublicProfileDto? User { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? EditedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? EditedAt { get; set; }
 }

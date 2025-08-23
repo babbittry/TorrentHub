@@ -15,7 +15,7 @@ public class UserDailyStats
     public User? User { get; set; }
 
     [Required]
-    public DateTime Date { get; set; }
+    public DateTimeOffset Date { get; set; }
 
     [Required]
     public int CommentBonusesGiven { get; set; } = 0;

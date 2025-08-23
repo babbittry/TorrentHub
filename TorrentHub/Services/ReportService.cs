@@ -34,7 +34,7 @@ public class ReportService : IReportService
 
         // Prevent duplicate reports from the same user for the same torrent with the same reason (within a time frame, e.g., 24 hours)
         var existingReport = await _context.Reports
-            .AnyAsync(r => r.TorrentId == request.TorrentId && r.ReporterUserId == reporterUserId && r.Reason == request.Reason && !r.IsProcessed && r.ReportedAt.AddHours(24) > DateTime.UtcNow);
+            .AnyAsync(r => r.TorrentId == request.TorrentId && r.ReporterUserId == reporterUserId && r.Reason == request.Reason && !r.IsProcessed && r.ReportedAt.AddHours(24) > DateTimeOffset.UtcNow);
 
         if (existingReport)
         {
@@ -48,7 +48,7 @@ public class ReportService : IReportService
             ReporterUserId = reporterUserId,
             Reason = request.Reason,
             Details = request.Details,
-            ReportedAt = DateTime.UtcNow,
+            ReportedAt = DateTimeOffset.UtcNow,
             IsProcessed = false
         };
 
@@ -104,7 +104,7 @@ public class ReportService : IReportService
 
         report.IsProcessed = request.MarkAsProcessed;
         report.ProcessedByUserId = processedByUserId;
-        report.ProcessedAt = DateTime.UtcNow;
+        report.ProcessedAt = DateTimeOffset.UtcNow;
         report.AdminNotes = request.AdminNotes;
 
         await _context.SaveChangesAsync();

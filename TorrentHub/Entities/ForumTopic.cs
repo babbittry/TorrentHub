@@ -26,9 +26,9 @@ public class ForumTopic
     public ForumCategory? Category { get; set; }
 
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    public DateTime? LastPostTime { get; set; }
+    public DateTimeOffset? LastPostTime { get; set; }
 
     [Required]
     public bool IsSticky { get; set; } = false;

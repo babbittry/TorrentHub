@@ -46,8 +46,13 @@ public class AnnounceController : ControllerBase
             return BadRequest("Missing required parameters.");
         }
 
-        var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString();
-        if (string.IsNullOrEmpty(ipAddress))
+        if (!Guid.TryParse(passkey, out var passkeyGuid))
+        {
+            return BadRequest("Invalid passkey format.");
+        }
+
+        var ipAddress = HttpContext.Connection.RemoteIpAddress;
+        if (ipAddress == null)
         {
             _logger.LogError("Could not determine client IP address for announce request.");
             return BadRequest("Could not determine client IP address.");
@@ -61,7 +66,7 @@ public class AnnounceController : ControllerBase
             var numWantValue = numWant ?? 50;
             
             var responseDictionary = await _announceService.ProcessAnnounceRequest(
-                infoHash, peerId, port, uploaded, downloaded, left, @event, numWantValue, key, ipAddress, passkey);
+                infoHash, peerId, port, uploaded, downloaded, left, @event, numWantValue, key, ipAddress, passkeyGuid);
 
             var bencodedResponse = responseDictionary.EncodeAsBytes();
 

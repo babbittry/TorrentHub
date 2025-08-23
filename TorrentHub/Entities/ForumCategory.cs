@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using TorrentHub.Enums;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TorrentHub.Entities;
 
@@ -11,8 +12,8 @@ public class ForumCategory
     [Key]
     public int Id { get; set; }
 
-    [Required]
-    public ForumCategoryCode Code { get; set; }
+    [Column(TypeName = "forum_category_code")]
+    public required ForumCategoryCode Code { get; set; }
 
     [Required]
     public int DisplayOrder { get; set; } = 0;

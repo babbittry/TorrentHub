@@ -51,8 +51,9 @@ public class TorrentService : ITorrentService
             return (false, "Invalid torrent file.", null);
         }
 
-        var infoHash = torrent.GetInfoHash();
-        if (await _context.Torrents.AnyAsync(t => t.InfoHash == infoHash))
+        var infoHashBytes = torrent.GetInfoHashBytes();
+        var infoHash = BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant();
+        if (await _context.Torrents.AnyAsync(t => t.InfoHash == infoHashBytes))
         {
             return (false, "Torrent already exists.", null);
         }
@@ -60,7 +61,7 @@ public class TorrentService : ITorrentService
         try
         {
             var filePath = await SaveTorrentFile(torrentFile, infoHash);
-            var torrentEntity = await CreateTorrentEntity(torrent, request, filePath, userId);
+            var torrentEntity = await CreateTorrentEntity(torrent, request, filePath, userId, infoHashBytes);
 
             _context.Torrents.Add(torrentEntity);
             await _context.SaveChangesAsync();
@@ -82,7 +83,7 @@ public class TorrentService : ITorrentService
         }
     }
 
-    private async Task<Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, UploadTorrentRequestDto request, string filePath, int userId)
+    private async Task<Torrent> CreateTorrentEntity(BencodeNET.Torrents.Torrent torrent, UploadTorrentRequestDto request, string filePath, int userId, byte[] infoHashBytes)
     {
         _logger.LogDebug("Creating torrent entity for {TorrentName} (InfoHash: {InfoHash}).", torrent.DisplayName, torrent.GetInfoHash());
         var user = await _context.Users.FindAsync(userId);
@@ -95,18 +96,19 @@ public class TorrentService : ITorrentService
         var torrentEntity = new Torrent
         {
             Name = torrent.DisplayName,
-            InfoHash = torrent.GetInfoHash(),
+            InfoHash = infoHashBytes,
             Description = request.Description,
             Size = torrent.TotalSize,
             UploadedByUserId = user.Id,
             UploadedByUser = user,
             Category = request.Category,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
             IsFree = false,
             FreeUntil = null,
             StickyStatus = TorrentStickyStatus.None,
             FilePath = filePath,
-            ImdbId = request.ImdbId
+            ImdbId = request.ImdbId,
+            Genres = new List<string>()
         };
 
         if (!string.IsNullOrWhiteSpace(request.ImdbId))
@@ -129,7 +131,7 @@ public class TorrentService : ITorrentService
                 torrentEntity.BackdropPath = movieData.BackdropPath;
                 torrentEntity.Runtime = movieData.Runtime;
                 torrentEntity.Rating = movieData.VoteAverage;
-                torrentEntity.Genres = movieData.Genres != null ? string.Join(", ", movieData.Genres.Select(g => g.Name)) : null;
+                torrentEntity.Genres = movieData.Genres?.Select(g => g.Name).ToList() ?? new List<string>();
                 torrentEntity.Directors = movieData.Credits?.Crew != null ? string.Join(", ", movieData.Credits.Crew.Where(c => c.Job == "Director").Select(c => c.Name)) : null;
                 torrentEntity.Cast = movieData.Credits?.Cast != null ? string.Join(", ", movieData.Credits.Cast.OrderBy(c => c.Order).Take(5).Select(c => c.Name)) : null;
             }
@@ -273,7 +275,7 @@ public class TorrentService : ITorrentService
 
         // Apply freeleech status
         torrent.IsFree = true;
-        torrent.FreeUntil = DateTime.UtcNow.AddHours(_coinSettings.FreeleechDurationHours);
+        torrent.FreeUntil = DateTimeOffset.UtcNow.AddHours(_coinSettings.FreeleechDurationHours);
 
         // Deduct coins directly
         user.Coins -= _coinSettings.FreeleechPrice;

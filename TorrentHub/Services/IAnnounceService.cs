@@ -15,6 +15,6 @@ public interface IAnnounceService
         string? @event,
         int numWant,
         string? key,
-        string? ipAddress,
-        string passkey); // Pass passkey from controller
+        System.Net.IPAddress ipAddress,
+        Guid passkey); // Pass passkey from controller
 }

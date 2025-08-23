@@ -13,12 +13,12 @@ public class UserPublicProfileDto
    public ulong NominalUploadedBytes { get; set; }
    public ulong NominalDownloadedBytes { get; set; }
    public UserRole Role { get; set; }
-   public DateTime CreatedAt { get; set; }
+   public DateTimeOffset CreatedAt { get; set; }
    public ulong Coins { get; set; }
    public bool IsDoubleUploadActive { get; set; }
-   public DateTime? DoubleUploadExpiresAt { get; set; }
+   public DateTimeOffset? DoubleUploadExpiresAt { get; set; }
    public bool IsNoHRActive { get; set; }
-   public DateTime? NoHRExpiresAt { get; set; }
+   public DateTimeOffset? NoHRExpiresAt { get; set; }
    public ulong TotalSeedingTimeMinutes { get; set; }
    public ulong TotalLeechingTimeMinutes { get; set; } 
    public uint InviteNum { get; set; }

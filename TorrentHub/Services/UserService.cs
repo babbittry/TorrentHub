@@ -81,7 +81,7 @@ public class UserService : IUserService
                 new Claim(ClaimTypes.Name, user.UserName),
                 new Claim(ClaimTypes.Role, user.Role.ToString())
             }),
-            Expires = DateTime.UtcNow.AddDays(7),
+            Expires = DateTimeOffset.UtcNow.AddDays(7).UtcDateTime,
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
             Issuer = _configuration["Jwt:Issuer"],
             Audience = _configuration["Jwt:Audience"]
@@ -100,7 +100,7 @@ public class UserService : IUserService
         if (!string.IsNullOrEmpty(userForRegistrationDto.InviteCode))
         {
             invite = await _context.Invites
-                .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTime.UtcNow && i.UsedByUser == null);
+                .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTimeOffset.UtcNow && i.UsedByUser == null);
 
             if (invite == null)
             {
@@ -138,8 +138,9 @@ public class UserService : IUserService
             Email = userForRegistrationDto.Email,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password), // Hashing the password
             InviteId = invite?.Id,
-            CreatedAt = DateTime.UtcNow,
-            Passkey = Guid.NewGuid().ToString("N") // Generate a new Passkey
+            CreatedAt = DateTimeOffset.UtcNow,
+            Passkey = Guid.NewGuid(), // Generate a new Passkey
+            RssKey = Guid.NewGuid() // Generate a new RssKey
         };
 
         // 4. Update invite and save changes
@@ -383,8 +384,8 @@ public class UserService : IUserService
         {
             Code = Guid.NewGuid().ToString("N").Substring(0, 16),
             GeneratorUserId = userId,
-            CreatedAt = DateTime.UtcNow,
-            ExpiresAt = DateTime.UtcNow.AddDays(_coinSettings.InviteExpirationDays)
+            CreatedAt = DateTimeOffset.UtcNow,
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(_coinSettings.InviteExpirationDays)
         };
 
         _context.Invites.Add(newInvite);
@@ -477,7 +478,7 @@ public class UserService : IUserService
             TorrentId = p.TorrentId,
             TorrentName = p.Torrent.Name,
             UserAgent = "N/A", // Not stored in Peers entity
-            IpAddress = p.IpAddress,
+            IpAddress = p.IpAddress.ToString(),
             Port = p.Port,
             Uploaded = 0, // Not stored in Peers entity
             Downloaded = 0, // Not stored in Peers entity

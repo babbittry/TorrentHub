@@ -13,5 +13,5 @@ public class PeerDto
     public ulong Uploaded { get; set; }
     public ulong Downloaded { get; set; }
     public bool IsSeeder { get; set; }
-    public DateTime LastAnnounceAt { get; set; }
+    public DateTimeOffset LastAnnounceAt { get; set; }
 }

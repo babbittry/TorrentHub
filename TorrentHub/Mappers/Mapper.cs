@@ -97,7 +97,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
-    [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
     public static partial TorrentDto ToTorrentDto(Torrent torrent);
 
     [MapProperty(nameof(Request.RequestedByUser), nameof(RequestDto.RequestedByUser))]
@@ -144,5 +143,9 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
     [MapperIgnoreSource(nameof(Torrent.Seeders))]
     [MapperIgnoreSource(nameof(Torrent.Leechers))]
+    [MapperIgnoreSource(nameof(Torrent.DeleteReason))]
+    [MapperIgnoreSource(nameof(Torrent.PosterPath))]
+    [MapperIgnoreSource(nameof(Torrent.BackdropPath))]
+    [MapperIgnoreSource(nameof(Torrent.Rating))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
 }

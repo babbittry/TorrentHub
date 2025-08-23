@@ -24,7 +24,7 @@ public class CommentService : ICommentService
 
     public async Task<(bool Success, string Message, Comment? Comment)> PostCommentAsync(int torrentId, CreateCommentRequestDto request, int userId)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeOffset.UtcNow.Date;
 
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
@@ -37,7 +37,7 @@ public class CommentService : ICommentService
             TorrentId = torrentId,
             UserId = userId,
             Text = request.Text,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         _context.Comments.Add(newComment);
@@ -95,7 +95,7 @@ public class CommentService : ICommentService
         }
 
         comment.Text = request.Content;
-        comment.EditedAt = DateTime.UtcNow;
+        comment.EditedAt = DateTimeOffset.UtcNow;
 
         await _context.SaveChangesAsync();
         _logger.LogInformation("Comment {CommentId} updated by user {UserId}.", commentId, userId);

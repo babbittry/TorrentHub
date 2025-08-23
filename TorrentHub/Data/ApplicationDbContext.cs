@@ -31,6 +31,16 @@ namespace TorrentHub.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.HasPostgresEnum<UserRole>();
+            modelBuilder.HasPostgresEnum<BadgeCode>();
+            modelBuilder.HasPostgresEnum<ForumCategoryCode>();
+            modelBuilder.HasPostgresEnum<ReportReason>();
+            modelBuilder.HasPostgresEnum<RequestStatus>();
+            modelBuilder.HasPostgresEnum<StoreItemCode>();
+            modelBuilder.HasPostgresEnum<TorrentCategory>();
+            modelBuilder.HasPostgresEnum<TorrentStickyStatus>();
+            modelBuilder.HasPostgresEnum<UserBanReason>();
+
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasIndex(u => u.UserName).IsUnique();
@@ -116,6 +126,10 @@ namespace TorrentHub.Data
                 .WithMany(t => t.Posts)
                 .HasForeignKey(p => p.TopicId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SiteSetting>()
+                .Property(s => s.Value)
+                .HasColumnType("jsonb");
         }
     }
 }

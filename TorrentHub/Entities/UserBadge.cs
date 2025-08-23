@@ -24,5 +24,5 @@ public class UserBadge
     public Badge? Badge { get; set; }
 
     [Required]
-    public DateTime AcquiredAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset AcquiredAt { get; set; } = DateTimeOffset.UtcNow;
 }

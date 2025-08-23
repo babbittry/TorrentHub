@@ -36,7 +36,7 @@ public class AnnouncementService : IAnnouncementService
         {
             Title = request.Title,
             Content = request.Content,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAt = DateTimeOffset.UtcNow,
             CreatedByUserId = createdByUserId
         };
 

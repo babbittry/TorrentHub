@@ -42,8 +42,7 @@ public class Peers
     /// IP address of the peer.
     /// </summary>
     [Required]
-    [StringLength(45)] // Accommodates IPv6 addresses
-    public required string IpAddress { get; set; }
+    public required System.Net.IPAddress IpAddress { get; set; }
 
     /// <summary>
     /// Port number the peer is listening on.
@@ -55,7 +54,7 @@ public class Peers
     /// Timestamp of the last announce from this peer.
     /// </summary>
     [Required]
-    public DateTime LastAnnounce { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset LastAnnounce { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Indicates if the peer is a seeder (true) or a Mosquito (false).

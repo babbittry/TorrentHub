@@ -24,14 +24,14 @@ public class Report
     [ForeignKey(nameof(ReporterUserId))]
     public User? ReporterUser { get; set; }
 
-    [Required]
-    public ReportReason Reason { get; set; }
+    [Column(TypeName = "report_reason")]
+    public required ReportReason Reason { get; set; }
 
     [StringLength(1000)]
     public string? Details { get; set; }
 
     [Required]
-    public DateTime ReportedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset ReportedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Indicates if the report has been processed by an administrator.
@@ -47,7 +47,7 @@ public class Report
     [ForeignKey(nameof(ProcessedByUserId))]
     public User? ProcessedByUser { get; set; }
 
-    public DateTime? ProcessedAt { get; set; }
+    public DateTimeOffset? ProcessedAt { get; set; }
 
     [StringLength(1000)]
     public string? AdminNotes { get; set; }

@@ -11,7 +11,7 @@ public class RequestDto
     public UserPublicProfileDto? FilledByUser { get; set; }
     public int? FilledWithTorrentId { get; set; }
     public RequestStatus Status { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? FilledAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset? FilledAt { get; set; }
     public ulong BountyAmount { get; set; }
 }

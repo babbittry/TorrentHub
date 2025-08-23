@@ -85,31 +85,26 @@ public class User
     [DefaultValue(0UL)]
     public ulong NominalDownloadedBytes { get; set; }
 
-    /// <summary>
-    /// Unique key for RSS feed access.
-    /// </summary>
-    [StringLength(32)]
-    public string? RssKey { get; set; }
+    public required Guid RssKey { get; set; }
 
     /// <summary>
-    /// Unique passkey for tracker authentication.
+    /// Unique key for announce URL, do not expose to other users.
     /// </summary>
-    [Required]
-    [StringLength(32)]
-    public required string Passkey { get; set; }
+    public required Guid Passkey { get; set; }
 
     /// <summary>
     /// Role of the user in the system.
     /// </summary>
     [Required]
     [DefaultValue(UserRole.User)]
+    [Column(TypeName = "user_role")]
     public UserRole Role { get; set; } = UserRole.User;
 
     /// <summary>
     /// Timestamp when the user was created.
     /// </summary>
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
     /// Indicates if the user is banned.
@@ -121,12 +116,13 @@ public class User
     /// <summary>
     /// Reason for the ban.
     /// </summary>
+    [Column(TypeName = "user_ban_reason")]
     public UserBanReason? BanReason { get; set; }
 
     /// <summary>
     /// Date and time until the ban is active.
     /// </summary>
-    public DateTime? BanUntil { get; set; }
+    public DateTimeOffset? BanUntil { get; set; }
 
     /// <summary>
     /// Number of invites the user can generate.
@@ -168,7 +164,7 @@ public class User
     /// <summary>
     /// The date and time when double upload status expires.
     /// </summary>
-    public DateTime? DoubleUploadExpiresAt { get; set; }
+    public DateTimeOffset? DoubleUploadExpiresAt { get; set; }
 
     /// <summary>
     /// Indicates if the user is currently exempt from Hit & Run rules.
@@ -180,7 +176,7 @@ public class User
     /// <summary>
     /// The date and time when No Hit & Run status expires.
     /// </summary>
-    public DateTime? NoHRExpiresAt { get; set; }
+    public DateTimeOffset? NoHRExpiresAt { get; set; }
 
     /// <summary>
     /// Foreign key to the invite that was used to register this user.

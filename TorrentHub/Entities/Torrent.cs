@@ -29,7 +29,7 @@ public class Torrent
     /// </summary>
     [Required]
     [StringLength(40)]
-    public required string InfoHash { get; set; }
+    public required byte[] InfoHash { get; set; }
 
     /// <summary>
     /// Path to the stored .torrent file.
@@ -56,49 +56,49 @@ public class Torrent
     [ForeignKey(nameof(UploadedByUserId))]
     public required User UploadedByUser { get; set; }
 
-    /// <summary>
-    /// Category of the torrent.
-    /// </summary>
-    [Required]
-    public TorrentCategory Category { get; set; }
+    [Column(TypeName = "torrent_category")]
+    public required TorrentCategory Category { get; set; }
 
     /// <summary>
-    /// Total size of the torrent content in bytes.
+    /// Size of the torrent in bytes.
     /// </summary>
     [Required]
     public long Size { get; set; }
 
     /// <summary>
-    /// Indicates if the torrent has been deleted.
+    /// Indicates if the torrent is deleted.
     /// </summary>
     [Required]
-    [DefaultValue(false)]
-    public bool IsDeleted { get; set; } = false;
+    public bool IsDeleted { get; set; }
+
+    /// <summary>
+    /// Reason for deletion, if applicable.
+    /// </summary>
+    public TorrentDeleteReason? DeleteReason { get; set; }
 
     /// <summary>
     /// Timestamp when the torrent was created.
     /// </summary>
     [Required]
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Indicates if the torrent is free to download.
+    /// Indicates if the torrent is free to download (no download stats recorded).
     /// </summary>
     [Required]
-    [DefaultValue(false)]
-    public bool IsFree { get; set; } = false;
+    public bool IsFree { get; set; }
 
     /// <summary>
-    /// The date and time until which the torrent is free. Null if not free.
+    /// Timestamp until the torrent is free.
     /// </summary>
-    public DateTime? FreeUntil { get; set; }
+    public DateTimeOffset? FreeUntil { get; set; }
 
     /// <summary>
-    /// The sticky status of the torrent.
+    /// Sticky status of the torrent on the torrent list.
     /// </summary>
     [Required]
-    [DefaultValue(TorrentStickyStatus.None)]
-    public TorrentStickyStatus StickyStatus { get; set; } = TorrentStickyStatus.None;
+    [Column(TypeName = "torrent_sticky_status")]
+    public required TorrentStickyStatus StickyStatus { get; set; }
 
     /// <summary>
     /// Number of times the torrent has been snatched (completed).
@@ -144,8 +144,7 @@ public class Torrent
     
     public int? Runtime { get; set; }
 
-    [StringLength(255)]
-    public string? Genres { get; set; }
+    public required List<string> Genres { get; set; } = new();
 
     [StringLength(255)]
     public string? Directors { get; set; }

@@ -77,8 +77,9 @@ namespace TorrentHub.Data
                     Email = "admin@example.com",
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("AdminPassword123"),
                     Role = UserRole.Administrator,
-                    CreatedAt = DateTime.UtcNow,
-                    Passkey = Guid.NewGuid().ToString("N")
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    Passkey = Guid.NewGuid(),
+                    RssKey = Guid.NewGuid()
                 };
                 context.Users.Add(adminUser);
                 await context.SaveChangesAsync();
@@ -134,8 +135,8 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.UploadedBytes, f => (ulong)f.Random.Long(0, 100_000_000_000)) // Up to 100 GB
                 .RuleFor(u => u.DownloadedBytes,
                     (f, u) => (ulong)f.Random.Long(0, (long)u.UploadedBytes)) // Downloaded less than uploaded
-                .RuleFor(u => u.RssKey, f => f.Random.Guid().ToString("N").Substring(0, 32))
-                .RuleFor(u => u.Passkey, f => f.Random.Guid().ToString("N").Substring(0, 32))
+                .RuleFor(u => u.RssKey, f => f.Random.Guid())
+                .RuleFor(u => u.Passkey, f => f.Random.Guid())
                 .RuleFor(u => u.Role, f => f.PickRandom<UserRole>(UserRole.User, UserRole.Moderator))
                 .RuleFor(u => u.CreatedAt, f => f.Date.Past(5).ToUniversalTime())
                 .RuleFor(u => u.IsBanned, f => f.Random.Bool(0.1f)) // 10% chance of being banned
@@ -215,12 +216,12 @@ namespace TorrentHub.Data
                     var movie = await tmdbService.GetMovieByTmdbIdAsync(movieId, "zh-CN");
                     if (movie != null)
                     {
-                        var infoHash = faker.Random.Hexadecimal(40, "");
+                        var infoHashBytes = faker.Random.Bytes(20);
                         var torrent = new Torrent
                         {
                             Name = movie.Title ?? "unknown",
-                            InfoHash = infoHash,
-                            FilePath = $"/torrents/{infoHash}.torrent",
+                            InfoHash = infoHashBytes,
+                            FilePath = $"/torrents/{BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant()}.torrent",
                             Description = movie.Overview,
                             UploadedByUser = faker.PickRandom(users),
                             Category = TorrentCategory.Movie,
@@ -243,7 +244,7 @@ namespace TorrentHub.Data
                             PosterPath = movie.PosterPath,
                             BackdropPath = movie.BackdropPath,
                             Runtime = movie.Runtime,
-                            Genres = string.Join(", ", movie.Genres.Select(g => g.Name)),
+                            Genres = movie.Genres.Select(g => g.Name).ToList(),
                             Rating = movie.VoteAverage
                         };
 
@@ -359,7 +360,7 @@ namespace TorrentHub.Data
                     .RuleFor(r => r.CreatedAt, f => f.Date.Past(1).ToUniversalTime())
                     .RuleFor(r => r.FilledAt,
                         (f, r) => r.Status == RequestStatus.Filled
-                            ? f.Date.Between(r.CreatedAt, DateTime.UtcNow).ToUniversalTime()
+                            ? f.Date.Between(r.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
                             : (DateTime?)null)
                     .RuleFor(r => r.BountyAmount, f => (ulong)f.Random.Long(100, 5000))
                     .RuleFor(r => r.FilledByUser,
@@ -401,7 +402,7 @@ namespace TorrentHub.Data
                             : null)
                     .RuleFor(r => r.ProcessedAt,
                         (f, r) => r.IsProcessed
-                            ? f.Date.Between(r.ReportedAt, DateTime.UtcNow).ToUniversalTime()
+                            ? f.Date.Between(r.ReportedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
                             : (DateTime?)null)
                     .RuleFor(r => r.AdminNotes, (f, r) => r.IsProcessed ? f.Lorem.Sentence() : null);
 
@@ -431,7 +432,7 @@ namespace TorrentHub.Data
                 {
                     Torrent = pair.torrent,
                     User = pair.user,
-                    IpAddress = faker.Internet.Ip(),
+                    IpAddress = System.Net.IPAddress.Parse(faker.Internet.Ip()),
                     Port = faker.Internet.Port(),
                     LastAnnounce = faker.Date.Recent(1).ToUniversalTime(),
                     IsSeeder = faker.Random.Bool()
@@ -566,7 +567,7 @@ namespace TorrentHub.Data
                         var subsequentPost = postFaker.Generate();
                         subsequentPost.Topic = topic;
                         subsequentPost.CreatedAt =
-                            dateFaker.Date.Between(topic.CreatedAt, DateTime.UtcNow).ToUniversalTime();
+                            dateFaker.Date.Between(topic.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime();
                         posts.Add(subsequentPost);
                     }
 

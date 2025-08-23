@@ -15,8 +15,8 @@ public class StoreItem
     /// <summary>
     /// A unique code to identify the item type programmatically.
     /// </summary>
-    [Required]
-    public StoreItemCode ItemCode { get; set; }
+        [Column(TypeName = "store_item_code")]
+    public required StoreItemCode ItemCode { get; set; }
 
     [Required]
     public ulong Price { get; set; }
