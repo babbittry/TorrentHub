@@ -32,7 +32,7 @@ public class Message
     public required string Content { get; set; }
 
     [Required]
-        public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset SentAt { get; set; } = DateTimeOffset.UtcNow;
 
     [Required]
     public bool IsRead { get; set; } = false;

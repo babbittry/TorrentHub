@@ -24,17 +24,17 @@ public class ForumService : IForumService
 
     public async Task<List<ForumCategoryDto>> GetCategoriesAsync()
     {
-        var categories = await _context.ForumCategories
+        return await _context.ForumCategories
             .OrderBy(c => c.DisplayOrder)
             .Select(c => new ForumCategoryDto
             {
                 Id = c.Id,
                 Code = c.Code,
-                DisplayOrder = c.DisplayOrder
+                DisplayOrder = c.DisplayOrder,
+                TopicCount = c.Topics.Count(),
+                PostCount = c.Topics.SelectMany(t => t.Posts).Count()
             })
             .ToListAsync();
-
-        return categories;
     }
 
     public async Task<List<ForumTopicDto>> GetTopicsAsync(int categoryId)
@@ -72,6 +72,7 @@ public class ForumService : IForumService
                 Title = t.Title,
                 AuthorId = t.AuthorId,
                 AuthorName = t.Author!.UserName,
+                AuthorAvatar = t.Author!.Avatar,
                 CreatedAt = t.CreatedAt,
                 IsLocked = t.IsLocked,
                 IsSticky = t.IsSticky,
@@ -80,6 +81,7 @@ public class ForumService : IForumService
                     Id = p.Id,
                     AuthorId = p.AuthorId,
                     AuthorName = p.Author!.UserName,
+                    AuthorAvatar = p.Author!.Avatar,
                     Content = p.Content,
                     CreatedAt = p.CreatedAt,
                     EditedAt = p.EditedAt

@@ -9,6 +9,7 @@ public class ForumTopicDetailDto
     
     public int AuthorId { get; set; }
     public string? AuthorName { get; set; }
+    public string? AuthorAvatar { get; set; }
     
     public DateTimeOffset CreatedAt { get; set; }
     
