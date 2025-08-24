@@ -103,7 +103,7 @@ public class StatsService : IStatsService
             })
             .FirstOrDefaultAsync();
 
-        var today = DateTime.UtcNow.Date;
+        var today = DateTimeOffset.UtcNow.Date;
         var usersRegisteredToday = await _context.Users.LongCountAsync(u => u.CreatedAt.Date == today);
         var torrentsAddedToday = await _context.Torrents.LongCountAsync(t => t.CreatedAt.Date == today);
 

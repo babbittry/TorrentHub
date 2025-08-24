@@ -8,6 +8,7 @@ using Microsoft.Extensions.Diagnostics.HealthChecks;
 using HealthChecks.Redis;
 using TorrentHub.Data;
 using TorrentHub.Services;
+using TorrentHub.Enums;
 using Meilisearch;
 using Microsoft.Extensions.Options;
 
@@ -44,7 +45,18 @@ namespace TorrentHub
 
             // Add DbContext
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), npgsqlOptions =>
+                {
+                    npgsqlOptions.MapEnum<UserRole>();
+                    npgsqlOptions.MapEnum<BadgeCode>();
+                    npgsqlOptions.MapEnum<ForumCategoryCode>();
+                    npgsqlOptions.MapEnum<ReportReason>();
+                    npgsqlOptions.MapEnum<RequestStatus>();
+                    npgsqlOptions.MapEnum<StoreItemCode>();
+                    npgsqlOptions.MapEnum<TorrentCategory>();
+                    npgsqlOptions.MapEnum<TorrentStickyStatus>();
+                    npgsqlOptions.MapEnum<UserBanReason>();
+                }));
 
             // Add custom services
             builder.Services.AddScoped<IUserService, UserService>();
@@ -194,7 +206,13 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
                         // 确保数据库已迁移到最新版本
                         await context.Database.MigrateAsync();
 
-                        await DataSeeder.SeedAllDataAsync(context, logger, tmdbService, app.Environment);
+                         // 调用新的方法：首先播种基础数据（所有环境都运行）
+                         await DataSeeder.SeedFoundationalDataAsync(context, logger);
+                         // 然后只在开发环境中播种模拟数据
+                         if (app.Environment.IsDevelopment())
+                         {
+                             await DataSeeder.SeedMockDataAsync(context, logger, tmdbService, app.Environment);
+                         }
                     }
                     catch (Exception ex)
                     {
