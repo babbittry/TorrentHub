@@ -10,24 +10,26 @@ namespace TorrentHub.Services;
 public class AnnouncementService : IAnnouncementService
 {
     private readonly ApplicationDbContext _context;
-    private readonly IMessageService _messageService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<AnnouncementService> _logger;
     private readonly IDistributedCache _cache;
 
-    // Cache key for announcements
     private const string AnnouncementsCacheKey = "Announcements";
-    // Cache duration (e.g., 1 hour)
     private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
     {
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
     };
 
-    public AnnouncementService(ApplicationDbContext context, IMessageService messageService, ILogger<AnnouncementService> logger, IDistributedCache cache)
+    public AnnouncementService(
+        ApplicationDbContext context, 
+        ILogger<AnnouncementService> logger, 
+        IDistributedCache cache, 
+        INotificationService notificationService)
     {
         _context = context;
-        _messageService = messageService;
         _logger = logger;
         _cache = cache;
+        _notificationService = notificationService;
     }
 
     public async Task<(bool Success, string Message, Announcement? Announcement)> CreateAnnouncementAsync(CreateAnnouncementRequestDto request, int createdByUserId)
@@ -45,20 +47,14 @@ public class AnnouncementService : IAnnouncementService
 
         _logger.LogInformation("Announcement '{Title}' created by user {CreatedByUserId}.", request.Title, createdByUserId);
 
-        // Invalidate cache after creating a new announcement
         await _cache.RemoveAsync(AnnouncementsCacheKey);
         _logger.LogInformation("Announcements cache invalidated.");
 
         if (request.SendToInbox)
         {
-            // Send to all active users via internal message system
             var allUserIds = await _context.Users.Select(u => u.Id).ToListAsync();
-            foreach (var userId in allUserIds)
-            {
-                // System message, senderId can be 0 or a dedicated system user ID
-                await _messageService.SendMessageAsync(0, new SendMessageRequestDto { ReceiverId = userId, Subject = $"Announcement: {request.Title}", Content = request.Content });
-            }
-            _logger.LogInformation("Announcement '{Title}' sent to {UserCount} users via inbox.", request.Title, allUserIds.Count);
+            await _notificationService.SendNewAnnouncementNotificationAsync(announcement, allUserIds);
+            _logger.LogInformation("Announcement '{Title}' queued for sending to {UserCount} users via inbox.", request.Title, allUserIds.Count);
         }
 
         return (true, "Announcement created successfully.", announcement);
@@ -81,5 +77,3 @@ public class AnnouncementService : IAnnouncementService
         return announcements;
     }
 }
-
-

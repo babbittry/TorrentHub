@@ -14,4 +14,6 @@ public class RequestDto
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? FilledAt { get; set; }
     public ulong BountyAmount { get; set; }
+    public DateTimeOffset? ConfirmationDeadline { get; set; }
+    public string? RejectionReason { get; set; }
 }

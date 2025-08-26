@@ -20,6 +20,8 @@ namespace TorrentHub
         {
             var builder = WebApplication.CreateBuilder(args);
 
+            builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+
             // Add services to the container.
             builder.Services.AddControllers()
                 .AddJsonOptions(options =>
@@ -75,6 +77,7 @@ namespace TorrentHub
             builder.Services.AddScoped<IStatsService, StatsService>();
 builder.Services.AddScoped<ISettingsService, SettingsService>();
             builder.Services.AddScoped<IForumService, ForumService>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
 
             // Configure Garnet with resilience and health checks
             var garnetConnectionString = builder.Configuration.GetConnectionString("Garnet");
@@ -140,6 +143,7 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
             builder.Services.AddHostedService<TopPlayersCacheRefreshService>();
             builder.Services.AddHostedService<PeerCountUpdateService>();
             builder.Services.AddHostedService<StatsCacheRefreshService>();
+            builder.Services.AddHostedService<RequestConfirmationService>();
 
             // Add Authentication
             var jwtKey = builder.Configuration["Jwt:Key"];

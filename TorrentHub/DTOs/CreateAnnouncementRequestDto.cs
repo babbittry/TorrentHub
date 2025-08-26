@@ -9,6 +9,7 @@ public class CreateAnnouncementRequestDto
     public required string Title { get; set; }
 
     [Required]
+    [StringLength(500)]
     public required string Content { get; set; }
 
     public bool SendToInbox { get; set; }

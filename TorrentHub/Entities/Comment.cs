@@ -9,6 +9,7 @@ public class Comment
     public int Id { get; set; }
 
     [Required]
+    [StringLength(500)]
     public required string Text { get; set; }
 
     [Required]

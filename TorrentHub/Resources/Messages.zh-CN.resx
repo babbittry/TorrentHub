@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RequestConfirmed_Content" xml:space="preserve">
+    <value>您为求种“{0}”提供的种子已被求种者确认。
+
+您已获得 {1} 枚金币奖励。</value>
+  </data>
+  <data name="RequestConfirmed_Subject" xml:space="preserve">
+    <value>您填充的求种“{0}”已被确认</value>
+  </data>
+  <data name="RequestFilled_Content" xml:space="preserve">
+    <value>用户 {0} 已使用种子“{2}” (ID: {3}) 填充了您的求种“{1}”。\n\n请在72小时内确认该种子是否满足您的需求。如果超时未确认，系统将自动确认。\n\n您可以前往求种页面进行操作。</value>
+  </data>
+  <data name="RequestFilled_Subject" xml:space="preserve">
+    <value>您的求种“{0}”已被填充</value>
+  </data>
+  <data name="RequestRejected_Content" xml:space="preserve">
+    <value>您为求种“{0}”提供的种子已被求种者拒绝。\n\n拒绝理由：{1}</value>
+  </data>
+  <data name="RequestRejected_Subject" xml:space="preserve">
+    <value>您填充的求种“{0}”已被拒绝</value>
+  </data>
+  <data name="Welcome_Subject" xml:space="preserve">
+    <value>欢迎来到 TorrentHub！</value>
+  </data>
+  <data name="Welcome_Content" xml:space="preserve">
+    <value>您好 {0}，&lt;br&gt;&lt;br&gt;欢迎来到 TorrentHub！您的帐户已成功创建。&lt;br&gt;&lt;br&gt;祝您使用愉快！&lt;br&gt;&lt;br&gt;TorrentHub 团队</value>
+  </data>
+  <data name="Announcement_Subject" xml:space="preserve">
+    <value>新公告: {0}</value>
+  </data>
+  <data name="Announcement_Content" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+</root>

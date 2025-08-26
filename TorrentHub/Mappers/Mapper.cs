@@ -37,7 +37,6 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.UserName))]
     [MapperIgnoreTarget(nameof(User.Email))]
     [MapperIgnoreTarget(nameof(User.PasswordHash))]
-    [MapperIgnoreTarget(nameof(User.Language))]
     [MapperIgnoreTarget(nameof(User.UploadedBytes))]
     [MapperIgnoreTarget(nameof(User.DownloadedBytes))]
     [MapperIgnoreTarget(nameof(User.RssKey))]

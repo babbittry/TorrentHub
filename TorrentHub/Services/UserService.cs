@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
-using System.IO; // Added for Path and Directory operations
-using Microsoft.AspNetCore.Hosting; // Added for IWebHostEnvironment
+using System.IO;
+using Microsoft.AspNetCore.Hosting;
 using TorrentHub.Enums;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
@@ -23,30 +23,37 @@ public class UserService : IUserService
     private readonly IConfiguration _configuration;
     private readonly ILogger<UserService> _logger;
     private readonly CoinSettings _coinSettings;
-    private readonly IEmailService _emailService;
+    private readonly INotificationService _notificationService;
     private readonly IDistributedCache _cache;
     private readonly ISettingsService _settingsService;
-    private readonly IWebHostEnvironment _webHostEnvironment; // Added IWebHostEnvironment
+    private readonly IWebHostEnvironment _webHostEnvironment;
 
-    // Cache key prefix for user badges
     private const string UserBadgesCacheKeyPrefix = "UserBadges:";
-    // Cache duration (e.g., 1 hour)
     private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
     {
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
     };
 
-    public UserService(ApplicationDbContext context, IConfiguration configuration, ILogger<UserService> logger, IOptions<CoinSettings> coinSettings, IEmailService emailService, IDistributedCache cache, ISettingsService settingsService, IWebHostEnvironment webHostEnvironment) // Added IWebHostEnvironment to constructor
+    public UserService(
+        ApplicationDbContext context, 
+        IConfiguration configuration, 
+        ILogger<UserService> logger, 
+        IOptions<CoinSettings> coinSettings, 
+        IDistributedCache cache, 
+        ISettingsService settingsService, 
+        IWebHostEnvironment webHostEnvironment,
+        INotificationService notificationService) 
     {
         _context = context;
         _configuration = configuration;
         _logger = logger;
         _coinSettings = coinSettings.Value;
-        _emailService = emailService;
         _cache = cache;
         _settingsService = settingsService;
-        _webHostEnvironment = webHostEnvironment; // Assigned IWebHostEnvironment
+        _webHostEnvironment = webHostEnvironment;
+        _notificationService = notificationService;
     }
+
     public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
     {
         _logger.LogInformation("Attempting login for user: {UserName}", userForLoginDto.UserName);
@@ -61,7 +68,7 @@ public class UserService : IUserService
         var token = GenerateJwtToken(user);
         _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
 
-                return new LoginResponseDto
+        return new LoginResponseDto
         {
             Token = token,
             User = user
@@ -118,7 +125,6 @@ public class UserService : IUserService
             }
         }
 
-        // 2. Check for duplicate username or email
         if (await _context.Users.AnyAsync(u => u.UserName == userForRegistrationDto.UserName))
         {
             _logger.LogWarning("Registration failed for user {UserName}: Username already exists.", userForRegistrationDto.UserName);
@@ -131,19 +137,17 @@ public class UserService : IUserService
             throw new Exception("Email already exists.");
         }
 
-        // 3. Create new user
         var user = new User
         {
             UserName = userForRegistrationDto.UserName,
             Email = userForRegistrationDto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password), // Hashing the password
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password),
             InviteId = invite?.Id,
             CreatedAt = DateTimeOffset.UtcNow,
-            Passkey = Guid.NewGuid(), // Generate a new Passkey
-            RssKey = Guid.NewGuid() // Generate a new RssKey
+            Passkey = Guid.NewGuid(),
+            RssKey = Guid.NewGuid()
         };
 
-        // 4. Update invite and save changes
         if (invite != null)
         {
             invite.UsedByUser = user;
@@ -153,7 +157,6 @@ public class UserService : IUserService
         await _context.SaveChangesAsync();
         _logger.LogInformation("User {UserName} registered successfully with ID {UserId}.", user.UserName, user.Id);
 
-        // Save user avatar if provided
         if (!string.IsNullOrEmpty(userForRegistrationDto.AvatarSvg))
         {
             try
@@ -164,26 +167,21 @@ public class UserService : IUserService
                     Directory.CreateDirectory(avatarDirectory);
                 }
 
-                var avatarFileName = $"{user.Id}.svg";
+                var avatarFileName = $"{Guid.NewGuid():N}.svg";
                 var avatarFilePath = Path.Combine(avatarDirectory, avatarFileName);
                 await File.WriteAllTextAsync(avatarFilePath, userForRegistrationDto.AvatarSvg);
 
                 user.Avatar = $"/avatars/{avatarFileName}";
-                await _context.SaveChangesAsync(); // Save avatar path to DB
+                await _context.SaveChangesAsync();
                 _logger.LogInformation("User {UserName} avatar saved to {AvatarPath}.", user.UserName, user.Avatar);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to save avatar for user {UserName}.", user.UserName);
-                // Optionally, you might want to delete the user or mark them as needing avatar setup
-                // For now, we'll just log the error and proceed without an avatar
             }
         }
 
-        // Send registration confirmation email
-        var subject = "Welcome to TorrentHub!";
-        var body = $"Hello {user.UserName},<br><br>Welcome to TorrentHub! Your account has been successfully created.<br><br>Enjoy your time on our tracker!<br><br>The TorrentHub Team";
-        await _emailService.SendEmailAsync(user.Email, subject, body);
+        await _notificationService.SendWelcomeEmailAsync(user);
         _logger.LogInformation("Sent welcome email to {Email} for user {UserName}.", user.Email, user.UserName);
 
         return user;
@@ -231,12 +229,11 @@ public class UserService : IUserService
                 return false;
             }
 
-            // Calculate tax
             var taxAmount = (ulong)Math.Ceiling(amount * _coinSettings.TransactionTaxRate);
             var actualTransferAmount = amount - taxAmount;
 
-            fromUser.Coins -= amount; // Deduct full amount from sender
-            toUser.Coins += actualTransferAmount; // Receiver gets amount minus tax
+            fromUser.Coins -= amount;
+            toUser.Coins += actualTransferAmount;
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
@@ -357,7 +354,7 @@ public class UserService : IUserService
     {
         return await _context.Invites
             .Where(i => i.GeneratorUserId == userId)
-            .Include(i => i.UsedByUser) // Include the user who used the invite
+            .Include(i => i.UsedByUser)
             .ToListAsync();
     }
 
@@ -370,14 +367,12 @@ public class UserService : IUserService
             throw new Exception("User not found.");
         }
 
-        // Check if user has enough Coins to generate an invite
         if (user.Coins < _coinSettings.InvitePrice)
         {
             _logger.LogWarning("User {UserId} does not have enough Coins to generate an invite. Required: {Required}, Has: {Has}", userId, _coinSettings.InvitePrice, user.Coins);
             throw new Exception("Insufficient Coins to generate an invite.");
         }
 
-        // Deduct coins
         user.Coins -= _coinSettings.InvitePrice;
 
         var newInvite = new Invite
@@ -404,7 +399,6 @@ public class UserService : IUserService
             return null;
         }
 
-        // Get inviter
         string? invitedBy = null;
         if (user.InviteId.HasValue)
         {
@@ -414,7 +408,6 @@ public class UserService : IUserService
             invitedBy = invite?.GeneratorUser?.UserName;
         }
 
-        // Get peer stats
         var peerStats = await _context.Peers
             .Where(p => p.UserId == userId)
             .Include(p => p.Torrent)
@@ -431,7 +424,6 @@ public class UserService : IUserService
         var leechingCount = peerStats.FirstOrDefault(s => !s.IsSeeder)?.Count ?? 0;
         var seedingSize = (ulong)(peerStats.FirstOrDefault(s => s.IsSeeder)?.Size ?? 0L);
 
-        // Manual mapping to DTO
         var profileDto = new UserProfileDetailDto
         {
             Id = user.Id,
@@ -477,11 +469,11 @@ public class UserService : IUserService
         {
             TorrentId = p.TorrentId,
             TorrentName = p.Torrent.Name,
-            UserAgent = "N/A", // Not stored in Peers entity
+            UserAgent = "N/A",
             IpAddress = p.IpAddress.ToString(),
             Port = p.Port,
-            Uploaded = 0, // Not stored in Peers entity
-            Downloaded = 0, // Not stored in Peers entity
+            Uploaded = 0,
+            Downloaded = 0,
             IsSeeder = p.IsSeeder,
             LastAnnounceAt = p.LastAnnounce
         });

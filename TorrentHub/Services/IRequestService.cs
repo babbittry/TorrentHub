@@ -11,4 +11,8 @@ public interface IRequestService
     Task<List<Request>> GetRequestsAsync(RequestStatus? status, string sortBy, string sortOrder);
     Task<(bool Success, string Message)> FillRequestAsync(int requestId, FillRequestDto request, int fillerUserId);
     Task<Request?> GetRequestByIdAsync(int requestId);
+
+    Task<(bool Success, string Message)> ConfirmFulfillmentAsync(int requestId, int userId);
+    Task<(bool Success, string Message)> RejectFulfillmentAsync(int requestId, RejectFulfillmentDto rejectDto, int userId);
+    Task AutoCompleteExpiredConfirmationsAsync();
 }

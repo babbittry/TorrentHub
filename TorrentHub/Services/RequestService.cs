@@ -15,50 +15,48 @@ public class RequestService : IRequestService
 {
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
+    private readonly INotificationService _notificationService;
     private readonly CoinSettings _settings;
     private readonly ILogger<RequestService> _logger;
 
-    public RequestService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> settings, ILogger<RequestService> logger)
+    public RequestService(
+        ApplicationDbContext context, 
+        IUserService userService, 
+        IOptions<CoinSettings> settings, 
+        ILogger<RequestService> logger, 
+        INotificationService notificationService)
     {
         _context = context;
         _userService = userService;
         _settings = settings.Value;
         _logger = logger;
+        _notificationService = notificationService;
     }
 
-    /// <summary>
-    /// Creates a new request, deducting the initial bounty from the user's account if provided.
-    /// </summary>
-    /// <param name="createRequestDto">The DTO with request details.</param>
-    /// <param name="userId">The ID of the user creating the request.</param>
-    /// <returns>A tuple indicating success, a message, and the created request entity.</returns>
     public async Task<(bool Success, string Message, Request? Request)> CreateRequestAsync(CreateRequestDto createRequestDto, int userId)
     {
         var user = await _context.Users.FindAsync(userId);
 
         if (user == null)
         {
-            return (false, "User not found.", null);
+            return (false, "error.user.notFound", null);
         }
 
-        // 检查用户是否有足够的樱花币来支付初始赏金
         if (createRequestDto.InitialBounty > 0 && user.Coins < createRequestDto.InitialBounty)
         {
-            return (false, "Insufficient Coins for initial bounty.", null);
+            return (false, "error.request.insufficientCoins", null);
         }
 
-        // 创建新请求实体
         var newRequest = new Request
         {
             Title = createRequestDto.Title,
             Description = createRequestDto.Description,
             RequestedByUserId = userId,
-            Status = RequestStatus.Pending, // 初始状态为“待处理”
+            Status = RequestStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow,
             BountyAmount = createRequestDto.InitialBounty
         };
 
-        // 如果有初始赏金，则从用户账户中扣除
         if (createRequestDto.InitialBounty > 0)
         {
             user.Coins -= createRequestDto.InitialBounty;
@@ -68,69 +66,52 @@ public class RequestService : IRequestService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("User {UserId} created a new request titled '{RequestTitle}' with initial bounty {BountyAmount}.", userId, newRequest.Title, newRequest.BountyAmount);
-        return (true, "Request created successfully.", newRequest);
+        return (true, "request.create.success", newRequest);
     }
 
-    /// <summary>
-    /// Adds more bounty to an existing, pending request.
-    /// </summary>
-    /// <param name="requestId">The ID of the request.</param>
-    /// <param name="amount">The amount of Coins to add.</param>
-    /// <param name="userId">The ID of the user adding the bounty.</param>
-    /// <returns>A tuple indicating success and a message.</returns>
     public async Task<(bool Success, string Message)> AddBountyAsync(int requestId, AddBountyRequestDto addBountyRequestDto, int userId)
     {
         var user = await _context.Users.FindAsync(userId);
 
         if (user == null)
         {
-            return (false, "User not found.");
+            return (false, "error.user.notFound");
         }
 
         if (addBountyRequestDto.Amount <= 0)
         {
-            return (false, "Bounty amount must be positive.");
+            return (false, "error.request.bountyMustBePositive");
         }
 
-        // 检查用户是否有足够的樱花币
         if (user.Coins < addBountyRequestDto.Amount)
         {
-            return (false, "Insufficient Coins to add to bounty.");
+            return (false, "error.request.insufficientCoins");
         }
 
         var request = await _context.Requests.FindAsync(requestId);
-        // 只能为“待处理”的请求添加赏金
-        if (request == null || request.Status != RequestStatus.Pending)
+        if (request == null || (request.Status != RequestStatus.Pending && request.Status != RequestStatus.Rejected))
         {
-            return (false, "Request not found or already filled/expired.");
+            return (false, "error.request.notFoundOrCannotAddBounty");
         }
 
-        // 从用户账户扣除樱花币，并增加到请求的总赏金中
         user.Coins -= addBountyRequestDto.Amount;
         request.BountyAmount += addBountyRequestDto.Amount;
 
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("User {UserId} added {Amount} Coins to request {RequestId}. New bounty: {NewBounty}.", userId, addBountyRequestDto.Amount, requestId, request.BountyAmount);
-        return (true, "Bounty added successfully.");
+        return (true, "request.addBounty.success");
     }
 
-    /// <summary>
-    /// Retrieves a list of requests based on their status.
-    /// </summary>
-    /// <param name="status">The status to filter by.</param>
-    /// <returns>A list of Request entities.</returns>
     public async Task<List<Request>> GetRequestsAsync(RequestStatus? status, string sortBy, string sortOrder)
     {
         var query = _context.Requests.AsQueryable();
 
-        // 1. 如果提供了 status，则按状态进行筛选
         if (status.HasValue)
         {
             query = query.Where(r => r.Status == status.Value);
         }
 
-        // 2. 根据 sortBy 和 sortOrder 参数进行排序
         var isAscending = sortOrder.Equals("asc", StringComparison.OrdinalIgnoreCase);
 
         query = sortBy.ToLower() switch
@@ -144,53 +125,157 @@ public class RequestService : IRequestService
             "status" => isAscending 
                 ? query.OrderBy(r => r.Status) 
                 : query.OrderByDescending(r => r.Status),
-            // 默认按创建日期降序排序
             _ => query.OrderByDescending(r => r.CreatedAt)
         };
 
-        // 3. 加载关联数据并执行查询
-        var requests = await query
-            .Include(r => r.RequestedByUser) // 加载请求者信息
-            .Include(r => r.FilledByUser)    // 加载完成者信息
+        return await query
+            .Include(r => r.RequestedByUser)
+            .Include(r => r.FilledByUser)
             .ToListAsync();
-
-        return requests;
     }
 
-    /// <summary>
-    /// Marks a request as 'Filled' by linking it to a torrent.
-    /// Transfers the bounty to the user who filled the request.
-    /// </summary>
-    /// <param name="requestId">The ID of the request being filled.</param>
-    /// <param name="torrentId">The ID of the torrent fulfilling the request.</param>
-    /// <param name="fillerUserId">The ID of the user filling the request.</param>
-    /// <returns>A tuple indicating success and a message.</returns>
     public async Task<(bool Success, string Message)> FillRequestAsync(int requestId, FillRequestDto fillRequestDto, int fillerUserId)
     {
-        var request = await _context.Requests.FindAsync(requestId);
-        if (request == null || request.Status != RequestStatus.Pending)
+        var request = await _context.Requests
+            .Include(r => r.RequestedByUser)
+            .Include(r => r.FilledWithTorrent)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+            
+        if (request == null || (request.Status != RequestStatus.Pending && request.Status != RequestStatus.Rejected))
         {
-            return (false, "Request not found or already filled.");
+            return (false, "error.request.notFoundOrProcessing");
+        }
+
+        if (request.RequestedByUserId == fillerUserId)
+        {
+            return (false, "error.request.cannotFillOwn");
         }
 
         var torrent = await _context.Torrents.FindAsync(fillRequestDto.TorrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.");
+            return (false, "error.torrent.notFound");
         }
 
-        // 更新请求的状态和相关信息
-        request.Status = RequestStatus.Filled;
+        var fillerUser = await _context.Users.FindAsync(fillerUserId);
+        if (fillerUser == null)
+        {
+            return (false, "error.user.notFound");
+        }
+
+        request.Status = RequestStatus.PendingConfirmation;
         request.FilledWithTorrentId = fillRequestDto.TorrentId;
         request.FilledByUserId = fillerUserId;
         request.FilledAt = DateTimeOffset.UtcNow;
-        
-        await _userService.AddCoinsAsync(fillerUserId, new UpdateCoinsRequestDto { Amount = _settings.FillRequestBonus + request.BountyAmount });
-        _logger.LogInformation("User {FillerUserId} filled request {RequestId} with torrent {TorrentId} and earned {Bonus} Coins. basic bonus: {FillRequestBonus} Bounty: {BountyAmount}", fillerUserId, requestId, fillRequestDto.TorrentId, _settings.FillRequestBonus + request.BountyAmount, _settings.FillRequestBonus, request.BountyAmount);
-        
-        await _context.SaveChangesAsync();
+        request.ConfirmationDeadline = DateTimeOffset.UtcNow.AddHours(72);
+        request.RejectionReason = null;
+        request.FilledByUser = fillerUser;
+        request.FilledWithTorrent = torrent;
 
-        return (true, "Request successfully filled.");
+        await _notificationService.SendRequestFilledNotificationAsync(request);
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User {FillerUserId} filled request {RequestId}. It is now pending confirmation from user {RequesterId}.", fillerUserId, requestId, request.RequestedByUserId);
+
+        return (true, "request.fill.success");
+    }
+
+    public async Task<(bool Success, string Message)> ConfirmFulfillmentAsync(int requestId, int userId)
+    {
+        var request = await _context.Requests
+            .Include(r => r.FilledByUser)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null)
+        {
+            return (false, "error.request.notFound");
+        }
+
+        if (request.RequestedByUserId != userId)
+        {
+            return (false, "error.request.notRequester");
+        }
+
+        if (request.Status != RequestStatus.PendingConfirmation)
+        {
+            return (false, "error.request.notAwaitingConfirmation");
+        }
+
+        await CompleteRequestAsync(request);
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("User {UserId} confirmed fulfillment for request {RequestId}.", userId, requestId);
+        return (true, "request.confirm.success");
+    }
+
+    public async Task<(bool Success, string Message)> RejectFulfillmentAsync(int requestId, RejectFulfillmentDto rejectDto, int userId)
+    {
+        var request = await _context.Requests
+            .Include(r => r.FilledByUser)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null)
+        {
+            return (false, "error.request.notFound");
+        }
+
+        if (request.RequestedByUserId != userId)
+        {
+            return (false, "error.request.notRequester");
+        }
+
+        if (request.Status != RequestStatus.PendingConfirmation)
+        {
+            return (false, "error.request.notAwaitingConfirmation");
+        }
+
+        await _notificationService.SendRequestRejectedNotificationAsync(request);
+
+        request.Status = RequestStatus.Rejected;
+        request.RejectionReason = rejectDto.Reason;
+        request.FilledByUserId = null;
+        request.FilledWithTorrentId = null;
+        request.FilledAt = null;
+        request.ConfirmationDeadline = null;
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User {UserId} rejected fulfillment for request {RequestId} with reason: {Reason}", userId, requestId, rejectDto.Reason);
+
+        return (true, "request.reject.success");
+    }
+
+    public async Task AutoCompleteExpiredConfirmationsAsync()
+    {
+        var expiredRequests = await _context.Requests
+            .Include(r => r.FilledByUser)
+            .Where(r => r.Status == RequestStatus.PendingConfirmation && r.ConfirmationDeadline < DateTimeOffset.UtcNow)
+            .ToListAsync();
+
+        foreach (var request in expiredRequests)
+        {
+            _logger.LogInformation("Auto-completing request {RequestId} due to expired confirmation deadline.", request.Id);
+            await CompleteRequestAsync(request);
+        }
+
+        await _context.SaveChangesAsync();
+    }
+
+    private async Task CompleteRequestAsync(Request request)
+    {
+        request.Status = RequestStatus.Filled;
+        request.ConfirmationDeadline = null;
+
+        if (request.FilledByUserId.HasValue)
+        {
+            var fillerId = request.FilledByUserId.Value;
+            var bonus = _settings.FillRequestBonus + request.BountyAmount;
+            
+            await _userService.AddCoinsAsync(fillerId, new UpdateCoinsRequestDto { Amount = bonus });
+            
+            _logger.LogInformation("Awarded {Bonus} Coins to user {FillerUserId} for filling request {RequestId}.", bonus, fillerId, request.Id);
+
+            await _notificationService.SendRequestConfirmedNotificationAsync(request);
+        }
     }
 
     public async Task<Request?> GetRequestByIdAsync(int requestId)

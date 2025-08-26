@@ -24,7 +24,7 @@ public class CommentService : ICommentService
 
     public async Task<(bool Success, string Message, Comment? Comment)> PostCommentAsync(int torrentId, CreateCommentRequestDto request, int userId)
     {
-        var today = DateTimeOffset.UtcNow.Date;
+        var today = DateTime.UtcNow.Date;
 
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)

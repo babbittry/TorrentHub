@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RequestConfirmed_Content" xml:space="preserve">
+    <value>The torrent you provided for the request '{0}' has been confirmed by the requester.\n\nYou have been awarded {1} Coins.</value>
+  </data>
+  <data name="RequestConfirmed_Subject" xml:space="preserve">
+    <value>Your fulfillment for request '{0}' has been confirmed</value>
+  </data>
+  <data name="RequestFilled_Content" xml:space="preserve">
+    <value>User {0} has filled your request '{1}' with the torrent '{2}' (ID: {3}).\n\nPlease confirm if this torrent meets your needs within 72 hours. If you do not confirm, the request will be automatically confirmed.\n\nYou can manage your requests on the request page.</value>
+  </data>
+  <data name="RequestFilled_Subject" xml:space="preserve">
+    <value>Your request '{0}' has been filled</value>
+  </data>
+  <data name="RequestRejected_Content" xml:space="preserve">
+    <value>The torrent you provided for the request '{0}' was rejected by the requester.\n\nReason: {1}</value>
+  </data>
+  <data name="RequestRejected_Subject" xml:space="preserve">
+    <value>Your fulfillment for request '{0}' was rejected</value>
+  </data>
+  <data name="Welcome_Subject" xml:space="preserve">
+    <value>Welcome to TorrentHub!</value>
+  </data>
+  <data name="Welcome_Content" xml:space="preserve">
+    <value>Hello {0},&lt;br&gt;&lt;br&gt;Welcome to TorrentHub! Your account has been successfully created.&lt;br&gt;&lt;br&gt;Enjoy your time on our tracker!&lt;br&gt;&lt;br&gt;The TorrentHub Team</value>
+  </data>
+  <data name="Announcement_Subject" xml:space="preserve">
+    <value>New Announcement: {0}</value>
+  </data>
+  <data name="Announcement_Content" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+</root>

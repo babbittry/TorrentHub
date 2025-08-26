@@ -16,6 +16,7 @@ public class Announcement
     public required string Title { get; set; }
 
     [Required]
+    [StringLength(500)]
     public required string Content { get; set; }
 
     [Required]

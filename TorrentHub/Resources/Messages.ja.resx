@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="RequestConfirmed_Content" xml:space="preserve">
+    <value>リクエスト「{0}」に対して提供されたトレントは、リクエスターによって確認されました。
+
+{1}コインが付与されました。</value>
+  </data>
+  <data name="RequestConfirmed_Subject" xml:space="preserve">
+    <value>リクエスト「{0}」の履行が確認されました</value>
+  </data>
+  <data name="RequestFilled_Content" xml:space="preserve">
+    <value>ユーザー {0} が、あなたのリクエスト「{1}」をトレント「{2}」(ID: {3})で履行しました。
+
+72時間以内にこのトレントがあなたのニーズを満たすか確認してください。確認されない場合、リクエストは自動的に確認済みとなります。
+
+リクエストページでリクエストを管理できます。</value>
+  </data>
+  <data name="RequestFilled_Subject" xml:space="preserve">
+    <value>あなたのリクエスト「{0}」が履行されました</value>
+  </data>
+  <data name="RequestRejected_Content" xml:space="preserve">
+    <value>リクエスト「{0}」に対して提供されたトレントは、リクエスターによって拒否されました。
+
+理由：{1}</value>
+  </data>
+  <data name="RequestRejected_Subject" xml:space="preserve">
+    <value>リクエスト「{0}」の履行が拒否されました</value>
+  </data>
+  <data name="Welcome_Subject" xml:space="preserve">
+    <value>TorrentHubへようこそ！</value>
+  </data>
+  <data name="Welcome_Content" xml:space="preserve">
+    <value>{0}さん、こんにちは。&lt;br&gt;&lt;br&gt;TorrentHubへようこそ！アカウントは正常に作成されました。&lt;br&gt;&lt;br&gt;当サイトでお楽しみください！&lt;br&gt;&lt;br&gt;TorrentHubチーム</value>
+  </data>
+  <data name="Announcement_Subject" xml:space="preserve">
+    <value>新しいお知らせ: {0}</value>
+  </data>
+  <data name="Announcement_Content" xml:space="preserve">
+    <value>{0}</value>
+  </data>
+</root>

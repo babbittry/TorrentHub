@@ -22,6 +22,7 @@ public class ForumPost
     public User? Author { get; set; }
 
     [Required]
+    [StringLength(1000)]
     public required string Content { get; set; }
 
     [Required]

@@ -43,6 +43,17 @@ public class Request
     public DateTimeOffset? FilledAt { get; set; }
 
     /// <summary>
+    /// The deadline for the requester to confirm the filled torrent.
+    /// </summary>
+    public DateTimeOffset? ConfirmationDeadline { get; set; }
+
+    /// <summary>
+    /// The reason provided by the requester for rejecting a filled torrent.
+    /// </summary>
+    [StringLength(500)]
+    public string? RejectionReason { get; set; }
+
+    /// <summary>
     /// The total amount of Coins offered as a bounty for this request.
     /// </summary>
     [Required]

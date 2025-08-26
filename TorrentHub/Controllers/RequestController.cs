@@ -117,4 +117,45 @@ public class RequestsController : ControllerBase
 
         return Ok(new { message = message });
     }
+
+    /// <summary>
+    /// Confirms that a torrent correctly fulfills the request.
+    /// </summary>
+    /// <param name="requestId">The ID of the request to confirm.</param>
+    /// <returns>A success message.</returns>
+    [HttpPost("{requestId}/confirm")]
+    public async Task<IActionResult> ConfirmFulfillment(int requestId)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
+        var (success, message) = await _requestService.ConfirmFulfillmentAsync(requestId, userId);
+
+        if (!success)
+        {
+            _logger.LogWarning("Failed to confirm request fulfillment: {Message}", message);
+            return BadRequest(new { message = message });
+        }
+
+        return Ok(new { message = message });
+    }
+
+    /// <summary>
+    /// Rejects a torrent fulfillment, providing a reason.
+    /// </summary>
+    /// <param name="requestId">The ID of the request to reject.</param>
+    /// <param name="rejectDto">The DTO containing the rejection reason.</param>
+    /// <returns>A success message.</returns>
+    [HttpPost("{requestId}/reject")]
+    public async Task<IActionResult> RejectFulfillment(int requestId, [FromBody] RejectFulfillmentDto rejectDto)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
+        var (success, message) = await _requestService.RejectFulfillmentAsync(requestId, rejectDto, userId);
+
+        if (!success)
+        {
+            _logger.LogWarning("Failed to reject request fulfillment: {Message}", message);
+            return BadRequest(new { message = message });
+        }
+
+        return Ok(new { message = message });
+    }
 }
