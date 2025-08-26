@@ -29,6 +29,11 @@ namespace TorrentHub.Data
         public DbSet<ForumPost> ForumPosts { get; set; }
         public DbSet<SiteSetting> SiteSettings { get; set; }
 
+        public DbSet<Poll> Polls { get; set; }
+        public DbSet<PollVote> PollVotes { get; set; }
+        public DbSet<BannedClient> BannedClients { get; set; }
+        public DbSet<CheatLog> CheatLogs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.HasPostgresEnum<UserRole>();
@@ -39,7 +44,7 @@ namespace TorrentHub.Data
             modelBuilder.HasPostgresEnum<StoreItemCode>();
             modelBuilder.HasPostgresEnum<TorrentCategory>();
             modelBuilder.HasPostgresEnum<TorrentStickyStatus>();
-            modelBuilder.HasPostgresEnum<UserBanReason>();
+            modelBuilder.HasPostgresEnum<BanStatus>();
 
             modelBuilder.Entity<User>(entity =>
             {

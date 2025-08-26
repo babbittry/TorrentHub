@@ -93,10 +93,11 @@ public class TorrentsController : ControllerBase
     [Authorize]
     public async Task<IActionResult> Download(int torrentId)
     {
-        var fileStreamResult = await _torrentService.DownloadTorrentAsync(torrentId);
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
+        var fileStreamResult = await _torrentService.DownloadTorrentAsync(torrentId, userId);
         if (fileStreamResult == null)
         {
-            return NotFound("Torrent file not found or an error occurred.");
+            return NotFound("Torrent file not found or you do not have permission to download it.");
         }
         return fileStreamResult;
     }

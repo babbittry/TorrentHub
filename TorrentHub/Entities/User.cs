@@ -107,17 +107,24 @@ public class User
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     /// <summary>
-    /// Indicates if the user is banned.
+    /// Bitmask representing the user's ban status. Allows for multiple, independent bans.
     /// </summary>
     [Required]
-    [DefaultValue(false)]
-    public bool IsBanned { get; set; } = false;
+    [DefaultValue(BanStatus.None)]
+    public BanStatus BanStatus { get; set; } = BanStatus.None;
 
     /// <summary>
-    /// Reason for the ban.
+    /// Textual reason for the ban, set by an administrator.
     /// </summary>
-    [Column(TypeName = "user_ban_reason")]
-    public UserBanReason? BanReason { get; set; }
+    [StringLength(50)]
+    public string? BanReason { get; set; }
+
+    /// <summary>
+    /// A counter for cheating offenses, can be used for automatic sanctions.
+    /// </summary>
+    [Required]
+    [DefaultValue(0)]
+    public int CheatWarningCount { get; set; } = 0;
 
     /// <summary>
     /// Date and time until the ban is active.

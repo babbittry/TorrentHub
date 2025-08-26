@@ -68,12 +68,12 @@ public class StatsService : IStatsService
 
     private async Task<SiteStatsDto> FetchStatsFromDbAsync()
     {
-        var totalBannedUsers = await _context.Users.LongCountAsync(u => u.IsBanned);
+        var totalBannedUsers = await _context.Users.LongCountAsync(u => u.BanStatus != BanStatus.None);
         var totalUsers = await _context.Users.LongCountAsync();
 
         var staffRoles = new[] { UserRole.Moderator, UserRole.Administrator };
         var userRoleCountsFromDb = await _context.Users
-            .Where(u => !u.IsBanned && !staffRoles.Contains(u.Role))
+            .Where(u => u.BanStatus == BanStatus.None && !staffRoles.Contains(u.Role))
             .GroupBy(u => u.Role)
             .Select(g => new { Role = g.Key, Count = g.LongCount() })
             .ToDictionaryAsync(x => x.Role, x => x.Count);

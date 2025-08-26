@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
@@ -11,14 +10,14 @@ public class CommentService : ICommentService
 {
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
-    private readonly CoinSettings _settings;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<CommentService> _logger;
 
-    public CommentService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> settings, ILogger<CommentService> logger)
+    public CommentService(ApplicationDbContext context, IUserService userService, ISettingsService settingsService, ILogger<CommentService> logger)
     {
         _context = context;
         _userService = userService;
-        _settings = settings.Value;
+        _settingsService = settingsService;
         _logger = logger;
     }
 
@@ -29,7 +28,7 @@ public class CommentService : ICommentService
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.", null);
+            return (false, "error.torrent.notFound", null);
         }
 
         var newComment = new Comment
@@ -42,7 +41,8 @@ public class CommentService : ICommentService
 
         _context.Comments.Add(newComment);
 
-        // Check for daily bonus limit
+        var settings = await _settingsService.GetSiteSettingsAsync();
+
         var dailyStats = await _context.UserDailyStats
             .FirstOrDefaultAsync(s => s.UserId == userId && s.Date == today);
 
@@ -52,11 +52,11 @@ public class CommentService : ICommentService
             _context.UserDailyStats.Add(dailyStats);
         }
 
-        if (dailyStats.CommentBonusesGiven < _settings.MaxDailyCommentBonuses)
+        if (dailyStats.CommentBonusesGiven < settings.MaxDailyCommentBonuses)
         {
             dailyStats.CommentBonusesGiven++;
-            await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = _settings.CommentBonus });
-            _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId} and earned {Bonus} Coins. Daily count: {Count}", userId, torrentId, _settings.CommentBonus, dailyStats.CommentBonusesGiven);
+            await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = settings.CommentBonus });
+            _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId} and earned {Bonus} Coins. Daily count: {Count}", userId, torrentId, settings.CommentBonus, dailyStats.CommentBonusesGiven);
         }
         else
         {
@@ -65,7 +65,7 @@ public class CommentService : ICommentService
 
         await _context.SaveChangesAsync();
 
-        return (true, "Comment posted successfully.", newComment);
+        return (true, "comment.post.success", newComment);
     }
 
     public async Task<IEnumerable<Comment>> GetCommentsForTorrentAsync(int torrentId, int page, int pageSize)
@@ -75,7 +75,7 @@ public class CommentService : ICommentService
             .OrderBy(c => c.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Include(c => c.User) // Include user information
+            .Include(c => c.User)
             .ToListAsync();
     }
 
@@ -84,14 +84,13 @@ public class CommentService : ICommentService
         var comment = await _context.Comments.FindAsync(commentId);
         if (comment == null)
         {
-            return (false, "Comment not found.");
+            return (false, "error.comment.notFound");
         }
 
-        // Only the owner or an admin can update the comment
         var user = await _userService.GetUserByIdAsync(userId);
         if (user == null || (comment.UserId != userId && user.Role != UserRole.Administrator))
         {
-            return (false, "Unauthorized to update this comment.");
+            return (false, "error.unauthorized");
         }
 
         comment.Text = request.Content;
@@ -99,7 +98,7 @@ public class CommentService : ICommentService
 
         await _context.SaveChangesAsync();
         _logger.LogInformation("Comment {CommentId} updated by user {UserId}.", commentId, userId);
-        return (true, "Comment updated successfully.");
+        return (true, "comment.update.success");
     }
 
     public async Task<(bool Success, string Message)> DeleteCommentAsync(int commentId, int userId)
@@ -107,19 +106,18 @@ public class CommentService : ICommentService
         var comment = await _context.Comments.FindAsync(commentId);
         if (comment == null)
         {
-            return (false, "Comment not found.");
+            return (false, "error.comment.notFound");
         }
 
-        // Only the owner or an admin can delete the comment
         var user = await _userService.GetUserByIdAsync(userId);
         if (user == null || (comment.UserId != userId && user.Role != UserRole.Administrator))
         {
-            return (false, "Unauthorized to delete this comment.");
+            return (false, "error.unauthorized");
         }
 
         _context.Comments.Remove(comment);
         await _context.SaveChangesAsync();
         _logger.LogInformation("Comment {CommentId} deleted by user {UserId}.", commentId, userId);
-        return (true, "Comment deleted successfully.");
+        return (true, "comment.delete.success");
     }
 }

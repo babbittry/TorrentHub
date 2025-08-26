@@ -1,7 +1,7 @@
+
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
-using Microsoft.Extensions.Options;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
@@ -15,7 +15,7 @@ public class NotificationService : INotificationService
     private readonly IEmailService _emailService;
     private readonly IStringLocalizer<Messages> _localizer;
     private readonly ApplicationDbContext _context;
-    private readonly CoinSettings _coinSettings;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
@@ -24,14 +24,14 @@ public class NotificationService : INotificationService
         IStringLocalizer<Messages> localizer, 
         ApplicationDbContext context,
         ILogger<NotificationService> logger,
-        IOptions<CoinSettings> coinSettings)
+        ISettingsService settingsService)
     {
         _messageService = messageService;
         _emailService = emailService;
         _localizer = localizer;
         _context = context;
         _logger = logger;
-        _coinSettings = coinSettings.Value;
+        _settingsService = settingsService;
     }
 
     private async Task SendLocalizedMessage(int recipientId, string subjectKey, string contentKey, params object[] args)
@@ -80,7 +80,8 @@ public class NotificationService : INotificationService
             return;
         }
 
-        var bonus = _coinSettings.FillRequestBonus + request.BountyAmount;
+        var settings = await _settingsService.GetSiteSettingsAsync();
+        var bonus = settings.FillRequestBonus + request.BountyAmount;
         await SendLocalizedMessage(request.FilledByUserId.Value, 
             "RequestConfirmed_Subject", 
             "RequestConfirmed_Content", 

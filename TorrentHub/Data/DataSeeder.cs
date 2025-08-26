@@ -193,9 +193,9 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.Passkey, f => f.Random.Guid())
                 .RuleFor(u => u.Role, f => f.PickRandom<UserRole>(UserRole.User, UserRole.Moderator))
                 .RuleFor(u => u.CreatedAt, f => f.Date.Past(5).ToUniversalTime())
-                .RuleFor(u => u.IsBanned, f => f.Random.Bool(0.1f)) // 10% chance of being banned
-                .RuleFor(u => u.BanReason, (f, u) => u.IsBanned ? f.PickRandom<UserBanReason>() : (UserBanReason?)null)
-                .RuleFor(u => u.BanUntil, (f, u) => u.IsBanned ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
+                .RuleFor(u => u.BanStatus, f => f.Random.Bool(0.1f) ? f.PickRandom<BanStatus>() : BanStatus.None)
+                .RuleFor(u => u.BanReason, (f, u) => u.BanStatus != BanStatus.None ? f.Lorem.Sentence(50).Substring(0, 50) : null)
+                .RuleFor(u => u.BanUntil, (f, u) => u.BanStatus != BanStatus.None ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
                 .RuleFor(u => u.InviteNum, f => f.Random.UInt(0, 5))
                 .RuleFor(u => u.Coins, f => (ulong)f.Random.Long(0, 1000))
                 .RuleFor(u => u.TotalSeedingTimeMinutes, f => (ulong)f.Random.Long(0, 10000))
@@ -489,7 +489,8 @@ namespace TorrentHub.Data
                     IpAddress = System.Net.IPAddress.Parse(faker.Internet.Ip()),
                     Port = faker.Internet.Port(),
                     LastAnnounce = faker.Date.Recent(1).ToUniversalTime(),
-                    IsSeeder = faker.Random.Bool()
+                    IsSeeder = faker.Random.Bool(),
+                    UserAgent = (new Func<string>(() => { var ua = faker.Internet.UserAgent(); return ua.Substring(0, Math.Min(ua.Length, 50)); }))() // Add fake user agent, limited to 50 chars
                 }).ToList();
 
                 context.Peers.AddRange(peers);
@@ -596,7 +597,7 @@ namespace TorrentHub.Data
                 var topics = topicFaker.Generate(25); // Create 25 topics
 
                 var postFaker = new Faker<ForumPost>()
-                    .RuleFor(p => p.Content, f => string.Join("\n", f.Lorem.Paragraphs(f.Random.Int(1, 4))))
+                    .RuleFor(p => p.Content, f => { var content = string.Join("\n", f.Lorem.Paragraphs(f.Random.Int(1, 4))); return content.Substring(0, Math.Min(content.Length, 1000)); })
                     .RuleFor(p => p.Author, f => f.PickRandom(users));
 
                 var dateFaker = new Faker();

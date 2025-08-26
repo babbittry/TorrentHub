@@ -76,4 +76,38 @@ public class AnnouncementService : IAnnouncementService
         await _cache.SetStringAsync(AnnouncementsCacheKey, JsonSerializer.Serialize(announcements), _cacheOptions);
         return announcements;
     }
+
+    public async Task<(bool Success, string Message, Announcement? Announcement)> UpdateAnnouncementAsync(int announcementId, UpdateAnnouncementDto dto)
+    {
+        var announcement = await _context.Announcements.FindAsync(announcementId);
+        if (announcement == null)
+        {
+            return (false, "error.announcement.notFound", null);
+        }
+
+        announcement.Title = dto.Title;
+        announcement.Content = dto.Content;
+
+        await _context.SaveChangesAsync();
+        await _cache.RemoveAsync(AnnouncementsCacheKey);
+        _logger.LogInformation("Announcement {AnnouncementId} updated.", announcementId);
+
+        return (true, "announcement.update.success", announcement);
+    }
+
+    public async Task<(bool Success, string Message)> DeleteAnnouncementAsync(int announcementId)
+    {
+        var announcement = await _context.Announcements.FindAsync(announcementId);
+        if (announcement == null)
+        {
+            return (false, "error.announcement.notFound");
+        }
+
+        _context.Announcements.Remove(announcement);
+        await _context.SaveChangesAsync();
+        await _cache.RemoveAsync(AnnouncementsCacheKey);
+        _logger.LogInformation("Announcement {AnnouncementId} deleted.", announcementId);
+
+        return (true, "announcement.delete.success");
+    }
 }

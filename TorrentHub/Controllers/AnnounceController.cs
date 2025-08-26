@@ -66,7 +66,7 @@ public class AnnounceController : ControllerBase
             var numWantValue = numWant ?? 50;
             
             var responseDictionary = await _announceService.ProcessAnnounceRequest(
-                infoHash, peerId, port, uploaded, downloaded, left, @event, numWantValue, key, ipAddress, passkeyGuid);
+                infoHash, peerId, port, uploaded, downloaded, left, @event, numWantValue, ipAddress, passkeyGuid);
 
             var bencodedResponse = responseDictionary.EncodeAsBytes();
 

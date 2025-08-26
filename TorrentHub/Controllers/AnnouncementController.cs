@@ -43,4 +43,32 @@ public class AnnouncementsController : ControllerBase
         var announcements = await _announcementService.GetAnnouncementsAsync();
         return Ok(announcements.Select(a => Mapper.ToAnnouncementDto(a)).ToList());
     }
+
+    [HttpPut("{id:int}")]
+    [Authorize(Roles = "Administrator,Moderator")]
+    public async Task<ActionResult<AnnouncementDto>> UpdateAnnouncement(int id, [FromBody] UpdateAnnouncementDto dto)
+    {
+        var (success, message, announcement) = await _announcementService.UpdateAnnouncementAsync(id, dto);
+
+        if (!success)
+        {
+            return NotFound(new { message });
+        }
+
+        return Ok(Mapper.ToAnnouncementDto(announcement!));
+    }
+
+    [HttpDelete("{id:int}")]
+    [Authorize(Roles = "Administrator,Moderator")]
+    public async Task<IActionResult> DeleteAnnouncement(int id)
+    {
+        var (success, message) = await _announcementService.DeleteAnnouncementAsync(id);
+
+        if (!success)
+        {
+            return NotFound(new { message });
+        }
+
+        return NoContent();
+    }
 }

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
+using TorrentHub.Enums;
 
 namespace TorrentHub.Services;
 
@@ -34,6 +35,17 @@ public class MessageService : IMessageService
         {
             _logger.LogWarning("Message send failed: Sender {SenderId} or Receiver {ReceiverId} not found.", senderId, request.ReceiverId);
             return (false, "Sender or receiver not found.");
+        }
+
+        // Check if sender is banned from messaging
+        if (sender.BanStatus.HasFlag(BanStatus.MessagingBan) || sender.BanStatus.HasFlag(BanStatus.LoginBan))
+        {
+            // Allow messaging only to administrators
+            if (receiver.Role < UserRole.Moderator)
+            {
+                _logger.LogWarning("Banned user {SenderId} attempted to send a message to non-admin user {ReceiverId}.", senderId, request.ReceiverId);
+                return (false, "You are banned from sending messages to this user.");
+            }
         }
 
         // 2. Create a new Message entity.

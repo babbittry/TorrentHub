@@ -1,6 +1,6 @@
+
 #nullable enable
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
@@ -16,26 +16,32 @@ public class RequestService : IRequestService
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
     private readonly INotificationService _notificationService;
-    private readonly CoinSettings _settings;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<RequestService> _logger;
 
     public RequestService(
         ApplicationDbContext context, 
         IUserService userService, 
-        IOptions<CoinSettings> settings, 
         ILogger<RequestService> logger, 
-        INotificationService notificationService)
+        INotificationService notificationService,
+        ISettingsService settingsService)
     {
         _context = context;
         _userService = userService;
-        _settings = settings.Value;
         _logger = logger;
         _notificationService = notificationService;
+        _settingsService = settingsService;
     }
 
     public async Task<(bool Success, string Message, Request? Request)> CreateRequestAsync(CreateRequestDto createRequestDto, int userId)
     {
         var user = await _context.Users.FindAsync(userId);
+        var settings = await _settingsService.GetSiteSettingsAsync();
+
+        if (!settings.IsRequestSystemEnabled)
+        {
+            return (false, "error.request.disabled", null);
+        }
 
         if (user == null)
         {
@@ -267,8 +273,9 @@ public class RequestService : IRequestService
 
         if (request.FilledByUserId.HasValue)
         {
+            var settings = await _settingsService.GetSiteSettingsAsync();
             var fillerId = request.FilledByUserId.Value;
-            var bonus = _settings.FillRequestBonus + request.BountyAmount;
+            var bonus = settings.FillRequestBonus + request.BountyAmount;
             
             await _userService.AddCoinsAsync(fillerId, new UpdateCoinsRequestDto { Amount = bonus });
             

@@ -61,4 +61,23 @@ public class Peers
     /// </summary>
     [Required]
     public bool IsSeeder { get; set; }
+
+    /// <summary>
+    /// The client user agent (peer_id) reported by the peer.
+    /// </summary>
+    [Required]
+    [StringLength(100)]
+    public required string UserAgent { get; set; } = "";
+
+    /// <summary>
+    /// The total uploaded amount reported by the peer at the last announce.
+    /// </summary>
+    [Required]
+    public ulong Uploaded { get; set; } = 0;
+
+    /// <summary>
+    /// The total downloaded amount reported by the peer at the last announce.
+    /// </summary>
+    [Required]
+    public ulong Downloaded { get; set; } = 0;
 }

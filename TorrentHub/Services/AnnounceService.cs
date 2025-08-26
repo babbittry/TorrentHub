@@ -1,11 +1,7 @@
-using BencodeNET;
+
 using BencodeNET.Objects;
-using BencodeNET.Torrents;
 using Microsoft.EntityFrameworkCore;
 using System.Web;
-using Microsoft.Extensions.Logging;
-
-using Microsoft.Extensions.Options;
 using TorrentHub.Data;
 using TorrentHub.Entities;
 using TorrentHub.Enums;
@@ -16,15 +12,15 @@ public class AnnounceService : IAnnounceService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<AnnounceService> _logger;
-    private readonly CoinSettings _coinSettings;
-    private readonly TorrentSettings _torrentSettings;
+    private readonly ISettingsService _settingsService;
+    private readonly IAdminService _adminService;
 
-    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, IOptions<CoinSettings> coinSettings, IOptions<TorrentSettings> torrentSettings)
+    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, ISettingsService settingsService, IAdminService adminService)
     {
         _context = context;
         _logger = logger;
-        _coinSettings = coinSettings.Value;
-        _torrentSettings = torrentSettings.Value;
+        _settingsService = settingsService;
+        _adminService = adminService;
     }
 
     public async Task<BDictionary> ProcessAnnounceRequest(
@@ -36,241 +32,147 @@ public class AnnounceService : IAnnounceService
         long left,
         string? @event,
         int numWant,
-        string? key,
         System.Net.IPAddress ipAddress,
         Guid passkey)
     {
-        _logger.LogInformation("Processing announce request for infoHash: {InfoHash}, peerId: {PeerId}, event: {Event}", infoHash, peerId, @event);
+        var settings = await _settingsService.GetSiteSettingsAsync();
 
-        // Authenticate user by passkey
+        // --- 1. User and Client Validation ---
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == passkey);
-        if (user == null)
-        {
-            _logger.LogWarning("Announce request with invalid passkey: {Passkey}", passkey.ToString());
-            throw new UnauthorizedAccessException("Invalid passkey.");
-        }
+        if (user == null) { _logger.LogWarning("Announce with invalid passkey: {Passkey}", passkey); return AnnounceError("Invalid passkey."); }
+        if (user.BanStatus.HasFlag(BanStatus.TrackerBan) || user.BanStatus.HasFlag(BanStatus.LoginBan)) { _logger.LogWarning("Announce from banned user: {UserId}", user.Id); return AnnounceError("Your account is banned."); }
 
-        if (user.IsBanned)
-        {
-            _logger.LogWarning("Announce request from banned user: {UserId}", user.Id);
-            throw new UnauthorizedAccessException("Your account has been banned.");
-        }
-        
+        var bannedClients = await _adminService.GetBannedClientsAsync();
+        if (bannedClients.Any(c => peerId.StartsWith(c.UserAgentPrefix))) { _logger.LogWarning("Announce from banned client: {PeerId}", peerId); return AnnounceError("Your client is banned."); }
+
+        // --- 2. Torrent Validation ---
         byte[] infoHashBytes;
-        try
-        {
-            infoHashBytes = HttpUtility.UrlDecodeToBytes(infoHash);
-            if (infoHashBytes.Length != 20)
-            {
-                // Handle cases where the decoded bytes are not 20 bytes long, which is standard for SHA-1 hashes.
-                // This might happen with malformed requests.
-                var hexString = System.Text.Encoding.UTF8.GetString(HttpUtility.UrlDecodeToBytes(infoHash));
-                if (hexString.Length == 40)
-                {
-                    infoHashBytes = Enumerable.Range(0, hexString.Length)
-                                     .Where(x => x % 2 == 0)
-                                     .Select(x => Convert.ToByte(hexString.Substring(x, 2), 16))
-                                     .ToArray();
-                }
-                else
-                {
-                     throw new ArgumentException("Invalid info_hash format.");
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash);
-            throw new ArgumentException("Invalid info_hash format.", ex);
-        }
+        try { infoHashBytes = ParseInfoHash(infoHash); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash); return AnnounceError("Invalid info_hash format."); }
 
         var torrent = await _context.Torrents.FirstOrDefaultAsync(t => t.InfoHash == infoHashBytes);
-        if (torrent == null)
+        if (torrent == null) { _logger.LogWarning("Announce for non-existent torrent: {InfoHash}", infoHash); return AnnounceError("Torrent not found."); }
+
+        // --- 3. Peer & Event Processing ---
+        var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
+        double timeDelta = (peer != null) ? (DateTimeOffset.UtcNow - peer.LastAnnounce).TotalSeconds : 0;
+
+        // --- 4. Speed Check ---
+        if (peer != null && timeDelta > 5) // Only check if interval is reasonable
         {
-            _logger.LogWarning("Announce request for non-existent torrent: {infoHashBytes}", infoHashBytes);
-            throw new KeyNotFoundException("Torrent not found.");
+            if (uploaded > peer.Uploaded)
+            {
+                double uploadSpeedKBps = ((uploaded - peer.Uploaded) / 1024.0) / timeDelta;
+                if (settings.MaxUploadSpeed > 0 && uploadSpeedKBps > settings.MaxUploadSpeed)
+                {
+                    await _adminService.LogCheatAsync(user.Id, "Speed Cheat (Upload)", $"Reported upload speed {uploadSpeedKBps:F2} KB/s exceeds limit of {settings.MaxUploadSpeed} KB/s.");
+                    return AnnounceError("Reported upload speed is too high. This event has been logged.");
+                }
+            }
         }
 
-        
-
-        // Handle peer events (started, completed, stopped, none)
-        var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
-
-        if (peer != null)
+        // Update peer activity times
+        if (peer != null && timeDelta > 0 && timeDelta <= 3600) // Cap at 1 hour
         {
-            // Frequency check for existing peers
-            var minAnnounceInterval = TimeSpan.FromSeconds(30); // Define your minimum interval
-            if (DateTimeOffset.UtcNow - peer.LastAnnounce < minAnnounceInterval)
-            {
-                _logger.LogWarning("Announce request too frequent from user: {UserId}", user.Id);
-                throw new InvalidOperationException("Request too frequent.");
-            }
-
-            // Calculate seeding/leeching time based on the peer's state before this announce
-            var timeElapsed = (DateTimeOffset.UtcNow - peer.LastAnnounce).TotalMinutes;
-            if (timeElapsed > 0 && timeElapsed <= 3600) // Cap at 1 hour to prevent abuse
-            {
-                if (peer.IsSeeder)
-                {
-                    user.TotalSeedingTimeMinutes += (ulong)timeElapsed;
-                    _logger.LogDebug("User {UserId} accumulated {Time} minutes of seeding time. Total: {Total}", user.Id, timeElapsed, user.TotalSeedingTimeMinutes);
-                }
-                else // Was a leecher
-                {
-                    user.TotalLeechingTimeMinutes += (ulong)timeElapsed;
-                    _logger.LogDebug("User {UserId} accumulated {Time} minutes of leeching time. Total: {Total}", user.Id, timeElapsed, user.TotalLeechingTimeMinutes);
-                }
-            }
+            if (peer.IsSeeder) user.TotalSeedingTimeMinutes += (ulong)timeDelta / 60;
+            else user.TotalLeechingTimeMinutes += (ulong)timeDelta / 60;
         }
 
         switch (@event)
         {
             case "started":
-            case null: // No event means "started" or "none"
-                if (peer == null)
+            case null:
+                                if (peer == null)
                 {
-                    _logger.LogInformation("Peer {PeerId} started for torrent {TorrentId} (User: {UserId}).", peerId, torrent.Id, user.Id);
-                    peer = new Peers
-                    {
-                        TorrentId = torrent.Id,
-                        Torrent = torrent,
-                        UserId = user.Id,
-                        User = user,
-                        IpAddress = ipAddress,
-                        Port = port,
-                        LastAnnounce = DateTimeOffset.UtcNow,
-                        IsSeeder = (left == 0)
-                    };
+                    peer = new Peers { Torrent = torrent, User = user, IpAddress = ipAddress, Port = port, UserAgent = peerId, Uploaded = uploaded, Downloaded = downloaded };
                     _context.Peers.Add(peer);
                 }
-                else
-                {
-                    _logger.LogInformation("Peer {PeerId} re-announced for torrent {TorrentId} (User: {UserId}).", peerId, torrent.Id, user.Id);
-                    peer.IpAddress = ipAddress;
-                    peer.Port = port;
-                    peer.LastAnnounce = DateTimeOffset.UtcNow;
-                    peer.IsSeeder = (left == 0);
-                }
+                peer.IpAddress = ipAddress;
+                peer.Port = port;
+                peer.LastAnnounce = DateTimeOffset.UtcNow;
+                peer.IsSeeder = (left == 0);
                 break;
             case "completed":
-                _logger.LogInformation("Peer {PeerId} completed torrent {TorrentId} (User: {UserId}).", peerId, torrent.Id, user.Id);
-                if (peer != null)
-                {
-                    // Only increment snatched count if the peer was not a seeder before this event.
-                    if (!peer.IsSeeder)
-                    {
-                        torrent.Snatched++;
-                        _logger.LogInformation("Torrent {TorrentId} snatched count incremented to {SnatchedCount}.", torrent.Id, torrent.Snatched);
-                    }
-                    peer.LastAnnounce = DateTimeOffset.UtcNow;
-                    peer.IsSeeder = true; // Peer completed, so it's now a seeder
-                }
+                if (peer != null && !peer.IsSeeder) { torrent.Snatched++; peer.IsSeeder = true; }
                 break;
             case "stopped":
-                _logger.LogInformation("Peer {PeerId} stopped for torrent {TorrentId} (User: {UserId}).", peerId, torrent.Id, user.Id);
-                if (peer != null)
-                {
-                    _context.Peers.Remove(peer);
-                }
+                if (peer != null) _context.Peers.Remove(peer);
                 break;
         }
+        
+        if (peer != null)
+        {
+            peer.Uploaded = uploaded;
+            peer.Downloaded = downloaded;
+        }
 
-        // --- Update User Stats ---
-
-        // 1. Initialize nominal values with the real reported values
+        // --- 5. Stats Update ---
         var nominalUpload = uploaded;
         var nominalDownload = downloaded;
 
-        // 2. Apply torrent-specific multipliers
-        bool isFreeLeech = torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTimeOffset.UtcNow);
-        if (isFreeLeech)
-        {
-            nominalDownload = 0;
-            _logger.LogInformation("Torrent {TorrentId} is Free Leech. Nominal download for user {UserId} is 0.", torrent.Id, user.Id);
-        }
+        bool isFreeLeech = settings.GlobalFreeleechEnabled || (torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTimeOffset.UtcNow));
+        if (isFreeLeech) nominalDownload = 0;
 
-        // 3. Apply user-specific multipliers
-        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt.HasValue && user.DoubleUploadExpiresAt.Value > DateTimeOffset.UtcNow)
-        {
-            nominalUpload *= 2;
-            _logger.LogInformation("User {UserId} has double upload active. Nominal upload is doubled to {NominalUpload}.", user.Id, nominalUpload);
-        }
-        else if (user.IsDoubleUploadActive && (!user.DoubleUploadExpiresAt.HasValue || user.DoubleUploadExpiresAt.Value <= DateTimeOffset.UtcNow))
-        {
-            // Double upload expired, reset status
-            user.IsDoubleUploadActive = false;
-            user.DoubleUploadExpiresAt = null;
-            _logger.LogInformation("User {UserId} double upload expired and has been reset.", user.Id);
-        }
+        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTimeOffset.UtcNow) nominalUpload *= 2;
+        else if (user.IsDoubleUploadActive) user.IsDoubleUploadActive = false;
 
-        // 4. Update physical (real) stats
         user.UploadedBytes += uploaded;
         user.DownloadedBytes += downloaded;
-
-        // 5. Update nominal (for ratio) stats
         user.NominalUploadedBytes += nominalUpload;
         user.NominalDownloadedBytes += nominalDownload;
 
-        _logger.LogInformation(
-            "User {UserId} stats updated. Physical: (U: {Uploaded}, D: {Downloaded}), Nominal: (U: {NominalUpload}, D: {NominalDownload})",
-            user.Id, user.UploadedBytes, user.DownloadedBytes, user.NominalUploadedBytes, user.NominalDownloadedBytes);
-
-        // Check and reset No H&R status if expired
-        if (user.IsNoHRActive && user.NoHRExpiresAt <= DateTimeOffset.UtcNow)
-        {
-            user.IsNoHRActive = false;
-            user.NoHRExpiresAt = null;
-            _logger.LogInformation("User {UserId} No H&R status expired and reset.", user.Id);
-        }
-
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Announce request processed successfully for infoHash: {InfoHash}, peerId: {PeerId}.", infoHash, peerId);
 
-        // Prepare response
+        // --- 6. Prepare Response ---
         var response = new BDictionary
         {
-            { "interval", new BNumber(_torrentSettings.AnnounceIntervalSeconds) }, // Announce interval in seconds
-            { "min interval", new BNumber(_torrentSettings.MinAnnounceIntervalSeconds) } // Minimum announce interval
+            { "interval", new BNumber(settings.AnnounceIntervalSeconds) },
+            { "min interval", new BNumber(settings.AnnounceIntervalSeconds / 2) }
         };
 
-        // Get peers for response
         var peers = await _context.Peers
-            .Where(p => p.TorrentId == torrent.Id && p.UserId != user.Id) // Exclude current peer
+            .Where(p => p.TorrentId == torrent.Id && p.UserId != user.Id)
             .Take(numWant)
             .ToListAsync();
 
-        var peerList = new BList();
-        foreach (var p in peers)
-        {
-            var peerDict = new BDictionary
-            {
-                { "peer id", new BString(p.UserId.ToString()) }, // Using UserId as peer id for now
-                { "ip", new BString(p.IpAddress.ToString()) },
-                { "port", new BNumber(p.Port) }
-            };
-            peerList.Add(peerDict);
-        }
-        response.Add("peers", peerList);
-
+        response.Add("peers", ToPeerList(peers));
         return response;
     }
 
-    /// <summary>
-    /// Gets the H&R exemption hours for a given user role.
-    /// </summary>
-    /// <param name="role">The user's role.</param>
-    /// <returns>The number of hours the user is exempt from H&R rules.</returns>
-    private int GetHRExemptionHours(UserRole role)
+    private static BList ToPeerList(IEnumerable<Peers> peers)
     {
-        return role switch
+        var peerList = new BList();
+        foreach (var p in peers)
         {
-            UserRole.User => _coinSettings.UserHRExemptionHours,
-            UserRole.PowerUser => _coinSettings.PowerUserHRExemptionHours,
-            UserRole.EliteUser => _coinSettings.EliteUserHRExemptionHours,
-            UserRole.CrazyUser => _coinSettings.CrazyUserHRExemptionHours,
-            UserRole.VeteranUser => _coinSettings.VeteranUserHRExemptionHours,
-            UserRole.VIP => _coinSettings.VIPHRExemptionHours,
-            _ => 0 // Other roles (Mosquito, Seeder, Staff) have no special H&R exemption by default
-        };
+            peerList.Add(new BDictionary
+            {
+                { "peer id", new BString(p.UserAgent) },
+                { "ip", new BString(p.IpAddress.ToString()) },
+                { "port", new BNumber(p.Port) }
+            });
+        }
+        return peerList;
+    }
+
+    private static BDictionary AnnounceError(string message)
+    {
+        return new BDictionary { { "failure reason", new BString(message) } };
+    }
+
+    private static byte[] ParseInfoHash(string infoHash)
+    {
+        try
+        {
+            var decodedBytes = HttpUtility.UrlDecodeToBytes(infoHash);
+            if (decodedBytes.Length == 20) return decodedBytes;
+
+            var hexString = System.Text.Encoding.UTF8.GetString(decodedBytes);
+            if (hexString.Length == 40)
+            {
+                return Convert.FromHexString(hexString);
+            }
+        }
+        catch {}
+        throw new ArgumentException("Invalid info_hash format.");
     }
 }

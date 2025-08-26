@@ -157,6 +157,17 @@ public class ForumService : IForumService
 
     public async Task<ForumPostDto> CreatePostAsync(int topicId, CreateForumPostDto createPostDto, int authorId)
     {
+        var user = await _context.Users.FindAsync(authorId);
+        if (user == null)
+        {
+            throw new KeyNotFoundException("User not found");
+        }
+
+        if (user.BanStatus.HasFlag(BanStatus.ForumBan) || user.BanStatus.HasFlag(BanStatus.LoginBan))
+        {
+            throw new UnauthorizedAccessException("You are banned from using the forum.");
+        }
+
         var topic = await _context.ForumTopics.FindAsync(topicId);
         if (topic == null)
         {
@@ -166,12 +177,6 @@ public class ForumService : IForumService
         if (topic.IsLocked)
         {
             throw new InvalidOperationException("Topic is locked");
-        }
-
-        var user = await _context.Users.FindAsync(authorId);
-        if (user == null)
-        {
-            throw new KeyNotFoundException("User not found");
         }
 
         var now = DateTimeOffset.UtcNow;

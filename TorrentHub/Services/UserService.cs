@@ -1,10 +1,10 @@
+
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using System.IO;
@@ -22,7 +22,6 @@ public class UserService : IUserService
     private readonly ApplicationDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UserService> _logger;
-    private readonly CoinSettings _coinSettings;
     private readonly INotificationService _notificationService;
     private readonly IDistributedCache _cache;
     private readonly ISettingsService _settingsService;
@@ -38,7 +37,6 @@ public class UserService : IUserService
         ApplicationDbContext context, 
         IConfiguration configuration, 
         ILogger<UserService> logger, 
-        IOptions<CoinSettings> coinSettings, 
         IDistributedCache cache, 
         ISettingsService settingsService, 
         IWebHostEnvironment webHostEnvironment,
@@ -47,7 +45,6 @@ public class UserService : IUserService
         _context = context;
         _configuration = configuration;
         _logger = logger;
-        _coinSettings = coinSettings.Value;
         _cache = cache;
         _settingsService = settingsService;
         _webHostEnvironment = webHostEnvironment;
@@ -63,6 +60,12 @@ public class UserService : IUserService
         {
             _logger.LogWarning("Login failed for user {UserName}: Invalid credentials.", userForLoginDto.UserName);
             throw new Exception("Invalid username or password.");
+        }
+
+        if (user.BanStatus.HasFlag(BanStatus.LoginBan))
+        {
+            _logger.LogWarning("Login failed for user {UserName}: Account is banned from logging in.", userForLoginDto.UserName);
+            throw new Exception("Your account has been banned.");
         }
 
         var token = GenerateJwtToken(user);
@@ -103,6 +106,7 @@ public class UserService : IUserService
         _logger.LogInformation("Attempting registration for user: {UserName}", userForRegistrationDto.UserName);
         
         Invite? invite = null;
+        var settings = await _settingsService.GetSiteSettingsAsync();
 
         if (!string.IsNullOrEmpty(userForRegistrationDto.InviteCode))
         {
@@ -117,8 +121,7 @@ public class UserService : IUserService
         }
         else
         {
-            var isRegistrationOpen = await _settingsService.IsRegistrationOpenAsync();
-            if (!isRegistrationOpen)
+            if (!settings.IsRegistrationOpen)
             {
                 _logger.LogWarning("Registration failed for user {UserName}: Registration is invite-only and no code was provided.", userForRegistrationDto.UserName);
                 throw new Exception("Registration is currently by invitation only. An invite code is required.");
@@ -229,7 +232,8 @@ public class UserService : IUserService
                 return false;
             }
 
-            var taxAmount = (ulong)Math.Ceiling(amount * _coinSettings.TransactionTaxRate);
+            var settings = await _settingsService.GetSiteSettingsAsync();
+            var taxAmount = (ulong)Math.Ceiling(amount * settings.TransactionTaxRate);
             var actualTransferAmount = amount - taxAmount;
 
             fromUser.Coins -= amount;
@@ -367,26 +371,27 @@ public class UserService : IUserService
             throw new Exception("User not found.");
         }
 
-        if (user.Coins < _coinSettings.InvitePrice)
+        var settings = await _settingsService.GetSiteSettingsAsync();
+        if (user.Coins < settings.InvitePrice)
         {
-            _logger.LogWarning("User {UserId} does not have enough Coins to generate an invite. Required: {Required}, Has: {Has}", userId, _coinSettings.InvitePrice, user.Coins);
+            _logger.LogWarning("User {UserId} does not have enough Coins to generate an invite. Required: {Required}, Has: {Has}", userId, settings.InvitePrice, user.Coins);
             throw new Exception("Insufficient Coins to generate an invite.");
         }
 
-        user.Coins -= _coinSettings.InvitePrice;
+        user.Coins -= settings.InvitePrice;
 
         var newInvite = new Invite
         {
             Code = Guid.NewGuid().ToString("N").Substring(0, 16),
             GeneratorUserId = userId,
             CreatedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(_coinSettings.InviteExpirationDays)
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(settings.InviteExpirationDays)
         };
 
         _context.Invites.Add(newInvite);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} for {Price} Coins.", userId, newInvite.Code, _coinSettings.InvitePrice);
+        _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} for {Price} Coins.", userId, newInvite.Code, settings.InvitePrice);
 
         return newInvite;
     }

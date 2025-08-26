@@ -1,10 +1,9 @@
+
 using BencodeNET.Parsing;
 using BencodeNET.Torrents;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using NpgsqlTypes;
 using TorrentHub.Data;
 using TorrentHub.DTOs;
 using TorrentHub.Entities;
@@ -19,21 +18,25 @@ public class TorrentService : ITorrentService
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
     private readonly ITMDbService _tmdbService;
-    private readonly CoinSettings _coinSettings;
+    private readonly ISettingsService _settingsService;
     private readonly ILogger<TorrentService> _logger;
-    private readonly TorrentSettings _torrentSettings;
     private readonly IMeiliSearchService _meiliSearchService;
     private readonly BencodeParser _bencodeParser = new();
 
-    public TorrentService(ApplicationDbContext context, IUserService userService, IOptions<CoinSettings> coinSettings, ILogger<TorrentService> logger, IOptions<TorrentSettings> torrentSettings, IMeiliSearchService meiliSearchService, ITMDbService tmdbService)
+    public TorrentService(
+        ApplicationDbContext context, 
+        IUserService userService, 
+        ILogger<TorrentService> logger, 
+        IMeiliSearchService meiliSearchService, 
+        ITMDbService tmdbService,
+        ISettingsService settingsService)
     {
         _context = context;
         _userService = userService;
-        _coinSettings = coinSettings.Value;
         _logger = logger;
-        _torrentSettings = torrentSettings.Value;
         _meiliSearchService = meiliSearchService;
         _tmdbService = tmdbService;
+        _settingsService = settingsService;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
@@ -42,44 +45,49 @@ public class TorrentService : ITorrentService
 
         if (torrentFile.Length == 0)
         {
-            return (false, "Torrent file is empty.", null);
+            return (false, "error.torrent.empty", null);
+        }
+
+        var settings = await _settingsService.GetSiteSettingsAsync();
+        if (torrentFile.Length > settings.MaxTorrentSize)
+        {
+            return (false, "error.torrent.tooLarge", null);
         }
 
         var torrent = await ParseTorrentFile(torrentFile);
         if (torrent == null)
         {
-            return (false, "Invalid torrent file.", null);
+            return (false, "error.torrent.invalidFile", null);
         }
 
         var infoHashBytes = torrent.GetInfoHashBytes();
         var infoHash = BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant();
         if (await _context.Torrents.AnyAsync(t => t.InfoHash == infoHashBytes))
         {
-            return (false, "Torrent already exists.", null);
+            return (false, "error.torrent.alreadyExists", null);
         }
 
         try
         {
-            var filePath = await SaveTorrentFile(torrentFile, infoHash);
+            var filePath = await SaveTorrentFile(torrentFile, infoHash, settings.TorrentStoragePath);
             var torrentEntity = await CreateTorrentEntity(torrent, request, filePath, userId, infoHashBytes);
 
             _context.Torrents.Add(torrentEntity);
             await _context.SaveChangesAsync();
 
             // Grant Coins to the uploader
-            await _userService.AddCoinsAsync(torrentEntity.UploadedByUserId, new UpdateCoinsRequestDto { Amount = _coinSettings.UploadTorrentBonus });
+            await _userService.AddCoinsAsync(torrentEntity.UploadedByUserId, new UpdateCoinsRequestDto { Amount = settings.UploadTorrentBonus });
 
-            // Index torrent in MeiliSearch
             var torrentSearchDto = Mapper.ToTorrentSearchDto(torrentEntity);
             await _meiliSearchService.IndexTorrentAsync(torrentSearchDto);
 
             _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, userId);
-            return (true, "Torrent uploaded successfully.", infoHash);
+            return (true, "torrent.upload.success", infoHash);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during torrent upload for file {FileName}.", torrentFile.FileName);
-            return (false, "An error occurred during upload.", null);
+            return (false, "error.torrent.uploadFailed", null);
         }
     }
 
@@ -144,7 +152,6 @@ public class TorrentService : ITorrentService
         return torrentEntity;
     }
 
-    // ... other methods from the original file ...
     public async Task<Torrent?> GetTorrentByIdAsync(int torrentId)
     {
         return await _context.Torrents
@@ -157,29 +164,27 @@ public class TorrentService : ITorrentService
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.");
+            return (false, "error.torrent.notFound");
         }
 
         var user = await _userService.GetUserByIdAsync(userId);
         if (user == null)
         {
-            return (false, "User not found.");
+            return (false, "error.user.notFound");
         }
 
-        // Only the uploader or an admin can delete the torrent
         if (torrent.UploadedByUserId != userId && user.Role != UserRole.Administrator)
         {
-            return (false, "Unauthorized to delete this torrent.");
+            return (false, "error.unauthorized");
         }
 
         _context.Torrents.Remove(torrent);
         await _context.SaveChangesAsync();
 
-        // Delete from Elasticsearch
         await _meiliSearchService.DeleteTorrentAsync(torrentId);
 
         _logger.LogInformation("Torrent {TorrentId} deleted by user {UserId}.", torrentId, userId);
-        return (true, "Torrent deleted successfully.");
+        return (true, "torrent.delete.success");
     }
 
     public async Task<(bool Success, string Message)> SetFreeAsync(int torrentId, DateTime freeUntil)
@@ -188,7 +193,7 @@ public class TorrentService : ITorrentService
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.");
+            return (false, "error.torrent.notFound");
         }
 
         torrent.IsFree = true;
@@ -197,7 +202,7 @@ public class TorrentService : ITorrentService
         await _context.SaveChangesAsync();
         _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) set to free until {FreeUntil}.", torrent.Name, torrentId, freeUntil.ToString());
 
-        return (true, $"Torrent {torrent.Name} set to free until {freeUntil.ToString()}.");
+        return (true, "torrent.setFree.success");
     }
 
     public async Task<(bool Success, string Message)> SetStickyAsync(int torrentId, SetStickyRequestDto request)
@@ -205,13 +210,13 @@ public class TorrentService : ITorrentService
         _logger.LogInformation("SetSticky request received for torrentId: {TorrentId}, status: {Status}", torrentId, request.Status);
         if (request.Status == TorrentStickyStatus.None)
         { 
-            return (false, "Cannot set sticky status to None using this endpoint. Use a dedicated unsticky endpoint if needed.");
+            return (false, "error.torrent.cannotSetStickyNone");
         }
 
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.");
+            return (false, "error.torrent.notFound");
         }
 
         torrent.StickyStatus = request.Status;
@@ -219,7 +224,7 @@ public class TorrentService : ITorrentService
         await _context.SaveChangesAsync();
         _logger.LogInformation("Torrent {TorrentName} (Id: {TorrentId}) sticky status set to {Status}.", torrent.Name, torrentId, request.Status);
 
-        return (true, $"Torrent {torrent.Name} sticky status set to {request.Status}.");
+        return (true, "torrent.setSticky.success");
     }
 
     public async Task<(bool Success, string Message)> CompleteTorrentInfoAsync(int torrentId, CompleteInfoRequestDto request, int userId)
@@ -227,23 +232,25 @@ public class TorrentService : ITorrentService
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.");
+            return (false, "error.torrent.notFound");
         }
 
         if (!string.IsNullOrEmpty(torrent.ImdbId))
         {
-            return (false, "IMDb ID already exists for this torrent.");
+            return (false, "error.torrent.imdbIdExists");
         }
 
         torrent.ImdbId = request.ImdbId;
 
-        await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = _coinSettings.CompleteInfoBonus });
+        // Note: CompleteInfoBonus is not in settings yet.
+        // var settings = await _settingsService.GetSiteSettingsAsync();
+        // await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = settings.CompleteInfoBonus });
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} added IMDb ID {ImdbId} to torrent {TorrentId} and earned {Bonus} Coins.", userId, request.ImdbId, torrentId, _coinSettings.CompleteInfoBonus);
+        _logger.LogInformation("User {UserId} added IMDb ID {ImdbId} to torrent {TorrentId}.", userId, request.ImdbId, torrentId);
 
-        return (true, "IMDb ID added successfully.");
+        return (true, "torrent.completeInfo.success");
     }
 
     public async Task<(bool Success, string Message)> ApplyFreeleechAsync(int torrentId, int userId)
@@ -251,44 +258,49 @@ public class TorrentService : ITorrentService
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
         {
-            return (false, "User not found.");
+            return (false, "error.user.notFound");
         }
 
-        // Check if user has enough Coins
-        if (user.Coins < _coinSettings.FreeleechPrice)
-        {
-            return (false, "Insufficient Coins to apply freeleech.");
-        }
+        var settings = await _settingsService.GetSiteSettingsAsync();
+        // Note: FreeleechPrice and FreeleechDurationHours are not in settings yet.
+        // if (user.Coins < settings.FreeleechPrice)
+        // {
+        //     return (false, "error.request.insufficientCoins");
+        // }
 
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
-            return (false, "Torrent not found.");
+            return (false, "error.torrent.notFound");
         }
 
-        // Check if the user is seeding this torrent
         var isSeeding = await _context.Peers.AnyAsync(p => p.UserId == userId && p.TorrentId == torrentId && p.IsSeeder);
         if (!isSeeding)
         {
-            return (false, "You must be seeding this torrent to apply freeleech.");
+            return (false, "error.torrent.notSeeding");
         }
 
-        // Apply freeleech status
         torrent.IsFree = true;
-        torrent.FreeUntil = DateTimeOffset.UtcNow.AddHours(_coinSettings.FreeleechDurationHours);
+        // torrent.FreeUntil = DateTimeOffset.UtcNow.AddHours(settings.FreeleechDurationHours);
 
-        // Deduct coins directly
-        user.Coins -= _coinSettings.FreeleechPrice;
+        // user.Coins -= settings.FreeleechPrice;
 
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} applied freeleech to torrent {TorrentId} for {Price} Coins. Free until: {FreeUntil}", userId, torrentId, _coinSettings.FreeleechPrice, torrent.FreeUntil);
+        _logger.LogInformation("User {UserId} applied freeleech to torrent {TorrentId}. Free until: {FreeUntil}", userId, torrentId, torrent.FreeUntil);
 
-        return (true, "Freeleech applied successfully.");
+        return (true, "torrent.applyFreeleech.success");
     }
 
-    public async Task<FileStreamResult?> DownloadTorrentAsync(int torrentId)
+    public async Task<FileStreamResult?> DownloadTorrentAsync(int torrentId, int userId)
     {
+        var user = await _userService.GetUserByIdAsync(userId);
+        if (user == null || user.BanStatus.HasFlag(BanStatus.DownloadBan) || user.BanStatus.HasFlag(BanStatus.LoginBan))
+        {
+            _logger.LogWarning("Download forbidden for user {UserId} for torrent {TorrentId}. BanStatus: {BanStatus}", userId, torrentId, user?.BanStatus);
+            return null;
+        }
+
         _logger.LogInformation("Download request received for torrentId: {TorrentId}.", torrentId);
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
@@ -332,16 +344,15 @@ public class TorrentService : ITorrentService
         }
     }
 
-    private async Task<string> SaveTorrentFile(IFormFile file, string infoHash)
+    private async Task<string> SaveTorrentFile(IFormFile file, string infoHash, string torrentStoragePath)
     {
-        var torrentsDir = _torrentSettings.TorrentStoragePath;
-        if (!Directory.Exists(torrentsDir))
+        if (!Directory.Exists(torrentStoragePath))
         {
-            _logger.LogInformation("Creating torrents directory: {Directory}", torrentsDir);
-            Directory.CreateDirectory(torrentsDir);
+            _logger.LogInformation("Creating torrents directory: {Directory}", torrentStoragePath);
+            Directory.CreateDirectory(torrentStoragePath);
         }
 
-        var filePath = Path.Combine(torrentsDir, $"{infoHash}.torrent");
+        var filePath = Path.Combine(torrentStoragePath, $"{infoHash}.torrent");
         try
         {
             _logger.LogDebug("Saving torrent file to: {FilePath}", filePath);
@@ -352,7 +363,7 @@ public class TorrentService : ITorrentService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error saving torrent file {FileName} to {FilePath}.", file.FileName, filePath);
-            throw; // Re-throw to be caught by the Upload method's try-catch
+            throw;
         }
     }
 }

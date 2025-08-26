@@ -1,7 +1,7 @@
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using TorrentHub.Data;
+using TorrentHub.DTOs;
 using TorrentHub.Entities;
 
 namespace TorrentHub.Services;
@@ -10,12 +10,10 @@ public class SettingsService : ISettingsService
 {
     private readonly ApplicationDbContext _context;
     private readonly IDistributedCache _cache;
-    private const string SettingsCacheKeyPrefix = "Settings:";
+    private const string SiteSettingsKey = "SiteSettings";
     private readonly DistributedCacheEntryOptions _cacheOptions = new()
     {
-        // Keep settings in cache for a long time, as they don't change often.
-        // They are invalidated upon update.
-        AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1)
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1) // Keep settings in cache for a long time
     };
 
     public SettingsService(ApplicationDbContext context, IDistributedCache cache)
@@ -24,34 +22,34 @@ public class SettingsService : ISettingsService
         _cache = cache;
     }
 
-    public async Task<string?> GetSettingAsync(string key)
+    public async Task<SiteSettingsDto> GetSiteSettingsAsync()
     {
-        var cacheKey = $"{SettingsCacheKeyPrefix}{key}";
-        var cachedValue = await _cache.GetStringAsync(cacheKey);
-
-        if (cachedValue != null)
+        var cachedSettings = await _cache.GetStringAsync(SiteSettingsKey);
+        if (cachedSettings != null)
         {
-            return cachedValue;
+            return JsonSerializer.Deserialize<SiteSettingsDto>(cachedSettings) ?? new SiteSettingsDto();
         }
 
-        var setting = await _context.SiteSettings.FindAsync(key);
-        var value = setting?.Value;
-
-        if (value != null)
+        var setting = await _context.SiteSettings.FindAsync(SiteSettingsKey);
+        if (setting != null && !string.IsNullOrEmpty(setting.Value))
         {
-            await _cache.SetStringAsync(cacheKey, value, _cacheOptions);
+            var dto = JsonSerializer.Deserialize<SiteSettingsDto>(setting.Value) ?? new SiteSettingsDto();
+            await _cache.SetStringAsync(SiteSettingsKey, setting.Value, _cacheOptions);
+            return dto;
         }
 
-        return value;
+        // Return default settings if not found in DB
+        return new SiteSettingsDto();
     }
 
-    public async Task SetSettingAsync(string key, string value)
+    public async Task UpdateSiteSettingsAsync(SiteSettingsDto dto)
     {
-        var setting = await _context.SiteSettings.FindAsync(key);
+        var setting = await _context.SiteSettings.FindAsync(SiteSettingsKey);
+        var value = JsonSerializer.Serialize(dto);
 
         if (setting == null)
         {
-            setting = new SiteSetting { Key = key, Value = value };
+            setting = new SiteSetting { Key = SiteSettingsKey, Value = value };
             _context.SiteSettings.Add(setting);
         }
         else
@@ -61,15 +59,6 @@ public class SettingsService : ISettingsService
         }
 
         await _context.SaveChangesAsync();
-
-        // Invalidate cache
-        var cacheKey = $"{SettingsCacheKeyPrefix}{key}";
-        await _cache.RemoveAsync(cacheKey);
-    }
-
-    public async Task<bool> IsRegistrationOpenAsync()
-    {
-        var value = await GetSettingAsync("IsRegistrationOpen");
-        return bool.TryParse(value, out var result) && result;
+        await _cache.RemoveAsync(SiteSettingsKey);
     }
 }
