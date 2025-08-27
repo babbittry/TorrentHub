@@ -63,6 +63,7 @@ public class ForumService : IForumService
     {
         var topic = await _context.ForumTopics
             .Include(t => t.Author)
+            .Include(t => t.Category)
             .Include(t => t.Posts)
             .ThenInclude(p => p.Author)
             .Where(t => t.Id == topicId)
@@ -76,6 +77,8 @@ public class ForumService : IForumService
                 CreatedAt = t.CreatedAt,
                 IsLocked = t.IsLocked,
                 IsSticky = t.IsSticky,
+                CategoryId = t.CategoryId,
+                CategoryName = t.Category!.Code.ToString(),
                 Posts = t.Posts.OrderBy(p => p.CreatedAt).Select(p => new ForumPostDto
                 {
                     Id = p.Id,
