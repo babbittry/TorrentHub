@@ -17,6 +17,9 @@ public class ForumPost
     public ForumTopic? Topic { get; set; }
 
     [Required]
+    public int Floor { get; set; }
+
+    [Required]
     public int AuthorId { get; set; }
     [ForeignKey(nameof(AuthorId))]
     public User? Author { get; set; }

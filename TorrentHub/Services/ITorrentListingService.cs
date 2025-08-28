@@ -5,5 +5,5 @@ namespace TorrentHub.Services;
 
 public interface ITorrentListingService
 {
-    Task<List<TorrentDto>> GetTorrentsAsync(TorrentFilterDto filter);
+    Task<PaginatedResult<TorrentDto>> GetTorrentsAsync(TorrentFilterDto filter);
 }

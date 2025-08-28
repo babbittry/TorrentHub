@@ -5,8 +5,8 @@ namespace TorrentHub.Services;
 public interface IForumService
 {
     Task<List<ForumCategoryDto>> GetCategoriesAsync();
-    Task<List<ForumTopicDto>> GetTopicsAsync(int categoryId);
-    Task<ForumTopicDetailDto> GetTopicByIdAsync(int topicId);
+    Task<PaginatedResult<ForumTopicDto>> GetTopicsAsync(int categoryId, int page, int pageSize);
+    Task<ForumTopicDetailDto> GetTopicByIdAsync(int topicId, int page, int pageSize);
     Task<ForumTopicDetailDto> CreateTopicAsync(CreateForumTopicDto createTopicDto, int authorId);
     Task<ForumPostDto> CreatePostAsync(int topicId, CreateForumPostDto createPostDto, int authorId);
     Task UpdateTopicAsync(int topicId, UpdateForumTopicDto updateTopicDto, int userId);

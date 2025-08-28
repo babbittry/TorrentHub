@@ -4,6 +4,7 @@ public class ForumPostDto
 {
     public int Id { get; set; }
     public int TopicId { get; set; }
+    public int Floor { get; set; }
     public required string Content { get; set; }
     public int AuthorId { get; set; }
     public string? AuthorName { get; set; }

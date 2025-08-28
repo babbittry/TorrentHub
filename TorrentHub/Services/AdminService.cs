@@ -123,7 +123,7 @@ public class AdminService : IAdminService
             {
                 Id = l.Id,
                 UserId = l.UserId,
-                UserName = l.User!.UserName,
+                UserName = l.User == null ? null : l.User.UserName,
                 Timestamp = l.Timestamp,
                 Reason = l.Reason,
                 Details = l.Details
@@ -175,5 +175,49 @@ public class AdminService : IAdminService
         }
 
         return results.OrderByDescending(j => j.RootElement.GetProperty("Timestamp").GetDateTimeOffset()).Skip(dto.Offset).Take(dto.Limit).ToList();
+    }
+
+    public async Task<PaginatedResult<UserProfileDetailDto>> GetUsersAsync(int page, int pageSize)
+    {
+        var query = _context.Users.AsNoTracking()
+            .Include(u => u.Invite)
+            .ThenInclude(i => i.GeneratorUser);
+
+        var totalItems = await query.CountAsync();
+
+        var users = await query
+            .OrderBy(u => u.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new UserProfileDetailDto
+            {
+                Id = u.Id,
+                UserName = u.UserName,
+                Email = u.Email,
+                Role = u.Role.ToString(),
+                Avatar = u.Avatar,
+                CreatedAt = u.CreatedAt,
+                UploadedBytes = u.UploadedBytes,
+                DownloadedBytes = u.DownloadedBytes,
+                NominalUploadedBytes = u.NominalUploadedBytes,
+                NominalDownloadedBytes = u.NominalDownloadedBytes,
+                Coins = u.Coins,
+                TotalSeedingTimeMinutes = u.TotalSeedingTimeMinutes,
+                TotalLeechingTimeMinutes = u.TotalLeechingTimeMinutes,
+                InvitedBy = u.Invite == null ? null : u.Invite.GeneratorUser!.UserName,
+                // SeedingSize = u.SeedingSize, // TODO: Calculate this
+                // CurrentSeedingCount = u.SeedingCount, // TODO: Calculate this
+                // CurrentLeechingCount = u.LeechingCount // TODO: Calculate this
+            })
+            .ToListAsync();
+
+        return new PaginatedResult<UserProfileDetailDto>
+        {
+            Items = users,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+        };
     }
 }

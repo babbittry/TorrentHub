@@ -16,5 +16,5 @@ public class ForumTopicDetailDto
     public bool IsSticky { get; set; }
     public bool IsLocked { get; set; }
 
-    public List<ForumPostDto> Posts { get; set; } = new();
+    public PaginatedResult<ForumPostDto>? Posts { get; set; }
 }

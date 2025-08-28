@@ -95,4 +95,11 @@ public class AdminController : ControllerBase
         var results = await _adminService.SearchSystemLogsAsync(dto);
         return Ok(results);
     }
+
+    [HttpGet("users")]
+    public async Task<ActionResult<PaginatedResult<UserProfileDetailDto>>> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    {
+        var users = await _adminService.GetUsersAsync(page, pageSize);
+        return Ok(users);
+    }
 }

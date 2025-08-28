@@ -37,13 +37,19 @@ public class ForumService : IForumService
             .ToListAsync();
     }
 
-    public async Task<List<ForumTopicDto>> GetTopicsAsync(int categoryId)
+    public async Task<PaginatedResult<ForumTopicDto>> GetTopicsAsync(int categoryId, int page, int pageSize)
     {
-        return await _context.ForumTopics
+        var query = _context.ForumTopics
             .Include(t => t.Author)
             .Where(t => t.CategoryId == categoryId)
             .OrderByDescending(t => t.IsSticky)
-            .ThenByDescending(t => t.LastPostTime)
+            .ThenByDescending(t => t.LastPostTime);
+
+        var totalItems = await query.CountAsync();
+
+        var topics = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(t => new ForumTopicDto
             {
                 Id = t.Id,
@@ -57,15 +63,22 @@ public class ForumService : IForumService
                 IsSticky = t.IsSticky
             })
             .ToListAsync();
+
+        return new PaginatedResult<ForumTopicDto>
+        {
+            Items = topics,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+        };
     }
 
-    public async Task<ForumTopicDetailDto> GetTopicByIdAsync(int topicId)
+    public async Task<ForumTopicDetailDto> GetTopicByIdAsync(int topicId, int page, int pageSize)
     {
         var topic = await _context.ForumTopics
             .Include(t => t.Author)
             .Include(t => t.Category)
-            .Include(t => t.Posts)
-            .ThenInclude(p => p.Author)
             .Where(t => t.Id == topicId)
             .Select(t => new ForumTopicDetailDto
             {
@@ -79,16 +92,6 @@ public class ForumService : IForumService
                 IsSticky = t.IsSticky,
                 CategoryId = t.CategoryId,
                 CategoryName = t.Category!.Code.ToString(),
-                Posts = t.Posts.OrderBy(p => p.CreatedAt).Select(p => new ForumPostDto
-                {
-                    Id = p.Id,
-                    AuthorId = p.AuthorId,
-                    AuthorName = p.Author!.UserName,
-                    AuthorAvatar = p.Author!.Avatar,
-                    Content = p.Content,
-                    CreatedAt = p.CreatedAt,
-                    EditedAt = p.EditedAt
-                }).ToList()
             })
             .FirstOrDefaultAsync();
 
@@ -96,6 +99,38 @@ public class ForumService : IForumService
         {
             throw new KeyNotFoundException("Topic not found");
         }
+
+        var postsQuery = _context.ForumPosts
+            .Include(p => p.Author)
+            .Where(p => p.TopicId == topicId)
+            .OrderBy(p => p.Floor);
+
+        var totalPosts = await postsQuery.CountAsync();
+
+        var posts = await postsQuery
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new ForumPostDto
+            {
+                Id = p.Id,
+                Floor = p.Floor,
+                AuthorId = p.AuthorId,
+                AuthorName = p.Author!.UserName,
+                AuthorAvatar = p.Author!.Avatar,
+                Content = p.Content,
+                CreatedAt = p.CreatedAt,
+                EditedAt = p.EditedAt
+            })
+            .ToListAsync();
+
+        topic.Posts = new PaginatedResult<ForumPostDto>
+        {
+            Items = posts,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalPosts,
+            TotalPages = (int)Math.Ceiling(totalPosts / (double)pageSize)
+        };
 
         return topic;
     }
@@ -106,6 +141,17 @@ public class ForumService : IForumService
         if (user == null)
         {
             throw new KeyNotFoundException("User not found");
+        }
+
+        var category = await _context.ForumCategories.FindAsync(createTopicDto.CategoryId);
+        if (category == null)
+        {
+            throw new KeyNotFoundException("Category not found");
+        }
+
+        if (category.Code == ForumCategoryCode.Announcement && user.Role != UserRole.Admin)
+        {
+            throw new UnauthorizedAccessException("Only administrators can create topics in the Announcements category.");
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -126,7 +172,8 @@ public class ForumService : IForumService
             AuthorId = authorId,
             Content = createTopicDto.Content,
             CreatedAt = now,
-            Topic = topic
+            Topic = topic,
+            Floor = 1
         };
 
         topic.Posts.Add(post);
@@ -143,17 +190,25 @@ public class ForumService : IForumService
             CreatedAt = topic.CreatedAt,
             IsLocked = topic.IsLocked,
             IsSticky = topic.IsSticky,
-            Posts = new List<ForumPostDto>
+            Posts = new PaginatedResult<ForumPostDto>
             {
-                new()
+                Items = new List<ForumPostDto>
                 {
-                    Id = post.Id,
-                    AuthorId = post.AuthorId,
-                    AuthorName = user.UserName,
-                    Content = post.Content,
-                    CreatedAt = post.CreatedAt,
-                    EditedAt = post.EditedAt
-                }
+                    new()
+                    {
+                        Id = post.Id,
+                        AuthorId = post.AuthorId,
+                        AuthorName = user.UserName,
+                        Content = post.Content,
+                        CreatedAt = post.CreatedAt,
+                        EditedAt = post.EditedAt,
+                        Floor = post.Floor
+                    }
+                },
+                Page = 1,
+                PageSize = 1,
+                TotalItems = 1,
+                TotalPages = 1
             }
         };
     }
@@ -184,12 +239,15 @@ public class ForumService : IForumService
 
         var now = DateTimeOffset.UtcNow;
 
+        var floor = await _context.ForumPosts.CountAsync(p => p.TopicId == topicId) + 1;
+
         var post = new ForumPost
         {
             TopicId = topicId,
             AuthorId = authorId,
             Content = createPostDto.Content,
-            CreatedAt = now
+            CreatedAt = now,
+            Floor = floor
         };
 
         topic.LastPostTime = now;
@@ -204,7 +262,8 @@ public class ForumService : IForumService
             AuthorName = user.UserName,
             Content = post.Content,
             CreatedAt = post.CreatedAt,
-            EditedAt = post.EditedAt
+            EditedAt = post.EditedAt,
+            Floor = post.Floor
         };
     }
 

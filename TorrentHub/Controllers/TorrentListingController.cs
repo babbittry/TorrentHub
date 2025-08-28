@@ -20,22 +20,9 @@ public class TorrentListingController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<TorrentDto>>> GetTorrents([FromQuery] TorrentFilterDto filter)
+    public async Task<ActionResult<PaginatedResult<TorrentDto>>> Search([FromQuery] TorrentFilterDto filter)
     {
-        if (filter.PageNumber < 1 || filter.PageSize < 1 || filter.PageSize > 100) // Basic validation
-        {
-            return BadRequest(new { message = "Invalid pagination parameters." });
-        }
-
-        try
-        {
-            var torrents = await _torrentListingService.GetTorrentsAsync(filter);
-            return Ok(torrents);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting torrents with filter: {Filter}", JsonSerializer.Serialize(filter));
-            return StatusCode(500, new { message = "An unexpected error occurred." });
-        }
+        var result = await _torrentListingService.GetTorrentsAsync(filter);
+        return Ok(result);
     }
 }

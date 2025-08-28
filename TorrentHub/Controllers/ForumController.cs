@@ -40,19 +40,19 @@ public class ForumController : ControllerBase
 
     // GET /api/forum/topics?categoryId=1
     [HttpGet("topics")]
-    public async Task<ActionResult<List<ForumTopicDto>>> GetTopics([FromQuery] int categoryId)
+    public async Task<ActionResult<PaginatedResult<ForumTopicDto>>> GetTopics([FromQuery] int categoryId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var topics = await _forumService.GetTopicsAsync(categoryId);
+        var topics = await _forumService.GetTopicsAsync(categoryId, page, pageSize);
         return Ok(topics);
     }
 
     // GET /api/forum/topics/{topicId}
     [HttpGet("topics/{topicId}")]
-    public async Task<ActionResult<ForumTopicDetailDto>> GetTopicById(int topicId)
+    public async Task<ActionResult<ForumTopicDetailDto>> GetTopicById(int topicId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
         try
         {
-            var topic = await _forumService.GetTopicByIdAsync(topicId);
+            var topic = await _forumService.GetTopicByIdAsync(topicId, page, pageSize);
             return Ok(topic);
         }
         catch (KeyNotFoundException e)
