@@ -1,0 +1,13 @@
+using TorrentHub.Core.Enums;
+
+namespace TorrentHub.Core.DTOs;
+
+public class StoreItemDto
+{
+    public int Id { get; set; }
+    public StoreItemCode ItemCode { get; set; }
+    public ulong Price { get; set; }
+    public bool IsAvailable { get; set; }
+    public int? BadgeId { get; set; }
+}
+

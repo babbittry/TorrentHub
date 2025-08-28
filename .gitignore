@@ -404,3 +404,6 @@ FodyWeavers.xsd
 TorrentHub/appsettings.Development.json
 TorrentHub/appsettings.json
 .DS_Store
+src/TorrentHub.Tracker/appsettings.Development.json
+src/TorrentHub/appsettings.Development.json
+/src/TorrentHub/wwwroot/avatars
