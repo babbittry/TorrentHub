@@ -49,13 +49,94 @@ namespace TorrentHub.Data
             {
                 var storeItems = new List<StoreItem>
                 {
-                    new StoreItem { Id = 1, ItemCode = StoreItemCode.UploadCredit10GB, Price = 1000, IsAvailable = true },
-                    new StoreItem { Id = 2, ItemCode = StoreItemCode.UploadCredit50GB, Price = 4500, IsAvailable = true },
-                    new StoreItem { Id = 3, ItemCode = StoreItemCode.InviteOne, Price = 5000, IsAvailable = true },
-                    new StoreItem { Id = 4, ItemCode = StoreItemCode.InviteFive, Price = 20000, IsAvailable = true },
-                    new StoreItem { Id = 5, ItemCode = StoreItemCode.DoubleUpload, Price = 10000, IsAvailable = true },
-                    new StoreItem { Id = 6, ItemCode = StoreItemCode.NoHitAndRun, Price = 15000, IsAvailable = true },
-                    new StoreItem { Id = 7, ItemCode = StoreItemCode.Badge, Price = 25000, IsAvailable = true, BadgeId = 4 }
+                    new StoreItem
+                    {
+                        Id = 1, ItemCode = StoreItemCode.UploadCredit10GB, Name = "10 GB Upload Credit", Description = "Adds 10 GB to your upload total.", Price = 1000, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "10 GB Upload Credit", Description = "Adds 10 GB to your upload total." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "10 GB 上传流量", Description = "为您的上传总量增加 10 GB。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Crédit d'upload de 10 Go", Description = "Ajoute 10 Go à votre total d'upload." },
+                            new StoreItemTranslation { Language = "ja", Name = "10 GB アップロードクレジット", Description = "アップロード合計に 10 GB を追加します。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 2, ItemCode = StoreItemCode.UploadCredit50GB, Name = "50 GB Upload Credit", Description = "Adds 50 GB to your upload total.", Price = 4500, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "50 GB Upload Credit", Description = "Adds 50 GB to your upload total." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "50 GB 上传流量", Description = "为您的上传总量增加 50 GB。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Crédit d'upload de 50 Go", Description = "Ajoute 50 Go à votre total d'upload." },
+                            new StoreItemTranslation { Language = "ja", Name = "50 GB アップロードクレジット", Description = "アップロード合計に 50 GB を追加します。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 3, ItemCode = StoreItemCode.InviteOne, Name = "Single Invite", Description = "Grants you one invitation to share.", Price = 5000, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "Single Invite", Description = "Grants you one invitation to share." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "一枚邀请码", Description = "赠与您一枚可分享的邀请码。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Invitation unique", Description = "Vous accorde une invitation à partager." },
+                            new StoreItemTranslation { Language = "ja", Name = "招待コード1枚", Description = "共有できる招待コードを1枚進呈します。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 4, ItemCode = StoreItemCode.InviteFive, Name = "Five Invites", Description = "Grants you five invitations to share.", Price = 20000, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "Five Invites", Description = "Grants you five invitations to share." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "五枚邀请码", Description = "赠与您五枚可分享的邀请码。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Cinq invitations", Description = "Vous accorde cinq invitations à partager." },
+                            new StoreItemTranslation { Language = "ja", Name = "招待コード5枚", Description = "共有できる招待コードを5枚進呈します。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 5, ItemCode = StoreItemCode.DoubleUpload, Name = "24hr Double Upload", Description = "All uploads are counted as double for 24 hours.", Price = 10000, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "24hr Double Upload", Description = "All uploads are counted as double for 24 hours." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "24小时双倍上传", Description = "24小时内所有上传均按双倍计算。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Upload double 24h", Description = "Tous les uploads sont comptés double pendant 24 heures." },
+                            new StoreItemTranslation { Language = "ja", Name = "24時間アップロード2倍", Description = "24時間、すべてのアップロードが2倍としてカウントされます。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 6, ItemCode = StoreItemCode.NoHitAndRun, Name = "72hr H&R Immunity", Description = "You are immune to Hit & Run warnings for 72 hours.", Price = 15000, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "72hr H&R Immunity", Description = "You are immune to Hit & Run warnings for 72 hours." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "72小时 H&R 豁免", Description = "您在72小时内免疫 Hit & Run 警告。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Immunité H&R 72h", Description = "Vous êtes immunisé contre les avertissements Hit & Run pendant 72 heures." },
+                            new StoreItemTranslation { Language = "ja", Name = "72時間ヒットエンドラン免除", Description = "72時間、ヒットエンドラン警告が免除されます。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 7, ItemCode = StoreItemCode.ChangeUsername, Name = "Username Change Card", Description = "Allows you to change your username once.", Price = 30000, IsAvailable = true,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "Username Change Card", Description = "Allows you to change your username once." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "改名卡", Description = "允许您更改一次您的用户名。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Carte de changement de nom", Description = "Vous permet de changer votre nom d'utilisateur une seule fois." },
+                            new StoreItemTranslation { Language = "ja", Name = "ユーザー名変更カード", Description = "ユーザー名を一度だけ変更できます。" }
+                        }
+                    },
+                    new StoreItem
+                    {
+                        Id = 8, ItemCode = StoreItemCode.Badge, Name = "Coin Collector Badge", Description = "Purchase the exclusive Coin Collector badge.", Price = 25000, IsAvailable = true, BadgeId = 4,
+                        Translations = new List<StoreItemTranslation>
+                        {
+                            new StoreItemTranslation { Language = "en", Name = "Coin Collector Badge", Description = "Purchase the exclusive Coin Collector badge." },
+                            new StoreItemTranslation { Language = "zh-CN", Name = "金币收藏家徽章", Description = "购买专属的金币收藏家徽章。" },
+                            new StoreItemTranslation { Language = "fr", Name = "Badge Collectionneur de pièces", Description = "Achetez le badge exclusif de collectionneur de pièces." },
+                            new StoreItemTranslation { Language = "ja", Name = "コインコレクターバッジ", Description = "限定のコインコレクターバッジを購入します。" }
+                        }
+                    }
                 };
                 context.StoreItems.AddRange(storeItems);
                 logger.LogInformation("Seeded default store items.");

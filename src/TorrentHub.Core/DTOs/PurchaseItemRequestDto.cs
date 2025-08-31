@@ -11,5 +11,7 @@ namespace TorrentHub.Core.DTOs
         [Required]
         [Range(1, 100)]
         public int Quantity { get; set; }
+
+        public Dictionary<string, object>? Params { get; set; }
     }
 }

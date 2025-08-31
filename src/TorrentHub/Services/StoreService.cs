@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
+using System.Globalization;
 using System.Text.Json;
 using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
@@ -41,27 +42,37 @@ public class StoreService : IStoreService
 
     public async Task<List<StoreItemDto>> GetAvailableItemsAsync()
     {
-        var cachedData = await _cache.GetStringAsync(StoreItemsCacheKey);
+        var languageCode = CultureInfo.CurrentUICulture.Name.Split('-')[0];
+        var cacheKey = $"{StoreItemsCacheKey}:{languageCode}";
+
+        var cachedData = await _cache.GetStringAsync(cacheKey);
         if (cachedData != null)
         {
-            _logger.LogDebug("Retrieving store items from cache.");
+            _logger.LogDebug("Retrieving store items from cache for language {Language}.", languageCode);
             return JsonSerializer.Deserialize<List<StoreItemDto>>(cachedData) ?? new List<StoreItemDto>();
         }
 
-        _logger.LogInformation("Cache miss for store items. Refreshing from DB.");
+        _logger.LogInformation("Cache miss for store items (Language: {Language}). Refreshing from DB.", languageCode);
         var items = await _context.StoreItems
             .Where(i => i.IsAvailable)
+            .Include(i => i.Translations)
             .Select(i => new StoreItemDto
             {
                 Id = i.Id,
                 ItemCode = i.ItemCode,
+                Name = i.Translations.Any(t => t.Language == languageCode)
+                    ? i.Translations.First(t => t.Language == languageCode).Name
+                    : i.Name,
+                Description = i.Translations.Any(t => t.Language == languageCode)
+                    ? i.Translations.First(t => t.Language == languageCode).Description
+                    : i.Description,
                 Price = i.Price,
                 IsAvailable = i.IsAvailable,
                 BadgeId = i.BadgeId
             })
             .ToListAsync();
-            
-        await _cache.SetStringAsync(StoreItemsCacheKey, JsonSerializer.Serialize(items), _cacheOptions);
+
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(items), _cacheOptions);
         return items;
     }
 
@@ -148,6 +159,18 @@ public class StoreService : IStoreService
                     _context.UserBadges.Add(new UserBadge { UserId = userId, BadgeId = item.BadgeId!.Value, AcquiredAt = DateTimeOffset.UtcNow });
                     await _cache.RemoveAsync($"UserBadges:{userId}");
                     _logger.LogInformation("User badges cache invalidated for user {UserId}.", userId);
+                    break;
+                case StoreItemCode.ChangeUsername:
+                    if (request.Params == null || !request.Params.TryGetValue("newUsername", out var newUsernameObj) || newUsernameObj is not string newUsername || string.IsNullOrWhiteSpace(newUsername))
+                    {
+                        return new PurchaseResultDto { Success = false, Message = "New username must be provided for this item." };
+                    }
+                    if (await _context.Users.AnyAsync(u => u.UserName == newUsername))
+                    {
+                        return new PurchaseResultDto { Success = false, Message = "This username is already taken." };
+                    }
+                    user.UserName = newUsername;
+                    _logger.LogInformation("User {UserId} changed their username to {NewUsername}.", userId, newUsername);
                     break;
                 default:
                     throw new Exception($"Unhandled store item code: {item.ItemCode}");

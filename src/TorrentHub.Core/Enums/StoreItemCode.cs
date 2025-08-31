@@ -37,7 +37,12 @@ public enum StoreItemCode
     NoHitAndRun,
 
     /// <summary>
+    /// Allows the user to change their username.
+    /// </summary>
+    ChangeUsername,
+
+    /// <summary>
     /// Purchases a specific badge.
     /// </summary>
-    Badge
+    Badge,
 }

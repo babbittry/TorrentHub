@@ -20,6 +20,7 @@ namespace TorrentHub.Core.Data
         public DbSet<StoreItem> StoreItems { get; set; }
         public DbSet<Badge> Badges { get; set; }
         public DbSet<UserBadge> UserBadges { get; set; }
+        public DbSet<StoreItemTranslation> StoreItemTranslations { get; set; }
         public DbSet<Message> Messages { get; set; }
         public DbSet<Report> Reports { get; set; }
         public DbSet<Announcement> Announcements { get; set; }
@@ -80,9 +81,14 @@ namespace TorrentHub.Core.Data
             modelBuilder.Entity<UserBadge>()
                 .HasIndex(ub => new { ub.UserId, ub.BadgeId })
                 .IsUnique();
+ 
+            modelBuilder.Entity<StoreItemTranslation>(entity =>
+            {
+                entity.HasIndex(t => new { t.StoreItemId, t.Language }).IsUnique();
+            });
 
-            modelBuilder.Entity<ForumTopic>()
-                .HasOne(t => t.Author)
+             modelBuilder.Entity<ForumTopic>()
+                 .HasOne(t => t.Author)
                 .WithMany()
                 .HasForeignKey(t => t.AuthorId)
                 .OnDelete(DeleteBehavior.Restrict);
