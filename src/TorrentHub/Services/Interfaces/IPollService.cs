@@ -1,7 +1,7 @@
 
 using TorrentHub.Core.DTOs;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Interfaces;
 
 public interface IPollService
 {

@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using TorrentHub.Mappers;
 using TorrentHub.Core.DTOs;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 

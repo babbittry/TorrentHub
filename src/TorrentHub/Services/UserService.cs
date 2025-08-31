@@ -15,6 +15,7 @@ using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Mappers;
 using TorrentHub.Core.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

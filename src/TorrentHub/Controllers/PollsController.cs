@@ -3,7 +3,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TorrentHub.Core.DTOs;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 

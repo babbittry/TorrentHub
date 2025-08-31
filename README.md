@@ -16,13 +16,15 @@ Private Tracker back-end.
 - 种子请求（愿望单）
 - 种子列表排序（按文件大小、上传人数、下载人数）
 - 通过 TMDb 来获取信息（封面、简介等信息）
+- 为管理员后台管理功能
 
 ## 未实现
 
-- 为管理员提供一个界面来管理用户、公告、举报等
+
 
 ## 使用到的开源库/鸣谢
 
 - MeiliSearch
 - gemini cli
 - PostgreSql
+- TMDb

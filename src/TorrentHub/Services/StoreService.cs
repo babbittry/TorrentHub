@@ -8,10 +8,16 @@ using TorrentHub.Core.Enums;
 
 namespace TorrentHub.Services;
 
+public class PurchaseResultDto
+{
+    public bool Success { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
 public interface IStoreService
 {
     Task<List<StoreItemDto>> GetAvailableItemsAsync();
-    Task<bool> PurchaseItemAsync(int userId, int itemId);
+    Task<PurchaseResultDto> PurchaseItemAsync(int userId, PurchaseItemRequestDto request);
 }
 
 public class StoreService : IStoreService
@@ -20,9 +26,7 @@ public class StoreService : IStoreService
     private readonly ILogger<StoreService> _logger;
     private readonly IDistributedCache _cache;
 
-    // Cache key for store items
     private const string StoreItemsCacheKey = "StoreItems";
-    // Cache duration (e.g., 1 hour)
     private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
     {
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
@@ -61,108 +65,106 @@ public class StoreService : IStoreService
         return items;
     }
 
-    /// <summary>
-    /// Handles the purchase of a store item by a user.
-    /// This method uses a database transaction to ensure atomicity:
-    /// either the coins are deducted and the item is granted, or both fail.
-    /// </summary>
-    /// <param name="userId">The ID of the user making the purchase.</param>
-    /// <param name="itemId">The ID of the item being purchased.</param>
-    /// <returns>True if the purchase was successful, false otherwise.</returns>
-    public async Task<bool> PurchaseItemAsync(int userId, int itemId)
+    public async Task<PurchaseResultDto> PurchaseItemAsync(int userId, PurchaseItemRequestDto request)
     {
-        // Start a database transaction to ensure data consistency.
         await using var transaction = await _context.Database.BeginTransactionAsync();
 
         try
         {
-            // 1. Retrieve user and item details.
             var user = await _context.Users.FindAsync(userId);
-            var item = await _context.StoreItems.FindAsync(itemId);
+            var item = await _context.StoreItems.FindAsync(request.StoreItemId);
 
-            // 2. Validate purchase conditions.
-            // Check if user or item exists, and if the item is available for purchase.
             if (user == null || item == null || !item.IsAvailable)
             {
-                _logger.LogWarning("Purchase failed: User {UserId} or item {ItemId} not found or item is unavailable.", userId, itemId);
-                return false;
+                return new PurchaseResultDto { Success = false, Message = "Item not found or is unavailable." };
             }
 
-            // Check if the user has enough Coins for the purchase.
-            if (user.Coins < item.Price)
+            var totalCost = item.Price * (ulong)request.Quantity;
+            if (user.Coins < totalCost)
             {
-                _logger.LogWarning("Purchase failed: User {UserId} has insufficient funds for item {ItemId}.", userId, itemId);
-                return false;
+                return new PurchaseResultDto { Success = false, Message = "Insufficient Sakura Coins." };
             }
 
-            // 3. Deduct coins from the user's balance.
-            user.Coins -= item.Price;
+            // Specific validation for badge items
+            if (item.ItemCode == StoreItemCode.Badge)
+            {
+                if (request.Quantity > 1)
+                {
+                    return new PurchaseResultDto { Success = false, Message = "Badges can only be purchased one at a time." };
+                }
+                if (!item.BadgeId.HasValue)
+                {
+                    _logger.LogWarning("Purchase failed: Badge item {ItemId} does not have a BadgeId associated.", item.Id);
+                    return new PurchaseResultDto { Success = false, Message = "Invalid badge item configuration." };
+                }
+                if (await _context.UserBadges.AnyAsync(ub => ub.UserId == userId && ub.BadgeId == item.BadgeId.Value))
+                {
+                    return new PurchaseResultDto { Success = false, Message = "You already own this badge." };
+                }
+            }
 
-            // 4. Grant the item's effect based on its ItemCode.
-            // This switch statement handles different types of store items and applies their respective effects.
+            user.Coins -= totalCost;
+
             switch (item.ItemCode)
             {
                 case StoreItemCode.UploadCredit10GB:
-                    user.UploadedBytes += 10L * 1024 * 1024 * 1024; // Add 10 GB upload credit
+                    user.UploadedBytes += (ulong)request.Quantity * 10UL * 1024 * 1024 * 1024;
                     break;
                 case StoreItemCode.UploadCredit50GB:
-                    user.UploadedBytes += 50L * 1024 * 1024 * 1024; // Add 50 GB upload credit
+                    user.UploadedBytes += (ulong)request.Quantity * 50UL * 1024 * 1024 * 1024;
                     break;
                 case StoreItemCode.InviteOne:
-                    user.InviteNum += 1; // Grant one invitation code
+                    user.InviteNum += (uint)request.Quantity;
                     break;
                 case StoreItemCode.InviteFive:
-                    user.InviteNum += 5; // Grant five invitation codes
+                    user.InviteNum += (uint)(request.Quantity * 5);
                     break;
                 
+                // Items that likely shouldn't be bought in quantity - we can restrict if needed, but for now let's assume quantity=1
                 case StoreItemCode.DoubleUpload:
-                    // Activate double upload status for 24 hours.
-                    // If already active, this extends or resets the duration.
                     user.IsDoubleUploadActive = true;
-                    user.DoubleUploadExpiresAt = DateTimeOffset.UtcNow.AddHours(24);
+                    if (user.DoubleUploadExpiresAt.HasValue && user.DoubleUploadExpiresAt.Value > DateTimeOffset.UtcNow)
+                    {
+                        user.DoubleUploadExpiresAt = (DateTimeOffset?)user.DoubleUploadExpiresAt.Value.AddHours(24 * request.Quantity);
+                    }
+                    else
+                    {
+                        user.DoubleUploadExpiresAt = DateTimeOffset.UtcNow.AddHours(24 * request.Quantity);
+                    }
                     break;
                 case StoreItemCode.NoHitAndRun:
-                    // Activate no Hit & Run status for 72 hours.
-                    // If already active, this extends or resets the duration.
                     user.IsNoHRActive = true;
-                    user.NoHRExpiresAt = DateTimeOffset.UtcNow.AddHours(72);
+                    if (user.NoHRExpiresAt.HasValue && user.NoHRExpiresAt.Value > DateTimeOffset.UtcNow)
+                    {
+                        user.NoHRExpiresAt = (DateTimeOffset?)user.NoHRExpiresAt.Value.AddHours(72 * request.Quantity);
+                    }
+                    else
+                    {
+                        user.NoHRExpiresAt = DateTimeOffset.UtcNow.AddHours(72 * request.Quantity);
+                    }
                     break;
                 case StoreItemCode.Badge:
-                    // Grant a specific badge to the user.
-                    if (!item.BadgeId.HasValue)
-                    {
-                        _logger.LogWarning("Purchase failed: Badge item {ItemId} does not have a BadgeId associated.", itemId);
-                        return false; // Badge item must have a BadgeId
-                    }
-                    // Prevent user from purchasing the same badge multiple times.
-                    if (await _context.UserBadges.AnyAsync(ub => ub.UserId == userId && ub.BadgeId == item.BadgeId.Value))
-                    {
-                        _logger.LogWarning("Purchase failed: User {UserId} already owns badge {BadgeId}.", userId, item.BadgeId.Value);
-                        return false;
-                    }
-                    _context.UserBadges.Add(new UserBadge { UserId = userId, BadgeId = item.BadgeId.Value, AcquiredAt = DateTimeOffset.UtcNow });
-                    // Invalidate user's badges cache after purchasing a new badge
+                    // Logic is already validated above for quantity=1 and uniqueness
+                    _context.UserBadges.Add(new UserBadge { UserId = userId, BadgeId = item.BadgeId!.Value, AcquiredAt = DateTimeOffset.UtcNow });
                     await _cache.RemoveAsync($"UserBadges:{userId}");
                     _logger.LogInformation("User badges cache invalidated for user {UserId}.", userId);
                     break;
                 default:
-                    // Log an error if an unhandled item code is encountered.
                     throw new Exception($"Unhandled store item code: {item.ItemCode}");
             }
 
-            // 5. Save changes to the database and commit the transaction.
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
 
-            _logger.LogInformation("User {UserId} successfully purchased item {ItemId} ({ItemCode}).", userId, itemId, item.ItemCode);
-            return true;
+            _logger.LogInformation("User {UserId} successfully purchased item {ItemId} (Code: {ItemCode}, Quantity: {Quantity}).", userId, item.Id, item.ItemCode, request.Quantity);
+            return new PurchaseResultDto { Success = true, Message = "Purchase successful!" };
         }
         catch (Exception ex)
         {
-            // 6. Rollback the transaction if any error occurs during the purchase process.
-            _logger.LogError(ex, "An error occurred during purchase for user {UserId}, item {ItemId}. Rolling back transaction.", userId, itemId);
+            _logger.LogError(ex, "An error occurred during purchase for user {UserId}, item {ItemId}. Rolling back transaction.", userId, request.StoreItemId);
             await transaction.RollbackAsync();
-            return false;
+            // In a real-world scenario, you might not want to expose raw exception messages.
+            return new PurchaseResultDto { Success = false, Message = "An unexpected error occurred. The transaction has been rolled back." };
         }
     }
 }

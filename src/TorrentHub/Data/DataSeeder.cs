@@ -8,7 +8,7 @@ using TorrentHub.Core.Data;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Enums;
 using Bogus;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 using System.IO; // Added for Path and Directory operations
 using Microsoft.AspNetCore.Hosting; // Added for IWebHostEnvironment
 

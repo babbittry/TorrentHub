@@ -1,4 +1,4 @@
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Configuration;
 
 public class TMDbSettings
 {

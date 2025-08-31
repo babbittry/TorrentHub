@@ -2,7 +2,7 @@ using TorrentHub.Core.Enums;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Interfaces;
 
 public interface IReportService
 {

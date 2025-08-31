@@ -1,4 +1,3 @@
-
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Localization;
@@ -7,6 +6,7 @@ using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Resources;
 using TorrentHub.Core.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TorrentHub.Core.DTOs;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;

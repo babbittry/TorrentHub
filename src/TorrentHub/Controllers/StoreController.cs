@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Mappers;
 using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 
@@ -29,19 +30,21 @@ public class StoreController : ControllerBase
         return Ok(items);
     }
 
-    [HttpPost("items/{itemId}/purchase")]
-    public async Task<IActionResult> PurchaseItem(int itemId)
+    [HttpPost("purchase")]
+    public async Task<IActionResult> PurchaseItem([FromBody] PurchaseItemRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        _logger.LogInformation("User {UserId} is attempting to purchase item {ItemId}.", userId, itemId);
+        _logger.LogInformation("User {UserId} is attempting to purchase item {ItemId} with quantity {Quantity}.", userId, request.StoreItemId, request.Quantity);
 
-        var success = await _storeService.PurchaseItemAsync(userId, itemId);
-
-        if (success)
+        try
         {
-            return Ok(new { message = "Purchase successful!" });
+            var result = await _storeService.PurchaseItemAsync(userId, request);
+            return Ok(result);
         }
-
-        return BadRequest(new { message = "Purchase failed. Please check your balance or try again later." });
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Purchase failed for user {UserId} for item {ItemId}.", userId, request.StoreItemId);
+            return BadRequest(new { message = ex.Message });
+        }
     }
 }

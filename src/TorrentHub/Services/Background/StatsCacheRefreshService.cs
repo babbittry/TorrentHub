@@ -1,4 +1,5 @@
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Background;
+using TorrentHub.Services.Interfaces;
 
 public class StatsCacheRefreshService : BackgroundService
 {

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Enums;
 using TorrentHub.Mappers;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 
@@ -35,7 +35,7 @@ public class RequestsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<RequestDto>> CreateRequest([FromBody] CreateRequestDto createRequestDto)
     {
-        // �?JWT Token 中获取当前登录用户的 ID
+        // JWT Token 中获取当前登录用户的 ID
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, request) = await _requestService.CreateRequestAsync(createRequestDto, userId);
 

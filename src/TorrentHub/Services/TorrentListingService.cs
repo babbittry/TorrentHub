@@ -7,6 +7,8 @@ using TorrentHub.Mappers;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TorrentHub.Services.Interfaces;
+using TorrentHub.Services.Background;
 
 namespace TorrentHub.Services;
 

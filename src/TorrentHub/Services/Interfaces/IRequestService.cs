@@ -2,7 +2,7 @@ using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Enums;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Interfaces;
 
 public interface IRequestService
 {

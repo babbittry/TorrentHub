@@ -2,6 +2,7 @@ using System;
 using Meilisearch;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

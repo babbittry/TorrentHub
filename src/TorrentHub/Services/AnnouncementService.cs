@@ -4,6 +4,7 @@ using System.Text.Json;
 using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

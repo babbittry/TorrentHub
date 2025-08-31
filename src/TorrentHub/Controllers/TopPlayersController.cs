@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Enums;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 

@@ -1,4 +1,4 @@
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Interfaces;
 
 public interface IEmailService
 {

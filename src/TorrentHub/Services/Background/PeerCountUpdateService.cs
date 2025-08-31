@@ -10,7 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Background;
 
 public class PeerCountUpdateService : BackgroundService
 {

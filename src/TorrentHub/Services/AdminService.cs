@@ -5,6 +5,7 @@ using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 
@@ -182,7 +183,7 @@ public class AdminService : IAdminService
     {
         var query = _context.Users.AsNoTracking()
             .Include(u => u.Invite)
-            .ThenInclude(i => i.GeneratorUser);
+            .ThenInclude(i => i!.GeneratorUser);
 
         var totalItems = await query.CountAsync();
 

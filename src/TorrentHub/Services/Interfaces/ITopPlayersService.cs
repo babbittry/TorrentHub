@@ -1,7 +1,7 @@
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Enums;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Interfaces;
 
 public interface ITopPlayersService
 {

@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using TorrentHub.Services;
-
+using TorrentHub.Services.Interfaces;
+namespace TorrentHub.Services.Background;
 public class RequestConfirmationService : BackgroundService
 {
     private readonly ILogger<RequestConfirmationService> _logger;

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Background;
+using TorrentHub.Services.Interfaces;
 
 public class TopPlayersCacheRefreshService : BackgroundService
 {

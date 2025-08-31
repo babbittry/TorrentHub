@@ -4,7 +4,7 @@ using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Services;
 using TorrentHub.Services;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Background;
 
 public class CoinGenerationService : BackgroundService
 {

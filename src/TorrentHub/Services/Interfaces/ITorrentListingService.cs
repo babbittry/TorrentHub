@@ -1,7 +1,7 @@
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.DTOs;
 
-namespace TorrentHub.Services;
+namespace TorrentHub.Services.Interfaces;
 
 public interface ITorrentListingService
 {

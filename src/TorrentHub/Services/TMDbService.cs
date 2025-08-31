@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TorrentHub.Core.DTOs;
+using TorrentHub.Services.Configuration;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

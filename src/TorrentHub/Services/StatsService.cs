@@ -4,6 +4,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Enums;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

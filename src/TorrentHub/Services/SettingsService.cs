@@ -4,6 +4,7 @@ using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 

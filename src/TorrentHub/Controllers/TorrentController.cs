@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using TorrentHub.Core.Enums;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Mappers;
-using TorrentHub.Services;
+using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 
