@@ -34,7 +34,8 @@ namespace TorrentHub.Core.Data
         public DbSet<PollVote> PollVotes { get; set; }
         public DbSet<BannedClient> BannedClients { get; set; }
         public DbSet<CheatLog> CheatLogs { get; set; }
-
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+ 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.HasPostgresEnum<UserRole>();
@@ -51,6 +52,11 @@ namespace TorrentHub.Core.Data
             {
                 entity.HasIndex(u => u.UserName).IsUnique();
                 entity.HasIndex(u => u.Email).IsUnique();
+            });
+ 
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasIndex(rt => rt.TokenHash).IsUnique();
             });
 
             modelBuilder.Entity<Torrent>()

@@ -1,12 +1,12 @@
 namespace TorrentHub.Core.DTOs;
 
 /// <summary>
-/// Represents the data returned to the client after a successful login.
+/// Represents the data returned to the client after a successful token refresh.
 /// </summary>
-public class LoginResponseDto
+public class RefreshTokenResponseDto
 {
     /// <summary>
-    /// The short-lived JWT access token for authenticating API requests.
+    /// The new short-lived JWT access token.
     /// </summary>
     public required string AccessToken { get; set; }
 

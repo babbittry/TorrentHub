@@ -267,7 +267,7 @@ namespace TorrentHub.Data
                     return $"/avatars/{avatarFileName}";
                 })
                 .RuleFor(u => u.Signature, f => f.Lorem.Sentence(5))
-                .RuleFor(u => u.Language, f => f.PickRandom("en-US", "zh-CN"))
+                .RuleFor(u => u.Language, f => f.PickRandom("en", "zh-CN", "ja", "fr"))
                 .RuleFor(u => u.UploadedBytes, f => (ulong)f.Random.Long(0, 100_000_000_000)) // Up to 100 GB
                 .RuleFor(u => u.DownloadedBytes,
                     (f, u) => (ulong)f.Random.Long(0, (long)u.UploadedBytes)) // Downloaded less than uploaded

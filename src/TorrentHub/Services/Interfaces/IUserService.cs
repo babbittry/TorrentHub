@@ -6,7 +6,9 @@ namespace TorrentHub.Services;
 public interface IUserService
 {
     Task<User> RegisterAsync(UserForRegistrationDto userForRegistrationDto);
-    Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto);
+    Task<(string AccessToken, string RefreshToken, User User)> LoginAsync(UserForLoginDto userForLoginDto);
+    Task<(string AccessToken, User User)?> RefreshTokenAsync(string refreshToken);
+    Task<bool> LogoutAsync(string refreshToken);
     Task<bool> AddCoinsAsync(int userId, UpdateCoinsRequestDto request);
     Task<bool> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount);
     Task<User?> GetUserByIdAsync(int userId);

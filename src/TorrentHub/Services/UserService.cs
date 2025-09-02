@@ -2,6 +2,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Logging;
@@ -53,7 +54,7 @@ public class UserService : IUserService
         _notificationService = notificationService;
     }
 
-    public async Task<LoginResponseDto> LoginAsync(UserForLoginDto userForLoginDto)
+    public async Task<(string AccessToken, string RefreshToken, User User)> LoginAsync(UserForLoginDto userForLoginDto)
     {
         _logger.LogInformation("Attempting login for user: {UserName}", userForLoginDto.UserName);
         var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userForLoginDto.UserName);
@@ -70,17 +71,52 @@ public class UserService : IUserService
             throw new Exception("Your account has been banned.");
         }
 
-        var token = GenerateJwtToken(user);
+        var accessToken = GenerateJwtToken(user, TimeSpan.FromMinutes(15)); // Short-lived access token
+        var refreshToken = GenerateRefreshToken(user.Id);
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync();
+
         _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
 
-        return new LoginResponseDto
-        {
-            Token = token,
-            User = user
-        };
+        return (accessToken, refreshToken.Token, user);
     }
 
-    private string GenerateJwtToken(User user)
+    public async Task<(string AccessToken, User User)?> RefreshTokenAsync(string refreshToken)
+    {
+        var refreshTokenHash = GetHash(refreshToken);
+        var storedToken = await _context.RefreshTokens
+            .Include(rt => rt.User)
+            .FirstOrDefaultAsync(rt => rt.TokenHash == refreshTokenHash);
+
+        if (storedToken == null || !storedToken.IsActive)
+        {
+            _logger.LogWarning("Invalid or expired refresh token provided.");
+            return null;
+        }
+
+        var newAccessToken = GenerateJwtToken(storedToken.User, TimeSpan.FromMinutes(15));
+        
+        _logger.LogInformation("Token refreshed successfully for user {UserId}.", storedToken.UserId);
+        return (newAccessToken, storedToken.User);
+    }
+
+    public async Task<bool> LogoutAsync(string refreshToken)
+    {
+        var refreshTokenHash = GetHash(refreshToken);
+        var storedToken = await _context.RefreshTokens.FirstOrDefaultAsync(rt => rt.TokenHash == refreshTokenHash);
+
+        if (storedToken == null)
+        {
+            return false;
+        }
+
+        _context.RefreshTokens.Remove(storedToken);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User logged out, refresh token revoked for user {UserId}.", storedToken.UserId);
+        return true;
+    }
+
+    private string GenerateJwtToken(User user, TimeSpan lifetime)
     {
         _logger.LogDebug("Generating JWT token for user: {UserName}", user.UserName);
         var tokenHandler = new JwtSecurityTokenHandler();
@@ -93,7 +129,7 @@ public class UserService : IUserService
                 new Claim(ClaimTypes.Name, user.UserName),
                 new Claim(ClaimTypes.Role, user.Role.ToString())
             }),
-            Expires = DateTimeOffset.UtcNow.AddDays(7).UtcDateTime,
+            Expires = DateTime.UtcNow.Add(lifetime),
             SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature),
             Issuer = _configuration["Jwt:Issuer"],
             Audience = _configuration["Jwt:Audience"]
@@ -101,6 +137,29 @@ public class UserService : IUserService
         var token = tokenHandler.CreateToken(tokenDescriptor);
         _logger.LogDebug("JWT token generated for user: {UserName}", user.UserName);
         return tokenHandler.WriteToken(token);
+    }
+
+    private RefreshToken GenerateRefreshToken(int userId)
+    {
+        var refreshTokenString = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var refreshTokenHash = GetHash(refreshTokenString);
+
+        return new RefreshToken
+        {
+            UserId = userId,
+            Token = refreshTokenString,
+            TokenHash = refreshTokenHash,
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(7),
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+    }
+
+    private static string GetHash(string input)
+    {
+        using var sha256 = SHA256.Create();
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hash = sha256.ComputeHash(bytes);
+        return Convert.ToBase64String(hash);
     }
 
     public async Task<User> RegisterAsync(UserForRegistrationDto userForRegistrationDto)

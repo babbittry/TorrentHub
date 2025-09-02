@@ -177,15 +177,6 @@ public class Program
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero
                 };
-
-                options.Events = new JwtBearerEvents
-                {
-                    OnMessageReceived = context =>
-                    {
-                        context.Token = context.Request.Cookies["authToken"];
-                        return Task.CompletedTask;
-                    }
-                };
             });
 
         var app = builder.Build();

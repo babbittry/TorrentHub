@@ -23,6 +23,19 @@ public class AuthController : ControllerBase
         _env = env;
     }
 
+    private void SetRefreshTokenCookie(string refreshToken)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = !_env.IsDevelopment(),
+            SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
+            Expires = DateTime.UtcNow.AddDays(7),
+            Path = "/" // Set path to root to be accessible site-wide
+        };
+        Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
+    }
+
     [HttpPost("register")]
     [AllowAnonymous]
     public async Task<IActionResult> Register([FromBody] UserForRegistrationDto registrationDto)
@@ -34,23 +47,8 @@ public class AuthController : ControllerBase
 
         try
         {
-            var user = await _userService.RegisterAsync(registrationDto);
-
-            // Auto-login after registration
-            var loginResponse = await _userService.LoginAsync(new UserForLoginDto { UserName = registrationDto.UserName, Password = registrationDto.Password });
-
-            Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = !_env.IsDevelopment(),
-                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7),
-                Domain = "localhost"
-            });
-
-            var userProfile = Mapper.ToUserPrivateProfileDto(loginResponse.User);
-
-            return Ok(new { User = userProfile });
+            await _userService.RegisterAsync(registrationDto);
+            return Ok(new { message = "Registration successful. Please log in." });
         }
         catch (Exception ex)
         {
@@ -60,80 +58,54 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
-    [Authorize]
-    public IActionResult Logout()
+    [AllowAnonymous]
+    public async Task<IActionResult> Logout()
     {
-        Response.Cookies.Delete("authToken", new CookieOptions
+        var refreshToken = Request.Cookies["refreshToken"];
+        if (!string.IsNullOrEmpty(refreshToken))
         {
-            HttpOnly = true,
-            Secure = !_env.IsDevelopment(),
-            SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
-            Domain = "localhost"
-        });
+            await _userService.LogoutAsync(refreshToken);
+            Response.Cookies.Delete("refreshToken");
+        }
         return Ok(new { message = "Logged out successfully." });
     }
 
     [HttpPost("refresh")]
-    [Authorize]
-    public async Task<IActionResult> RefreshToken()
+    [AllowAnonymous]
+    public async Task<ActionResult<RefreshTokenResponseDto>> RefreshToken()
     {
-        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        var refreshToken = Request.Cookies["refreshToken"];
+        if (string.IsNullOrEmpty(refreshToken))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized("Refresh token not found.");
         }
 
-        try
+        var result = await _userService.RefreshTokenAsync(refreshToken);
+        if (result == null)
         {
-            var user = await _userService.GetUserByIdAsync(userId);
-            if (user == null)
-            {
-                return Unauthorized("User not found.");
-            }
-
-            var loginResponse = await _userService.LoginAsync(new UserForLoginDto { UserName = user.UserName, Password = "" }); // Password is not used for refresh, but LoginAsync requires it.
-
-            Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = !_env.IsDevelopment(),
-                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7),
-                Domain = "localhost"
-            });
-
-            var userProfile = Mapper.ToUserPrivateProfileDto(loginResponse.User);
-
-            return Ok(new { User = userProfile });
+            return Unauthorized("Invalid or expired refresh token.");
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to refresh token for user {UserId}: {ErrorMessage}", userId, ex.Message);
-            return Unauthorized(new { message = ex.Message });
-        }
+
+        var (newAccessToken, user) = result.Value;
+        var userProfile = Mapper.ToUserPrivateProfileDto(user);
+
+        return Ok(new RefreshTokenResponseDto { AccessToken = newAccessToken, User = userProfile });
     }
 
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<IActionResult> Login(UserForLoginDto userForLoginDto)
+    public async Task<ActionResult<LoginResponseDto>> Login(UserForLoginDto userForLoginDto)
     {
         _logger.LogInformation("Login request received for user: {UserName}", userForLoginDto.UserName);
         try
         {
-            var loginResponse = await _userService.LoginAsync(userForLoginDto);
-            _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
-
-            Response.Cookies.Append("authToken", loginResponse.Token, new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = !_env.IsDevelopment(),
-                SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
-                Expires = DateTime.UtcNow.AddDays(7),
-                Domain = "localhost"
-            });
+            var (accessToken, refreshToken, user) = await _userService.LoginAsync(userForLoginDto);
             
-            var userProfile = Mapper.ToUserPrivateProfileDto(loginResponse.User);
+            SetRefreshTokenCookie(refreshToken);
+            
+            var userProfile = Mapper.ToUserPrivateProfileDto(user);
 
-            return Ok(new { User = userProfile });
+            return Ok(new LoginResponseDto { AccessToken = accessToken, User = userProfile });
         }
         catch (Exception ex)
         {
