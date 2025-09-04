@@ -47,6 +47,7 @@ builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 // Register the main announce service
 builder.Services.AddScoped<IAnnounceService, AnnounceService>();
+builder.Services.AddSingleton<ITrackerLocalizer, TrackerLocalizer>();
 
 var app = builder.Build();
 

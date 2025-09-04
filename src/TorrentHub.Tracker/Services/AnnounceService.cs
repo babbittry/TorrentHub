@@ -16,13 +16,15 @@ public class AnnounceService : IAnnounceService
     private readonly ILogger<AnnounceService> _logger;
     private readonly ISettingsService _settingsService;
     private readonly IAdminService _adminService;
+    private readonly ITrackerLocalizer _localizer;
 
-    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, ISettingsService settingsService, IAdminService adminService)
+    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, ISettingsService settingsService, IAdminService adminService, ITrackerLocalizer localizer)
     {
         _context = context;
         _logger = logger;
         _settingsService = settingsService;
         _adminService = adminService;
+        _localizer = localizer;
     }
 
     public async Task<BDictionary> ProcessAnnounceRequest(
@@ -41,19 +43,19 @@ public class AnnounceService : IAnnounceService
 
         // --- 1. User and Client Validation ---
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == passkey);
-        if (user == null) { _logger.LogWarning("Announce with invalid passkey: {Passkey}", passkey); return AnnounceError("Invalid passkey."); }
-        if (user.BanStatus.HasFlag(BanStatus.TrackerBan) || user.BanStatus.HasFlag(BanStatus.LoginBan)) { _logger.LogWarning("Announce from banned user: {UserId}", user.Id); return AnnounceError("Your account is banned."); }
+        if (user == null) { _logger.LogWarning("Announce with invalid passkey: {Passkey}", passkey); return _localizer.GetError("InvalidPasskey", null); }
+        if (user.BanStatus.HasFlag(BanStatus.TrackerBan) || user.BanStatus.HasFlag(BanStatus.LoginBan)) { _logger.LogWarning("Announce from banned user: {UserId}", user.Id); return _localizer.GetError("BannedAccount", user.Language); }
 
         var bannedClients = await _adminService.GetBannedClientsAsync();
-        if (bannedClients.Any(c => peerId.StartsWith(c.UserAgentPrefix))) { _logger.LogWarning("Announce from banned client: {PeerId}", peerId); return AnnounceError("Your client is banned."); }
+        if (bannedClients.Any(c => peerId.StartsWith(c.UserAgentPrefix))) { _logger.LogWarning("Announce from banned client: {PeerId}", peerId); return _localizer.GetError("BannedClient", user.Language); }
 
         // --- 2. Torrent Validation ---
         byte[] infoHashBytes;
         try { infoHashBytes = ParseInfoHash(infoHash); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash); return AnnounceError("Invalid info_hash format."); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash); return _localizer.GetError("InvalidInfoHash", user.Language); }
 
         var torrent = await _context.Torrents.FirstOrDefaultAsync(t => t.InfoHash == infoHashBytes);
-        if (torrent == null) { _logger.LogWarning("Announce for non-existent torrent: {InfoHash}", infoHash); return AnnounceError("Torrent not found."); }
+        if (torrent == null) { _logger.LogWarning("Announce for non-existent torrent: {InfoHash}", infoHash); return _localizer.GetError("TorrentNotFound", user.Language); }
 
         // --- 3. Peer & Event Processing ---
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
@@ -68,7 +70,7 @@ public class AnnounceService : IAnnounceService
                 if (settings.MaxUploadSpeed > 0 && uploadSpeedKBps > settings.MaxUploadSpeed)
                 {
                     await _adminService.LogCheatAsync(user.Id, "Speed Cheat (Upload)", $"Reported upload speed {uploadSpeedKBps:F2} KB/s exceeds limit of {settings.MaxUploadSpeed} KB/s.");
-                    return AnnounceError("Reported upload speed is too high. This event has been logged.");
+                    return _localizer.GetError("SpeedTooHigh", user.Language);
                 }
             }
         }
@@ -156,10 +158,6 @@ public class AnnounceService : IAnnounceService
         return peerList;
     }
 
-    private static BDictionary AnnounceError(string message)
-    {
-        return new BDictionary { { "failure reason", new BString(message) } };
-    }
 
     private static byte[] ParseInfoHash(string infoHash)
     {

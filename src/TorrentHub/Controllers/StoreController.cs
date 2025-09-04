@@ -26,7 +26,8 @@ public class StoreController : ControllerBase
     [HttpGet("items")]
     public async Task<ActionResult<List<StoreItemDto>>> GetStoreItems()
     {
-        var items = await _storeService.GetAvailableItemsAsync();
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
+        var items = await _storeService.GetAvailableItemsAsync(userId);
         return Ok(items);
     }
 

@@ -17,7 +17,7 @@ public class PurchaseResultDto
 
 public interface IStoreService
 {
-    Task<List<StoreItemDto>> GetAvailableItemsAsync();
+    Task<List<StoreItemDto>> GetAvailableItemsAsync(int userId);
     Task<PurchaseResultDto> PurchaseItemAsync(int userId, PurchaseItemRequestDto request);
 }
 
@@ -40,10 +40,16 @@ public class StoreService : IStoreService
         _cache = cache;
     }
 
-    public async Task<List<StoreItemDto>> GetAvailableItemsAsync()
+    public async Task<List<StoreItemDto>> GetAvailableItemsAsync(int userId)
     {
-        var languageCode = CultureInfo.CurrentUICulture.Name.Split('-')[0];
-        var cacheKey = $"{StoreItemsCacheKey}:{languageCode}";
+        var userLanguage = await _context.Users
+            .Where(u => u.Id == userId)
+            .Select(u => u.Language)
+            .FirstOrDefaultAsync();
+
+        // Fallback to "en" if no language is provided or if it's empty.
+        var languageCode = !string.IsNullOrEmpty(userLanguage) ? userLanguage : "en";
+        var cacheKey = $"{StoreItemsCacheKey}:{languageCode.ToLowerInvariant()}";
 
         var cachedData = await _cache.GetStringAsync(cacheKey);
         if (cachedData != null)
@@ -55,20 +61,20 @@ public class StoreService : IStoreService
         _logger.LogInformation("Cache miss for store items (Language: {Language}). Refreshing from DB.", languageCode);
         var items = await _context.StoreItems
             .Where(i => i.IsAvailable)
-            .Include(i => i.Translations)
-            .Select(i => new StoreItemDto
+            .Select(i => new
             {
-                Id = i.Id,
-                ItemCode = i.ItemCode,
-                Name = i.Translations.Any(t => t.Language == languageCode)
-                    ? i.Translations.First(t => t.Language == languageCode).Name
-                    : i.Name,
-                Description = i.Translations.Any(t => t.Language == languageCode)
-                    ? i.Translations.First(t => t.Language == languageCode).Description
-                    : i.Description,
-                Price = i.Price,
-                IsAvailable = i.IsAvailable,
-                BadgeId = i.BadgeId
+                Item = i,
+                Translation = i.Translations.FirstOrDefault(t => t.Language.ToLower() == languageCode.ToLower())
+            })
+            .Select(x => new StoreItemDto
+            {
+                Id = x.Item.Id,
+                ItemCode = x.Item.ItemCode,
+                Name = x.Translation != null ? x.Translation.Name : x.Item.Name,
+                Description = x.Translation != null ? x.Translation.Description : x.Item.Description,
+                Price = x.Item.Price,
+                IsAvailable = x.Item.IsAvailable,
+                BadgeId = x.Item.BadgeId
             })
             .ToListAsync();
 
