@@ -6,7 +6,7 @@ namespace TorrentHub.Core.DTOs;
 public class CreatePollDto
 {
     [Required]
-    [StringLength(255, MinimumLength = 5)]
+    [MaxLength(255)]
     public required string Question { get; set; }
 
     [Required]

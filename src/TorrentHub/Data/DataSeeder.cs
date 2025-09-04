@@ -200,6 +200,9 @@ namespace TorrentHub.Data
             // Seed Forum Data
             await SeedForumDataAsync(context, logger, users);
 
+            // Seed Polls
+            await SeedPollsAsync(context, logger, users);
+
             logger.LogInformation("All mock data seeding completed.");
         }
 
@@ -723,7 +726,29 @@ namespace TorrentHub.Data
 
             logger.LogInformation("All mock data seeding completed.");
         }
-    private static string GenerateSimpleAvatarSvg(string letter, string color)
+
+        public static async Task SeedPollsAsync(ApplicationDbContext context, ILogger logger, List<User> users)
+        {
+            if (!await context.Polls.AnyAsync() && users.Any())
+            {
+                var pollFaker = new Faker<Poll>()
+                    .RuleFor(p => p.Question, f => "What's your favorite torrent category?")
+                    .RuleFor(p => p.Options, f => new List<string> { "Movies", "TV Shows", "Music", "Games", "Software" })
+                    .RuleFor(p => p.CreatedAt, f => f.Date.Past(1).ToUniversalTime())
+                    .RuleFor(p => p.ExpiresAt, f => DateTimeOffset.UtcNow.AddDays(7)); // Make sure it's active
+
+                var polls = pollFaker.Generate(1); // Create 1 poll
+                context.Polls.AddRange(polls);
+                await context.SaveChangesAsync();
+                logger.LogInformation("{Count} polls seeded successfully.", polls.Count);
+            }
+            else
+            {
+                logger.LogInformation("Polls already exist or no users, skipping seeding.");
+            }
+        }
+
+        private static string GenerateSimpleAvatarSvg(string letter, string color)
         {
             return $@"<svg width=""100"" height=""100"" viewBox=""0 0 100 100"" xmlns=""http://www.w3.org/2000/svg"">
                 <rect width=""100"" height=""100"" fill=""#{color}"" />

@@ -30,13 +30,21 @@ public class PollsController : ControllerBase
     [HttpGet("latest")]
     public async Task<ActionResult<PollDto>> GetLatestPoll()
     {
-        var userId = GetCurrentUserId();
-        var poll = await _pollService.GetLatestActiveAsync(userId);
-        if (poll == null)
+        try
         {
-            return NotFound();
+            var userId = GetCurrentUserId();
+            var poll = await _pollService.GetLatestActiveAsync(userId);
+            if (poll == null)
+            {
+                return NotFound();
+            }
+            return Ok(poll);
         }
-        return Ok(poll);
+        catch (Npgsql.NpgsqlException)
+        {
+            // Database connection issue
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, "Database service is unavailable.");
+        }
     }
 
     [HttpPost]
