@@ -12,9 +12,9 @@ public enum StoreItemCode
     UploadCredit10GB,
 
     /// <summary>
-    /// Grants the user 50 GB of upload credit.
+    /// Grants the user 100 GB of upload credit.
     /// </summary>
-    UploadCredit50GB,
+    UploadCredit100GB,
 
     /// <summary>
     /// Grants the user a single invitation code.

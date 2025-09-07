@@ -17,7 +17,7 @@ public class PurchaseResultDto
 
 public interface IStoreService
 {
-    Task<List<StoreItemDto>> GetAvailableItemsAsync(int userId);
+    Task<List<StoreItemDto>> GetAvailableItemsAsync();
     Task<PurchaseResultDto> PurchaseItemAsync(int userId, PurchaseItemRequestDto request);
 }
 
@@ -40,45 +40,39 @@ public class StoreService : IStoreService
         _cache = cache;
     }
 
-    public async Task<List<StoreItemDto>> GetAvailableItemsAsync(int userId)
+    public async Task<List<StoreItemDto>> GetAvailableItemsAsync()
     {
-        var userLanguage = await _context.Users
-            .Where(u => u.Id == userId)
-            .Select(u => u.Language)
-            .FirstOrDefaultAsync();
-
-        // Fallback to "en" if no language is provided or if it's empty.
-        var languageCode = !string.IsNullOrEmpty(userLanguage) ? userLanguage : "en";
-        var cacheKey = $"{StoreItemsCacheKey}:{languageCode.ToLowerInvariant()}";
-
-        var cachedData = await _cache.GetStringAsync(cacheKey);
+        var cachedData = await _cache.GetStringAsync(StoreItemsCacheKey);
         if (cachedData != null)
         {
-            _logger.LogDebug("Retrieving store items from cache for language {Language}.", languageCode);
+            _logger.LogDebug("Retrieving store items from cache.");
             return JsonSerializer.Deserialize<List<StoreItemDto>>(cachedData) ?? new List<StoreItemDto>();
         }
 
-        _logger.LogInformation("Cache miss for store items (Language: {Language}). Refreshing from DB.", languageCode);
-        var items = await _context.StoreItems
+        _logger.LogInformation("Cache miss for store items. Refreshing from DB.");
+        
+        var itemsFromDb = await _context.StoreItems
             .Where(i => i.IsAvailable)
-            .Select(i => new
-            {
-                Item = i,
-                Translation = i.Translations.FirstOrDefault(t => t.Language.ToLower() == languageCode.ToLower())
-            })
-            .Select(x => new StoreItemDto
-            {
-                Id = x.Item.Id,
-                ItemCode = x.Item.ItemCode,
-                Name = x.Translation != null ? x.Translation.Name : x.Item.Name,
-                Description = x.Translation != null ? x.Translation.Description : x.Item.Description,
-                Price = x.Item.Price,
-                IsAvailable = x.Item.IsAvailable,
-                BadgeId = x.Item.BadgeId
-            })
             .ToListAsync();
 
-        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(items), _cacheOptions);
+        var items = itemsFromDb.Select(item =>
+        {
+            var (actionType, metadata) = MapItemToAction(item);
+
+            return new StoreItemDto
+            {
+                Id = item.Id,
+                ItemCode = item.ItemCode,
+                NameKey = $"store.items.{item.ItemCode.ToString().ToLowerInvariant()}.name",
+                DescriptionKey = $"store.items.{item.ItemCode.ToString().ToLowerInvariant()}.description",
+                Price = item.Price,
+                IsAvailable = item.IsAvailable,
+                ActionType = actionType,
+                ActionMetadata = metadata
+            };
+        }).ToList();
+        
+        await _cache.SetStringAsync(StoreItemsCacheKey, JsonSerializer.Serialize(items), _cacheOptions);
         return items;
     }
 
@@ -127,8 +121,8 @@ public class StoreService : IStoreService
                 case StoreItemCode.UploadCredit10GB:
                     user.UploadedBytes += (ulong)request.Quantity * 10UL * 1024 * 1024 * 1024;
                     break;
-                case StoreItemCode.UploadCredit50GB:
-                    user.UploadedBytes += (ulong)request.Quantity * 50UL * 1024 * 1024 * 1024;
+                case StoreItemCode.UploadCredit100GB:
+                    user.UploadedBytes += (ulong)request.Quantity * 100UL * 1024 * 1024 * 1024;
                     break;
                 case StoreItemCode.InviteOne:
                     user.InviteNum += (uint)request.Quantity;
@@ -194,6 +188,49 @@ public class StoreService : IStoreService
             await transaction.RollbackAsync();
             // In a real-world scenario, you might not want to expose raw exception messages.
             return new PurchaseResultDto { Success = false, Message = "An unexpected error occurred. The transaction has been rolled back." };
+        }
+    }
+    private (StoreActionType, ActionMetadata?) MapItemToAction(StoreItem item)
+    {
+        switch (item.ItemCode)
+        {
+            case StoreItemCode.UploadCredit10GB:
+            case StoreItemCode.UploadCredit100GB:
+            case StoreItemCode.InviteOne:
+            case StoreItemCode.InviteFive:
+                return (StoreActionType.PurchaseWithQuantity, new ActionMetadata
+                {
+                    Min = 1,
+                    Max = 100,
+                    Step = 1,
+                    UnitKey = "unit.item"
+                });
+
+            case StoreItemCode.DoubleUpload:
+            case StoreItemCode.NoHitAndRun:
+                return (StoreActionType.PurchaseWithQuantity, new ActionMetadata
+                {
+                    Min = 1,
+                    Max = 5,
+                    Step = 1,
+                    UnitKey = "unit.day"
+                });
+
+            case StoreItemCode.ChangeUsername:
+                return (StoreActionType.ChangeUsername, new ActionMetadata
+                {
+                    InputLabelKey = "store.metadata.newUsername.label",
+                    PlaceholderKey = "store.metadata.newUsername.placeholder"
+                });
+
+            case StoreItemCode.Badge:
+                return (StoreActionType.PurchaseBadge, new ActionMetadata
+                {
+                    BadgeId = item.BadgeId
+                });
+
+            default:
+                return (StoreActionType.SimplePurchase, null);
         }
     }
 }

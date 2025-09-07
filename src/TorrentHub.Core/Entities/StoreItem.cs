@@ -18,19 +18,6 @@ public class StoreItem
     [Column(TypeName = "store_item_code")]
     public required StoreItemCode ItemCode { get; set; }
 
-    /// <summary>
-    /// The default name of the item (e.g., in English).
-    /// </summary>
-    [Required]
-    [MaxLength(100)]
-    public required string Name { get; set; }
-
-    /// <summary>
-    /// The default description of the item.
-    /// </summary>
-    [Required]
-    [MaxLength(500)]
-    public required string Description { get; set; }
     
     [Required]
     public ulong Price { get; set; }
@@ -49,6 +36,5 @@ public class StoreItem
     [ForeignKey(nameof(BadgeId))]
     public Badge? Badge { get; set; }
 
-    public ICollection<StoreItemTranslation> Translations { get; set; } = new List<StoreItemTranslation>();
 }
 
