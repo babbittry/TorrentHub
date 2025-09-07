@@ -419,11 +419,12 @@ public class UserService : IUserService
     {
         return await _context.Invites
             .Where(i => i.GeneratorUserId == userId)
+            .Include(i => i.GeneratorUser)
             .Include(i => i.UsedByUser)
             .ToListAsync();
     }
 
-    public async Task<Invite> GenerateInviteAsync(int userId)
+    public async Task<Invite> GenerateInviteAsync(int userId, bool chargeForInvite = true)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
@@ -433,26 +434,37 @@ public class UserService : IUserService
         }
 
         var settings = await _settingsService.GetSiteSettingsAsync();
-        if (user.Coins < settings.InvitePrice)
+        if (chargeForInvite)
         {
-            _logger.LogWarning("User {UserId} does not have enough Coins to generate an invite. Required: {Required}, Has: {Has}", userId, settings.InvitePrice, user.Coins);
-            throw new Exception("Insufficient Coins to generate an invite.");
-        }
+            if (user.Coins < settings.InvitePrice)
+            {
+                _logger.LogWarning("User {UserId} does not have enough Coins to generate an invite. Required: {Required}, Has: {Has}", userId, settings.InvitePrice, user.Coins);
+                throw new Exception("Insufficient Coins to generate an invite.");
+            }
 
-        user.Coins -= settings.InvitePrice;
+            user.Coins -= settings.InvitePrice;
+        }
 
         var newInvite = new Invite
         {
             Code = Guid.NewGuid().ToString("N").Substring(0, 16),
             GeneratorUserId = userId,
             CreatedAt = DateTimeOffset.UtcNow,
-            ExpiresAt = DateTimeOffset.UtcNow.AddDays(settings.InviteExpirationDays)
+            ExpiresAt = DateTimeOffset.UtcNow.AddDays(settings.InviteExpirationDays),
+            GeneratorUser = user
         };
 
         _context.Invites.Add(newInvite);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} for {Price} Coins.", userId, newInvite.Code, settings.InvitePrice);
+        if (chargeForInvite)
+        {
+            _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} for {Price} Coins.", userId, newInvite.Code, settings.InvitePrice);
+        }
+        else
+        {
+            _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} (not charged, e.g., from store purchase).", userId, newInvite.Code);
+        }
 
         return newInvite;
     }

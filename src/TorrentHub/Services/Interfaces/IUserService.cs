@@ -18,7 +18,7 @@ public interface IUserService
     Task<IEnumerable<User>> GetUsersAsync(int page, int pageSize, string? searchTerm);
     Task<User> UpdateUserByAdminAsync(int userId, UpdateUserAdminDto updateUserAdminDto);
     Task<IEnumerable<Invite>> GetUserInvitesAsync(int userId);
-    Task<Invite> GenerateInviteAsync(int userId);
+    Task<Invite> GenerateInviteAsync(int userId, bool chargeForInvite = true);
 
     Task UpdateUserAsync(User user);
 

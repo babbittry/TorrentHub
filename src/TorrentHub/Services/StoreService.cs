@@ -26,6 +26,7 @@ public class StoreService : IStoreService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<StoreService> _logger;
     private readonly IDistributedCache _cache;
+    private readonly IUserService _userService;
 
     private const string StoreItemsCacheKey = "StoreItems";
     private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
@@ -33,11 +34,12 @@ public class StoreService : IStoreService
         AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
     };
 
-    public StoreService(ApplicationDbContext context, ILogger<StoreService> logger, IDistributedCache cache)
+    public StoreService(ApplicationDbContext context, ILogger<StoreService> logger, IDistributedCache cache, IUserService userService)
     {
         _context = context;
         _logger = logger;
         _cache = cache;
+        _userService = userService;
     }
 
     public async Task<List<StoreItemDto>> GetAvailableItemsAsync()
@@ -125,10 +127,18 @@ public class StoreService : IStoreService
                     user.UploadedBytes += (ulong)request.Quantity * 100UL * 1024 * 1024 * 1024;
                     break;
                 case StoreItemCode.InviteOne:
-                    user.InviteNum += (uint)request.Quantity;
+                    for (var i = 0; i < request.Quantity; i++)
+                    {
+                        await _userService.GenerateInviteAsync(userId, chargeForInvite: false);
+                    }
                     break;
                 case StoreItemCode.InviteFive:
-                    user.InviteNum += (uint)(request.Quantity * 5);
+                    // Each item purchase gives 5 invites
+                    var invitesToGenerate = request.Quantity * 5;
+                    for (var i = 0; i < invitesToGenerate; i++)
+                    {
+                        await _userService.GenerateInviteAsync(userId, chargeForInvite: false);
+                    }
                     break;
                 
                 // Items that likely shouldn't be bought in quantity - we can restrict if needed, but for now let's assume quantity=1
