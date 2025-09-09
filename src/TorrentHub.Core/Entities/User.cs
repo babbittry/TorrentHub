@@ -32,6 +32,14 @@ public class User
     public required string Email { get; set; }
 
     /// <summary>
+    /// Indicates whether the user has verified their email address.
+    /// A user cannot log in until their email is verified.
+    /// </summary>
+    [Required]
+    [DefaultValue(false)]
+    public bool IsEmailVerified { get; set; } = false;
+
+    /// <summary>
     /// Hashed password for the user.
     /// </summary>
     [Required]
@@ -138,8 +146,6 @@ public class User
     [DefaultValue(0U)]
     public uint InviteNum { get; set; } = 0U;
 
-    
-
     /// <summary>
     /// User's Coins balance.
     /// </summary>
@@ -198,6 +204,20 @@ public class User
     public Invite? Invite { get; set; }
 
     /// <summary>
+    /// The secret key for TOTP-based 2FA. Null if not configured.
+    /// This should be stored encrypted in the database.
+    /// </summary>
+    public string? TwoFactorSecretKey { get; set; }
+
+    /// <summary>
+    /// The type of two-factor authentication enabled by the user.
+    /// Defaults to Email for all new users.
+    /// </summary>
+    [Required]
+    [DefaultValue(TwoFactorType.Email)]
+    public TwoFactorType TwoFactorType { get; set; } = TwoFactorType.Email;
+
+    /// <summary>
     /// Collection of torrents uploaded by this user.
     /// </summary>
     public ICollection<Torrent> Torrents { get; set; } = new List<Torrent>();
@@ -207,4 +227,3 @@ public class User
     /// </summary>
     public ICollection<Invite> GeneratedInvites { get; set; } = new List<Invite>();
 }
-

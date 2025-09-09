@@ -21,6 +21,9 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.BanReason))]
     [MapperIgnoreSource(nameof(User.BanUntil))]
     [MapperIgnoreSource(nameof(User.CheatWarningCount))]
+    [MapperIgnoreSource(nameof(User.TwoFactorSecretKey))]
+    [MapperIgnoreSource(nameof(User.TwoFactorType))]
+    [MapperIgnoreSource(nameof(User.IsEmailVerified))]
     public static partial UserPublicProfileDto ToUserPublicProfileDto(User user);
 
     // Private profile includes more details, but still hides sensitive info.
@@ -31,6 +34,9 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.Invite))]
     [MapperIgnoreSource(nameof(User.Torrents))]
     [MapperIgnoreSource(nameof(User.GeneratedInvites))]
+    [MapperIgnoreSource(nameof(User.TwoFactorSecretKey))]
+    [MapperIgnoreSource(nameof(User.TwoFactorType))]
+    [MapperIgnoreSource(nameof(User.IsEmailVerified))]
     public static partial UserPrivateProfileDto ToUserPrivateProfileDto(User user);
     
     // Maps fields a user is allowed to change on their own profile.
@@ -63,6 +69,9 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.CheatWarningCount))]
     [MapperIgnoreTarget(nameof(User.NominalUploadedBytes))]
     [MapperIgnoreTarget(nameof(User.NominalDownloadedBytes))]
+    [MapperIgnoreTarget(nameof(User.TwoFactorSecretKey))]
+    [MapperIgnoreTarget(nameof(User.TwoFactorType))]
+    [MapperIgnoreTarget(nameof(User.IsEmailVerified))]
     public static partial void MapTo(UpdateUserProfileDto dto, User user);
 
         // Maps fields an admin is allowed to change.
@@ -82,6 +91,9 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.Invite))]
     [MapperIgnoreTarget(nameof(User.Torrents))]
     [MapperIgnoreTarget(nameof(User.GeneratedInvites))]
+    [MapperIgnoreTarget(nameof(User.TwoFactorSecretKey))]
+    [MapperIgnoreTarget(nameof(User.TwoFactorType))]
+    [MapperIgnoreTarget(nameof(User.IsEmailVerified))]
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
 
     [MapProperty(nameof(Torrent.UploadedByUser.UserName), nameof(TorrentDto.UploaderUsername))]
@@ -110,13 +122,22 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Message.ReceiverDeleted))]
     public static partial MessageDto ToMessageDto(Message message);
 
-    [MapProperty(nameof(Report.Torrent), nameof(ReportDto.Torrent))]
     [MapProperty(nameof(Report.ReporterUser), nameof(ReportDto.ReporterUser))]
     [MapProperty(nameof(Report.ProcessedByUser), nameof(ReportDto.ProcessedByUser))]
+    [MapProperty(nameof(Report.Torrent), nameof(ReportDto.Torrent), Use = nameof(ToOptionalTorrentDto))]
     [MapperIgnoreSource(nameof(Report.TorrentId))]
     [MapperIgnoreSource(nameof(Report.ReporterUserId))]
     [MapperIgnoreSource(nameof(Report.ProcessedByUserId))]
     public static partial ReportDto ToReportDto(Report report);
+
+    // Custom mapping to handle nullable Torrent
+    private static TorrentDto? ToOptionalTorrentDto(Torrent? torrent)
+    {
+        if (torrent is null)
+            return null;
+
+        return ToTorrentDto(torrent);
+    }
 
     [MapProperty(nameof(Announcement.CreatedByUser), nameof(AnnouncementDto.CreatedByUser))]
     [MapperIgnoreSource(nameof(Announcement.CreatedByUserId))]

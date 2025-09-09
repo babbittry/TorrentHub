@@ -1,4 +1,3 @@
-
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -7,8 +6,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Distributed;
-using System.Text.Json;
-using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using TorrentHub.Core.Enums;
 using TorrentHub.Core.Data;
@@ -17,6 +14,10 @@ using TorrentHub.Core.Entities;
 using TorrentHub.Mappers;
 using TorrentHub.Core.Services;
 using TorrentHub.Services.Interfaces;
+using Google.Authenticator;
+using Microsoft.AspNetCore.DataProtection;
+using System.Text.Json;
+using System.IO;
 
 namespace TorrentHub.Services;
 
@@ -29,12 +30,12 @@ public class UserService : IUserService
     private readonly IDistributedCache _cache;
     private readonly ISettingsService _settingsService;
     private readonly IWebHostEnvironment _webHostEnvironment;
+    private readonly IEmailService _emailService;
+    private readonly IDataProtector _dataProtector;
+    private static readonly Random _random = new();
 
-    private const string UserBadgesCacheKeyPrefix = "UserBadges:";
-    private readonly DistributedCacheEntryOptions _cacheOptions = new DistributedCacheEntryOptions
-    {
-        AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1)
-    };
+    private const string DataProtectorPurpose = "2FASecretKey";
+    private const string EmailVerificationTokenPurpose = "EmailVerification";
 
     public UserService(
         ApplicationDbContext context, 
@@ -43,7 +44,9 @@ public class UserService : IUserService
         IDistributedCache cache, 
         ISettingsService settingsService, 
         IWebHostEnvironment webHostEnvironment,
-        INotificationService notificationService) 
+        INotificationService notificationService,
+        IEmailService emailService,
+        IDataProtectionProvider dataProtectionProvider) 
     {
         _context = context;
         _configuration = configuration;
@@ -52,32 +55,183 @@ public class UserService : IUserService
         _settingsService = settingsService;
         _webHostEnvironment = webHostEnvironment;
         _notificationService = notificationService;
+        _emailService = emailService;
+        _dataProtector = dataProtectionProvider.CreateProtector(DataProtectorPurpose);
     }
 
-    public async Task<(string AccessToken, string RefreshToken, User User)> LoginAsync(UserForLoginDto userForLoginDto)
+    public async Task<User> RegisterAsync(UserForRegistrationDto userForRegistrationDto)
+    {
+        _logger.LogInformation("Attempting registration for user: {UserName}", userForRegistrationDto.UserName);
+        
+        Invite? invite = null;
+        var settings = await _settingsService.GetSiteSettingsAsync();
+
+        if (!string.IsNullOrEmpty(userForRegistrationDto.InviteCode))
+        {
+            invite = await _context.Invites
+                .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTimeOffset.UtcNow && i.UsedByUser == null);
+
+            if (invite == null)
+            {
+                throw new Exception("Invalid, expired, or already used invite code.");
+            }
+        }
+        else
+        {
+            if (!settings.IsRegistrationOpen)
+            {
+                throw new Exception("Registration is currently by invitation only. An invite code is required.");
+            }
+        }
+
+        if (await _context.Users.AnyAsync(u => u.UserName == userForRegistrationDto.UserName))
+        {
+            throw new Exception("Username already exists.");
+        }
+
+        if (await _context.Users.AnyAsync(u => u.Email == userForRegistrationDto.Email))
+        {
+            throw new Exception("Email already exists.");
+        }
+
+        var user = new User
+        {
+            UserName = userForRegistrationDto.UserName,
+            Email = userForRegistrationDto.Email,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password),
+            InviteId = invite?.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+            Passkey = Guid.NewGuid(),
+            RssKey = Guid.NewGuid(),
+            IsEmailVerified = false,
+            TwoFactorType = TwoFactorType.Email
+        };
+        
+        if (invite != null)
+        {
+            invite.UsedByUser = user;
+        }
+
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("User {UserName} created with ID {UserId}, awaiting email verification.", user.UserName, user.Id);
+
+        var token = await GenerateEmailVerificationToken(user.Id);
+        await _emailService.SendEmailVerificationLinkAsync(user, token);
+
+        if (!string.IsNullOrEmpty(userForRegistrationDto.AvatarSvg))
+        {
+            try
+            {
+                var avatarDirectory = Path.Combine(_webHostEnvironment.WebRootPath, "avatars");
+                if (!Directory.Exists(avatarDirectory))
+                {
+                    Directory.CreateDirectory(avatarDirectory);
+                }
+
+                var avatarFileName = $"{Guid.NewGuid():N}.svg";
+                var avatarFilePath = Path.Combine(avatarDirectory, avatarFileName);
+                await File.WriteAllTextAsync(avatarFilePath, userForRegistrationDto.AvatarSvg);
+
+                user.Avatar = $"/avatars/{avatarFileName}";
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to save avatar for user {UserName}.", user.UserName);
+            }
+        }
+
+        return user;
+    }
+
+    private async Task<string> GenerateEmailVerificationToken(int userId)
+    {
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
+        var cacheKey = $"{EmailVerificationTokenPurpose}:{token}";
+        var cacheOptions = new DistributedCacheEntryOptions
+        {
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(24)
+        };
+        await _cache.SetStringAsync(cacheKey, userId.ToString(), cacheOptions);
+        return token;
+    }
+
+    public async Task<bool> VerifyEmailAsync(string token)
+    {
+        var cacheKey = $"{EmailVerificationTokenPurpose}:{token}";
+        var userIdString = await _cache.GetStringAsync(cacheKey);
+
+        if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+        {
+            _logger.LogWarning("Invalid email verification token received.");
+            return false;
+        }
+
+        var user = await GetUserByIdAsync(userId);
+        if (user == null)
+        {
+            _logger.LogError("Email verification token was valid, but user {UserId} was not found.", userId);
+            return false;
+        }
+
+        user.IsEmailVerified = true;
+        await UpdateUserAsync(user);
+
+        await _cache.RemoveAsync(cacheKey);
+        await _notificationService.SendWelcomeEmailAsync(user);
+
+        _logger.LogInformation("Email verified successfully for user {UserId}.", userId);
+        return true;
+    }
+
+    public async Task<(LoginResponseDto Dto, string? RefreshToken)> LoginAsync(UserForLoginDto userForLoginDto)
     {
         _logger.LogInformation("Attempting login for user: {UserName}", userForLoginDto.UserName);
         var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userForLoginDto.UserName);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(userForLoginDto.Password, user.PasswordHash))
         {
-            _logger.LogWarning("Login failed for user {UserName}: Invalid credentials.", userForLoginDto.UserName);
             throw new Exception("Invalid username or password.");
+        }
+
+        if (!user.IsEmailVerified)
+        {
+            throw new Exception("Please verify your email address before logging in.");
         }
 
         if (user.BanStatus.HasFlag(BanStatus.LoginBan))
         {
-            _logger.LogWarning("Login failed for user {UserName}: Account is banned from logging in.", userForLoginDto.UserName);
             throw new Exception("Your account has been banned.");
         }
 
-        var accessToken = GenerateJwtToken(user, TimeSpan.FromMinutes(15)); // Short-lived access token
+        if (user.TwoFactorType == TwoFactorType.Email)
+        {
+            await SendLoginVerificationEmailAsync(user.UserName);
+        }
+
+        return (new LoginResponseDto { RequiresTwoFactor = true }, null);
+    }
+
+    public async Task<(string AccessToken, string RefreshToken, User User)> Login2faAsync(UserForLogin2faDto login2faDto)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == login2faDto.UserName) 
+                   ?? throw new Exception("Invalid user or verification code.");
+
+        var totpValid = user.TwoFactorType == TwoFactorType.AuthenticatorApp && await ValidateTwoFactorCodeAsync(user, login2faDto.Code);
+        var emailCodeValid = await ValidateEmailLoginCodeAsync(user.Id, login2faDto.Code);
+
+        if (!totpValid && !emailCodeValid)
+        {
+            throw new Exception("Invalid verification code.");
+        }
+
+        var accessToken = GenerateJwtToken(user, TimeSpan.FromMinutes(15));
         var refreshToken = GenerateRefreshToken(user.Id);
         _context.RefreshTokens.Add(refreshToken);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserName} logged in successfully.", userForLoginDto.UserName);
-
+        _logger.LogInformation("User {UserName} completed 2FA login successfully.", login2faDto.UserName);
         return (accessToken, refreshToken.Token, user);
     }
 
@@ -90,13 +244,10 @@ public class UserService : IUserService
 
         if (storedToken == null || !storedToken.IsActive)
         {
-            _logger.LogWarning("Invalid or expired refresh token provided.");
             return null;
         }
 
         var newAccessToken = GenerateJwtToken(storedToken.User, TimeSpan.FromMinutes(15));
-        
-        _logger.LogInformation("Token refreshed successfully for user {UserId}.", storedToken.UserId);
         return (newAccessToken, storedToken.User);
     }
 
@@ -112,15 +263,13 @@ public class UserService : IUserService
 
         _context.RefreshTokens.Remove(storedToken);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("User logged out, refresh token revoked for user {UserId}.", storedToken.UserId);
         return true;
     }
 
     private string GenerateJwtToken(User user, TimeSpan lifetime)
     {
-        _logger.LogDebug("Generating JWT token for user: {UserName}", user.UserName);
         var tokenHandler = new JwtSecurityTokenHandler();
-        var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key 'Jwt:Key' is not configured."));
+        var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"]!);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = new ClaimsIdentity(new[]
@@ -135,7 +284,6 @@ public class UserService : IUserService
             Audience = _configuration["Jwt:Audience"]
         };
         var token = tokenHandler.CreateToken(tokenDescriptor);
-        _logger.LogDebug("JWT token generated for user: {UserName}", user.UserName);
         return tokenHandler.WriteToken(token);
     }
 
@@ -162,108 +310,16 @@ public class UserService : IUserService
         return Convert.ToBase64String(hash);
     }
 
-    public async Task<User> RegisterAsync(UserForRegistrationDto userForRegistrationDto)
-    {
-        _logger.LogInformation("Attempting registration for user: {UserName}", userForRegistrationDto.UserName);
-        
-        Invite? invite = null;
-        var settings = await _settingsService.GetSiteSettingsAsync();
-
-        if (!string.IsNullOrEmpty(userForRegistrationDto.InviteCode))
-        {
-            invite = await _context.Invites
-                .FirstOrDefaultAsync(i => i.Code == userForRegistrationDto.InviteCode && i.ExpiresAt > DateTimeOffset.UtcNow && i.UsedByUser == null);
-
-            if (invite == null)
-            {
-                _logger.LogWarning("Registration failed for user {UserName}: Invalid, expired, or already used invite code {InviteCode}.", userForRegistrationDto.UserName, userForRegistrationDto.InviteCode);
-                throw new Exception("Invalid, expired, or already used invite code.");
-            }
-        }
-        else
-        {
-            if (!settings.IsRegistrationOpen)
-            {
-                _logger.LogWarning("Registration failed for user {UserName}: Registration is invite-only and no code was provided.", userForRegistrationDto.UserName);
-                throw new Exception("Registration is currently by invitation only. An invite code is required.");
-            }
-        }
-
-        if (await _context.Users.AnyAsync(u => u.UserName == userForRegistrationDto.UserName))
-        {
-            _logger.LogWarning("Registration failed for user {UserName}: Username already exists.", userForRegistrationDto.UserName);
-            throw new Exception("Username already exists.");
-        }
-
-        if (await _context.Users.AnyAsync(u => u.Email == userForRegistrationDto.Email))
-        {
-            _logger.LogWarning("Registration failed for user {UserName}: Email {Email} already exists.", userForRegistrationDto.UserName, userForRegistrationDto.Email);
-            throw new Exception("Email already exists.");
-        }
-
-        var user = new User
-        {
-            UserName = userForRegistrationDto.UserName,
-            Email = userForRegistrationDto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password),
-            InviteId = invite?.Id,
-            CreatedAt = DateTimeOffset.UtcNow,
-            Passkey = Guid.NewGuid(),
-            RssKey = Guid.NewGuid()
-        };
-
-        if (invite != null)
-        {
-            invite.UsedByUser = user;
-        }
-        
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("User {UserName} registered successfully with ID {UserId}.", user.UserName, user.Id);
-
-        if (!string.IsNullOrEmpty(userForRegistrationDto.AvatarSvg))
-        {
-            try
-            {
-                var avatarDirectory = Path.Combine(_webHostEnvironment.WebRootPath, "avatars");
-                if (!Directory.Exists(avatarDirectory))
-                {
-                    Directory.CreateDirectory(avatarDirectory);
-                }
-
-                var avatarFileName = $"{Guid.NewGuid():N}.svg";
-                var avatarFilePath = Path.Combine(avatarDirectory, avatarFileName);
-                await File.WriteAllTextAsync(avatarFilePath, userForRegistrationDto.AvatarSvg);
-
-                user.Avatar = $"/avatars/{avatarFileName}";
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("User {UserName} avatar saved to {AvatarPath}.", user.UserName, user.Avatar);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to save avatar for user {UserName}.", user.UserName);
-            }
-        }
-
-        await _notificationService.SendWelcomeEmailAsync(user);
-        _logger.LogInformation("Sent welcome email to {Email} for user {UserName}.", user.Email, user.UserName);
-
-        return user;
-    }
-
     public async Task<bool> AddCoinsAsync(int userId, UpdateCoinsRequestDto request)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null)
         {
-            _logger.LogWarning("Could not find user with ID {UserId} to add Coins.", userId);
             return false;
         }
 
         user.Coins += request.Amount;
-
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Successfully added {Amount} Coins to user {UserId}. New balance: {Balance}", request.Amount, userId, user.Coins);
         return true;
     }
 
@@ -271,7 +327,6 @@ public class UserService : IUserService
     {
         if (amount <= 0)
         {
-            _logger.LogWarning("Transfer failed: Amount must be positive. FromUser: {FromUser}, ToUser: {ToUser}, Amount: {Amount}", fromUserId, toUserId, amount);
             return false;
         }
 
@@ -283,13 +338,11 @@ public class UserService : IUserService
 
             if (fromUser == null || toUser == null)
             {
-                _logger.LogWarning("Transfer failed: One or both users not found. FromUser: {FromUser}, ToUser: {ToUser}", fromUserId, toUserId);
                 return false;
             }
 
             if (fromUser.Coins < amount)
             {
-                _logger.LogWarning("Transfer failed: Insufficient funds. FromUser: {FromUser}, Balance: {Balance}, Amount: {Amount}", fromUserId, fromUser.Coins, amount);
                 return false;
             }
 
@@ -302,13 +355,11 @@ public class UserService : IUserService
 
             await _context.SaveChangesAsync();
             await transaction.CommitAsync();
-
-            _logger.LogInformation("Successfully transferred {ActualAmount} Coins (tax: {Tax}) from user {FromUser} to user {ToUser}.", actualTransferAmount, taxAmount, fromUserId, toUserId);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred during Coin transfer. Rolling back transaction. FromUser: {FromUser}, ToUser: {ToUser}, Amount: {Amount}", fromUserId, toUserId, amount);
+            _logger.LogError(ex, "An error occurred during Coin transfer.");
             await transaction.RollbackAsync();
             return false;
         }
@@ -321,90 +372,59 @@ public class UserService : IUserService
 
     public async Task<List<BadgeDto>> GetUserBadgesAsync(int userId)
     {
-        var cacheKey = $"{UserBadgesCacheKeyPrefix}{userId}";
+        var cacheKey = $"UserBadges:{userId}";
         var cachedData = await _cache.GetStringAsync(cacheKey);
         if (cachedData != null)
         {
-            _logger.LogDebug("Retrieving user badges for user {UserId} from cache.", userId);
             return JsonSerializer.Deserialize<List<BadgeDto>>(cachedData) ?? new List<BadgeDto>();
         }
 
-        _logger.LogInformation("Cache miss for user badges for user {UserId}. Refreshing from DB.", userId);
         var badges = await _context.UserBadges
             .Where(ub => ub.UserId == userId)
             .Select(ub => ub.Badge!)
-            .Select(b => new BadgeDto
-            {
-                Id = b.Id,
-                Code = b.Code
-            })
+            .Select(b => new BadgeDto { Id = b.Id, Code = b.Code })
             .ToListAsync();
             
-        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(badges), _cacheOptions);
+        await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(badges), new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(1) });
         return badges;
     }
 
     public async Task<User> UpdateUserProfileAsync(int userId, UpdateUserProfileDto profileDto)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-        {
-            _logger.LogWarning("User with ID {UserId} not found for profile update.", userId);
-            throw new Exception("User not found.");
-        }
-
+        var user = await _context.Users.FindAsync(userId) ?? throw new Exception("User not found.");
         Mapper.MapTo(profileDto, user);
-
         await _context.SaveChangesAsync();
-        _logger.LogInformation("User profile for {UserId} updated successfully.", userId);
         return user;
     }
 
     public async Task ChangePasswordAsync(int userId, ChangePasswordDto changePasswordDto)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-        {
-            _logger.LogWarning("User with ID {UserId} not found for password change.", userId);
-            throw new Exception("User not found.");
-        }
+        var user = await _context.Users.FindAsync(userId) ?? throw new Exception("User not found.");
 
         if (!BCrypt.Net.BCrypt.Verify(changePasswordDto.CurrentPassword, user.PasswordHash))
         {
-            _logger.LogWarning("Password change failed for user {UserId}: Invalid current password.", userId);
             throw new Exception("Invalid current password.");
         }
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(changePasswordDto.NewPassword);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Password for user {UserId} changed successfully.", userId);
     }
 
     public async Task<IEnumerable<User>> GetUsersAsync(int page, int pageSize, string? searchTerm)
     {
         var query = _context.Users.AsQueryable();
-
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
             query = query.Where(u => u.UserName.Contains(searchTerm) || u.Email.Contains(searchTerm));
         }
-
         return await query.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
     }
 
     public async Task<User> UpdateUserByAdminAsync(int userId, UpdateUserAdminDto updateUserAdminDto)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-        {
-            _logger.LogWarning("User with ID {UserId} not found for admin update.", userId);
-            throw new Exception("User not found.");
-        }
-
+        var user = await _context.Users.FindAsync(userId) ?? throw new Exception("User not found.");
         Mapper.MapTo(updateUserAdminDto, user);
-
         await _context.SaveChangesAsync();
-        _logger.LogInformation("User {UserId} updated by admin successfully.", userId);
         return user;
     }
 
@@ -412,7 +432,6 @@ public class UserService : IUserService
     {
         _context.Entry(user).State = EntityState.Modified;
         await _context.SaveChangesAsync();
-        _logger.LogInformation("User {UserId} updated successfully.", user.Id);
     }
 
     public async Task<IEnumerable<Invite>> GetUserInvitesAsync(int userId)
@@ -426,22 +445,15 @@ public class UserService : IUserService
 
     public async Task<Invite> GenerateInviteAsync(int userId, bool chargeForInvite = true)
     {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-        {
-            _logger.LogWarning("User with ID {UserId} not found for invite generation.", userId);
-            throw new Exception("User not found.");
-        }
-
+        var user = await _context.Users.FindAsync(userId) ?? throw new Exception("User not found.");
         var settings = await _settingsService.GetSiteSettingsAsync();
+
         if (chargeForInvite)
         {
             if (user.Coins < settings.InvitePrice)
             {
-                _logger.LogWarning("User {UserId} does not have enough Coins to generate an invite. Required: {Required}, Has: {Has}", userId, settings.InvitePrice, user.Coins);
                 throw new Exception("Insufficient Coins to generate an invite.");
             }
-
             user.Coins -= settings.InvitePrice;
         }
 
@@ -456,33 +468,18 @@ public class UserService : IUserService
 
         _context.Invites.Add(newInvite);
         await _context.SaveChangesAsync();
-
-        if (chargeForInvite)
-        {
-            _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} for {Price} Coins.", userId, newInvite.Code, settings.InvitePrice);
-        }
-        else
-        {
-            _logger.LogInformation("User {UserId} generated a new invite code {InviteCode} (not charged, e.g., from store purchase).", userId, newInvite.Code);
-        }
-
         return newInvite;
     }
 
     public async Task<UserProfileDetailDto?> GetUserProfileDetailAsync(int userId)
     {
         var user = await _context.Users.FindAsync(userId);
-        if (user == null)
-        {
-            return null;
-        }
+        if (user == null) return null;
 
         string? invitedBy = null;
         if (user.InviteId.HasValue)
         {
-            var invite = await _context.Invites
-                .Include(i => i.GeneratorUser)
-                .FirstOrDefaultAsync(i => i.Id == user.InviteId.Value);
+            var invite = await _context.Invites.Include(i => i.GeneratorUser).FirstOrDefaultAsync(i => i.Id == user.InviteId.Value);
             invitedBy = invite?.GeneratorUser?.UserName;
         }
 
@@ -490,19 +487,14 @@ public class UserService : IUserService
             .Where(p => p.UserId == userId)
             .Include(p => p.Torrent)
             .GroupBy(p => p.IsSeeder)
-            .Select(g => new
-            {
-                IsSeeder = g.Key,
-                Count = g.Count(),
-                Size = g.Sum(p => p.Torrent.Size)
-            })
+            .Select(g => new { IsSeeder = g.Key, Count = g.Count(), Size = g.Sum(p => p.Torrent.Size) })
             .ToListAsync();
 
         var seedingCount = peerStats.FirstOrDefault(s => s.IsSeeder)?.Count ?? 0;
         var leechingCount = peerStats.FirstOrDefault(s => !s.IsSeeder)?.Count ?? 0;
         var seedingSize = (ulong)(peerStats.FirstOrDefault(s => s.IsSeeder)?.Size ?? 0L);
 
-        var profileDto = new UserProfileDetailDto
+        return new UserProfileDetailDto
         {
             Id = user.Id,
             UserName = user.UserName,
@@ -522,8 +514,6 @@ public class UserService : IUserService
             CurrentSeedingCount = seedingCount,
             CurrentLeechingCount = leechingCount
         };
-
-        return profileDto;
     }
 
     public async Task<IEnumerable<TorrentDto>> GetUserUploadsAsync(int userId)
@@ -532,7 +522,6 @@ public class UserService : IUserService
             .Where(t => t.UploadedByUserId == userId)
             .Include(t => t.UploadedByUser)
             .ToListAsync();
-
         return torrents.Select(Mapper.ToTorrentDto);
     }
 
@@ -556,5 +545,84 @@ public class UserService : IUserService
             LastAnnounceAt = p.LastAnnounce
         });
     }
-}
 
+    public async Task SendLoginVerificationEmailAsync(string userName)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
+        if (user == null) { return; }
+        
+        var code = _random.Next(100000, 999999).ToString("D6");
+        var cacheKey = $"VerificationCode:Login:{user.Id}";
+        await _cache.SetStringAsync(cacheKey, code, new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5) });
+        
+        await _emailService.SendVerificationCodeAsync(user, code, "Login Verification", 5);
+    }
+
+    public async Task<(string ManualEntryKey, string QrCodeImageUrl)> GenerateTwoFactorSetupAsync(int userId)
+    {
+        var user = await GetUserByIdAsync(userId) ?? throw new Exception("User not found");
+        var tfa = new TwoFactorAuthenticator();
+        var secret = Guid.NewGuid().ToString().Replace("-", "").Substring(0, 10);
+        
+        var cacheKey = $"2FASetup:{userId}";
+        await _cache.SetStringAsync(cacheKey, secret, new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10) });
+
+        var setupInfo = tfa.GenerateSetupCode(_configuration["Jwt:Issuer"] ?? "TorrentHub", user.Email, secret, false);
+        return (setupInfo.ManualEntryKey, setupInfo.QrCodeSetupImageUrl);
+    }
+    
+    public async Task<bool> SwitchToAuthenticatorAppAsync(int userId, string code)
+    {
+        var user = await GetUserByIdAsync(userId) ?? throw new Exception("User not found");
+        var cacheKey = $"2FASetup:{userId}";
+        var secret = await _cache.GetStringAsync(cacheKey);
+
+        if (string.IsNullOrEmpty(secret)) { return false; }
+
+        var tfa = new TwoFactorAuthenticator();
+        if (!tfa.ValidateTwoFactorPIN(secret, code)) { return false; }
+
+        user.TwoFactorSecretKey = _dataProtector.Protect(secret);
+        user.TwoFactorType = TwoFactorType.AuthenticatorApp;
+        await UpdateUserAsync(user);
+
+        await _cache.RemoveAsync(cacheKey);
+        return true;
+    }
+
+    public async Task<bool> SwitchToEmailAsync(int userId, string code)
+    {
+        var user = await GetUserByIdAsync(userId) ?? throw new Exception("User not found");
+
+        if (user.TwoFactorType != TwoFactorType.AuthenticatorApp) { return false; }
+
+        if (!await ValidateTwoFactorCodeAsync(user, code)) { return false; }
+
+        user.TwoFactorSecretKey = null;
+        user.TwoFactorType = TwoFactorType.Email;
+        await UpdateUserAsync(user);
+
+        return true;
+    }
+
+    private async Task<bool> ValidateEmailLoginCodeAsync(int userId, string code)
+    {
+        var cacheKey = $"VerificationCode:Login:{userId}";
+        var cachedCode = await _cache.GetStringAsync(cacheKey);
+        if (string.IsNullOrEmpty(cachedCode) || cachedCode != code) { return false; }
+        await _cache.RemoveAsync(cacheKey);
+        return true;
+    }
+    
+    private Task<bool> ValidateTwoFactorCodeAsync(User user, string code)
+    {
+        if (string.IsNullOrEmpty(user.TwoFactorSecretKey)) { return Task.FromResult(false); }
+        try
+        {
+            var secret = _dataProtector.Unprotect(user.TwoFactorSecretKey);
+            var tfa = new TwoFactorAuthenticator();
+            return Task.FromResult(tfa.ValidateTwoFactorPIN(secret, code));
+        }
+        catch (CryptographicException) { return Task.FromResult(false); }
+    }
+}

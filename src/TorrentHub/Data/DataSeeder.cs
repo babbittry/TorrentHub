@@ -162,7 +162,9 @@ namespace TorrentHub.Data
                     Role = UserRole.Administrator,
                     CreatedAt = DateTimeOffset.UtcNow,
                     Passkey = Guid.NewGuid(),
-                    RssKey = Guid.NewGuid()
+                    RssKey = Guid.NewGuid(),
+                    IsEmailVerified = true,
+                    TwoFactorType = TwoFactorType.Email
                 };
                 context.Users.Add(adminUser);
                 await context.SaveChangesAsync();
@@ -221,6 +223,8 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.RssKey, f => f.Random.Guid())
                 .RuleFor(u => u.Passkey, f => f.Random.Guid())
                 .RuleFor(u => u.Role, f => f.PickRandom<UserRole>(UserRole.User, UserRole.Moderator))
+                .RuleFor(u => u.IsEmailVerified, f => true)
+                .RuleFor(u => u.TwoFactorType, f => TwoFactorType.Email)
                 .RuleFor(u => u.CreatedAt, f => f.Date.Past(5).ToUniversalTime())
                 .RuleFor(u => u.BanStatus, f => f.Random.Bool(0.1f) ? f.PickRandom<BanStatus>() : BanStatus.None)
                 .RuleFor(u => u.BanReason, (f, u) => u.BanStatus != BanStatus.None ? f.Lorem.Sentence(50).Substring(0, 50) : null)

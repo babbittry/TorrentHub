@@ -3,20 +3,20 @@ namespace TorrentHub.Core.Enums;
 public enum UserRole
 {
     // Standard User Tiers (increasing privileges)
-    Mosquito = 0,   // µÍ·ÖÏíÂÊÓÃ»§
-    User,           // ÆÕÍ¨ÓÃ»§ (ĞÂ×¢²áÓÃ»§µÄÄ¬ÈÏ½ÇÉ«)
-    PowerUser,      // ¸ß¼¶ÓÃ»§
-    EliteUser,      // ¾«Ó¢ÓÃ»§
-    CrazyUser,      // ¿ñÈÈÓÃ»§
-    VeteranUser,    // ×ÊÉîÓÃ»§
-    VIP,            // VIPÓÃ»§£¨ÀıÈç£¬¾èÔùÕß»òÌØÊâ¹±Ï×Õß£©
+    Mosquito = 0,   // ä½åˆ†äº«ç‡ç”¨æˆ·
+    User,           // æ™®é€šç”¨æˆ· (æ–°æ³¨å†Œç”¨æˆ·çš„é»˜è®¤è§’è‰²)
+    PowerUser,      // é«˜çº§ç”¨æˆ·
+    EliteUser,      // ç²¾è‹±ç”¨æˆ·
+    CrazyUser,      // ç‹‚çƒ­ç”¨æˆ·
+    VeteranUser,    // èµ„æ·±ç”¨æˆ·
+    VIP,            // VIPç”¨æˆ·ï¼ˆä¾‹å¦‚ï¼Œæèµ è€…æˆ–ç‰¹æ®Šè´¡çŒ®è€…ï¼‰
 
     // Functional Roles
-    Uploader,       // ÈÏÖ¤ÉÏ´«Õß
-    Seeder,         // ±£ÖÖÓÃ»§
+    Uploader,       // è®¤è¯ä¸Šä¼ è€…
+    Seeder,         // ä¿ç§ç”¨æˆ·
     
 
     // Staff Roles
-    Moderator,      // °æÖ÷
-    Administrator   // ¹ÜÀíÔ±
+    Moderator,      // ç‰ˆä¸»
+    Administrator   // ç®¡ç†å‘˜
 }

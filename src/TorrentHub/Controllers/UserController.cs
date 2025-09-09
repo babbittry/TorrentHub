@@ -25,8 +25,6 @@ public class UsersController : ControllerBase
         _env = env;
     }
 
-    
-
     [HttpPatch("me")]
     [Authorize]
     public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateUserProfileDto profileDto)
@@ -117,10 +115,9 @@ public class UsersController : ControllerBase
     }
 
     [HttpGet("{id:int}")]
-    [Authorize] // It's good practice to require auth to see user profiles
+    [Authorize]
     public async Task<ActionResult<UserPublicProfileDto>> GetUser(int id)
     {
-        _logger.LogInformation("GetUser request received for id: {Id}", id);
         var user = await _userService.GetUserByIdAsync(id);
         if (user == null)
         {
@@ -159,11 +156,6 @@ public class UsersController : ControllerBase
         {
             return NotFound();
         }
-
-        // TODO: Add authorization logic.
-        // A regular user should not see another user's email.
-        // We might need a separate public version of this DTO.
-        // For now, returning the full details.
         return Ok(profile);
     }
 
@@ -179,7 +171,6 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<ActionResult<IEnumerable<PeerDto>>> GetUserPeers(int id)
     {
-        // Authorization check: Only the user themselves or an admin should see this.
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId) || (currentUserId != id && !User.IsInRole(nameof(UserRole.Administrator))))
         {
             return Forbid();
@@ -188,5 +179,77 @@ public class UsersController : ControllerBase
         var peers = await _userService.GetUserPeersAsync(id);
         return Ok(peers);
     }
-}
 
+    // --- 2FA Management ---
+
+    [HttpPost("me/2fa/generate-setup")]
+    [Authorize]
+    public async Task<IActionResult> GenerateTwoFactorSetup()
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            var (manualEntryKey, qrCodeImageUrl) = await _userService.GenerateTwoFactorSetupAsync(userId);
+            return Ok(new { manualEntryKey, qrCodeImageUrl });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to generate 2FA setup for user {UserId}", userId);
+            return BadRequest(new { message = "Failed to generate 2FA setup." });
+        }
+    }
+
+    [HttpPost("me/2fa/switch-to-app")]
+    [Authorize]
+    public async Task<IActionResult> SwitchToAuthenticatorApp([FromBody] TwoFactorVerificationRequestDto request)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            var success = await _userService.SwitchToAuthenticatorAppAsync(userId, request.Code);
+            if (!success)
+            {
+                return BadRequest(new { message = "Invalid verification code." });
+            }
+            return Ok(new { message = "Two-factor authentication method switched to Authenticator App." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to switch to App 2FA for user {UserId}", userId);
+            return BadRequest(new { message = "Failed to switch 2FA method." });
+        }
+    }
+
+    [HttpPost("me/2fa/switch-to-email")]
+    [Authorize]
+    public async Task<IActionResult> SwitchToEmail([FromBody] TwoFactorVerificationRequestDto request)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            var success = await _userService.SwitchToEmailAsync(userId, request.Code);
+            if (!success)
+            {
+                return BadRequest(new { message = "Invalid verification code." });
+            }
+            return Ok(new { message = "Two-factor authentication method switched to Email." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to switch to Email 2FA for user {UserId}", userId);
+            return BadRequest(new { message = "Failed to switch 2FA method." });
+        }
+    }
+}

@@ -31,7 +31,7 @@ public class AuthController : ControllerBase
             Secure = !_env.IsDevelopment(),
             SameSite = _env.IsDevelopment() ? SameSiteMode.Lax : SameSiteMode.Strict,
             Expires = DateTime.UtcNow.AddDays(7),
-            Path = "/" // Set path to root to be accessible site-wide
+            Path = "/"
         };
         Response.Cookies.Append("refreshToken", refreshToken, cookieOptions);
     }
@@ -48,12 +48,98 @@ public class AuthController : ControllerBase
         try
         {
             await _userService.RegisterAsync(registrationDto);
-            return Ok(new { message = "Registration successful. Please log in." });
+            return Ok(new { message = "Registration successful. Please check your email to verify your account." });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Registration failed for user {UserName}: {ErrorMessage}", registrationDto.UserName, ex.Message);
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("verify-email")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return BadRequest("A verification token is required.");
+        }
+
+        var success = await _userService.VerifyEmailAsync(token);
+
+        if (success)
+        {
+            // Redirect to a frontend page that says "Email verified, you can now log in"
+            // Or just return a success message
+            return Ok(new { message = "Email verified successfully. You can now log in." });
+        }
+
+        return BadRequest("Invalid or expired email verification token.");
+    }
+
+    [HttpPost("login")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LoginResponseDto>> Login(UserForLoginDto userForLoginDto)
+    {
+        _logger.LogInformation("Login request received for user: {UserName}", userForLoginDto.UserName);
+        try
+        {
+            var (loginResultDto, refreshToken) = await _userService.LoginAsync(userForLoginDto);
+
+            if (loginResultDto.RequiresTwoFactor)
+            {
+                return Ok(loginResultDto);
+            }
+
+            if (refreshToken != null)
+            {
+                SetRefreshTokenCookie(refreshToken);
+            }
+            
+            return Ok(loginResultDto);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Login failed for user {UserName}: {ErrorMessage}", userForLoginDto.UserName, ex.Message);
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("login-2fa")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LoginResponseDto>> Login2fa([FromBody] UserForLogin2faDto login2faDto)
+    {
+        try
+        {
+            var (accessToken, refreshToken, user) = await _userService.Login2faAsync(login2faDto);
+            
+            SetRefreshTokenCookie(refreshToken);
+            
+            var userProfile = Mapper.ToUserPrivateProfileDto(user);
+
+            return Ok(new LoginResponseDto { AccessToken = accessToken, User = userProfile });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "2FA Login failed for user {UserName}: {ErrorMessage}", login2faDto.UserName, ex.Message);
+            return Unauthorized(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("send-email-code")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SendEmailVerificationCode([FromBody] SendEmailCodeRequestDto request)
+    {
+        try
+        {
+            await _userService.SendLoginVerificationEmailAsync(request.UserName);
+            return Ok(new { message = "If a matching account exists, a verification code has been sent to the associated email address." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send email verification code for {UserName}", request.UserName);
+            return Ok(new { message = "If a matching account exists, a verification code has been sent to the associated email address." });
         }
     }
 
@@ -91,27 +177,4 @@ public class AuthController : ControllerBase
 
         return Ok(new RefreshTokenResponseDto { AccessToken = newAccessToken, User = userProfile });
     }
-
-    [HttpPost("login")]
-    [AllowAnonymous]
-    public async Task<ActionResult<LoginResponseDto>> Login(UserForLoginDto userForLoginDto)
-    {
-        _logger.LogInformation("Login request received for user: {UserName}", userForLoginDto.UserName);
-        try
-        {
-            var (accessToken, refreshToken, user) = await _userService.LoginAsync(userForLoginDto);
-            
-            SetRefreshTokenCookie(refreshToken);
-            
-            var userProfile = Mapper.ToUserPrivateProfileDto(user);
-
-            return Ok(new LoginResponseDto { AccessToken = accessToken, User = userProfile });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Login failed for user {UserName}: {ErrorMessage}", userForLoginDto.UserName, ex.Message);
-            return Unauthorized(new { message = ex.Message });
-        }
-    }
 }
-

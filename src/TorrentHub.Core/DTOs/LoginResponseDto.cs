@@ -6,12 +6,18 @@ namespace TorrentHub.Core.DTOs;
 public class LoginResponseDto
 {
     /// <summary>
-    /// The short-lived JWT access token for authenticating API requests.
+    /// Indicates if the login process requires a second factor of authentication.
+    /// If true, the client should prompt the user for a 2FA code.
     /// </summary>
-    public required string AccessToken { get; set; }
+    public bool RequiresTwoFactor { get; set; } = false;
 
     /// <summary>
-    /// The user's private profile information.
+    /// The short-lived JWT access token. This will be null if <see cref="RequiresTwoFactor"/> is true.
     /// </summary>
-    public required UserPrivateProfileDto User { get; set; }
+    public string? AccessToken { get; set; }
+
+    /// <summary>
+    /// The user's private profile information. This will be null if <see cref="RequiresTwoFactor"/> is true.
+    /// </summary>
+    public UserPrivateProfileDto? User { get; set; }
 }
