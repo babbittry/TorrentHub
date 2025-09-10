@@ -6,9 +6,7 @@ public class ForumPostDto
     public int TopicId { get; set; }
     public int Floor { get; set; }
     public required string Content { get; set; }
-    public int AuthorId { get; set; }
-    public string? AuthorName { get; set; }
-    public string? AuthorAvatar { get; set; }
+    public UserDisplayDto? Author { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EditedAt { get; set; }
 }

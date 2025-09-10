@@ -28,6 +28,9 @@ public class ActionMetadata
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? PlaceholderKey { get; set; }
 
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? MaxLength { get; set; }
+
     // For PurchaseBadge
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? BadgeId { get; set; }

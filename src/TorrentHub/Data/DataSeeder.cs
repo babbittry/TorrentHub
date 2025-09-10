@@ -80,6 +80,14 @@ namespace TorrentHub.Data
                     new StoreItem
                     {
                         Id = 8, ItemCode = StoreItemCode.Badge, Price = 25000, IsAvailable = true, BadgeId = 4
+                    },
+                    new StoreItem
+                    {
+                        Id = 9, ItemCode = StoreItemCode.ShortSignature, Price = 5000, IsAvailable = true, MaxStringLength = 30
+                    },
+                    new StoreItem
+                    {
+                        Id = 10, ItemCode = StoreItemCode.ColorfulUsername, Price = 7500, IsAvailable = true
                     }
                 };
                 context.StoreItems.AddRange(storeItems);

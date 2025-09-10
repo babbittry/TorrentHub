@@ -370,6 +370,56 @@ public class UserService : IUserService
         return await _context.Users.FindAsync(userId);
     }
 
+    public async Task<UserPublicProfileDto?> GetUserPublicProfileAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null) return null;
+
+        string? invitedBy = null;
+        if (user.InviteId.HasValue)
+        {
+            var invite = await _context.Invites.Include(i => i.GeneratorUser).FirstOrDefaultAsync(i => i.Id == user.InviteId.Value);
+            invitedBy = invite?.GeneratorUser?.UserName;
+        }
+
+        var peerStats = await _context.Peers
+            .Where(p => p.UserId == userId)
+            .Include(p => p.Torrent)
+            .GroupBy(p => p.IsSeeder)
+            .Select(g => new { IsSeeder = g.Key, Count = g.Count(), Size = g.Sum(p => (long)p.Torrent.Size) })
+            .ToListAsync();
+
+        var seedingCount = peerStats.FirstOrDefault(s => s.IsSeeder)?.Count ?? 0;
+        var leechingCount = peerStats.FirstOrDefault(s => !s.IsSeeder)?.Count ?? 0;
+        var seedingSize = (ulong)(peerStats.FirstOrDefault(s => s.IsSeeder)?.Size ?? 0L);
+
+        return new UserPublicProfileDto
+        {
+            Id = user.Id,
+            UserName = user.UserName,
+            Avatar = user.Avatar,
+            Signature = user.Signature,
+            UploadedBytes = user.UploadedBytes,
+            DownloadedBytes = user.DownloadedBytes,
+            NominalUploadedBytes = user.NominalUploadedBytes,
+            NominalDownloadedBytes = user.NominalDownloadedBytes,
+            Role = user.Role,
+            CreatedAt = user.CreatedAt,
+            Coins = user.Coins,
+            IsDoubleUploadActive = user.IsDoubleUploadActive,
+            DoubleUploadExpiresAt = user.DoubleUploadExpiresAt,
+            IsNoHRActive = user.IsNoHRActive,
+            NoHRExpiresAt = user.NoHRExpiresAt,
+            TotalSeedingTimeMinutes = user.TotalSeedingTimeMinutes,
+            TotalLeechingTimeMinutes = user.TotalLeechingTimeMinutes,
+            InviteNum = user.InviteNum,
+            InvitedBy = invitedBy,
+            SeedingSize = seedingSize,
+            CurrentSeedingCount = seedingCount,
+            CurrentLeechingCount = leechingCount,
+        };
+    }
+
     public async Task<List<BadgeDto>> GetUserBadgesAsync(int userId)
     {
         var cacheKey = $"UserBadges:{userId}";
@@ -469,51 +519,6 @@ public class UserService : IUserService
         _context.Invites.Add(newInvite);
         await _context.SaveChangesAsync();
         return newInvite;
-    }
-
-    public async Task<UserProfileDetailDto?> GetUserProfileDetailAsync(int userId)
-    {
-        var user = await _context.Users.FindAsync(userId);
-        if (user == null) return null;
-
-        string? invitedBy = null;
-        if (user.InviteId.HasValue)
-        {
-            var invite = await _context.Invites.Include(i => i.GeneratorUser).FirstOrDefaultAsync(i => i.Id == user.InviteId.Value);
-            invitedBy = invite?.GeneratorUser?.UserName;
-        }
-
-        var peerStats = await _context.Peers
-            .Where(p => p.UserId == userId)
-            .Include(p => p.Torrent)
-            .GroupBy(p => p.IsSeeder)
-            .Select(g => new { IsSeeder = g.Key, Count = g.Count(), Size = g.Sum(p => p.Torrent.Size) })
-            .ToListAsync();
-
-        var seedingCount = peerStats.FirstOrDefault(s => s.IsSeeder)?.Count ?? 0;
-        var leechingCount = peerStats.FirstOrDefault(s => !s.IsSeeder)?.Count ?? 0;
-        var seedingSize = (ulong)(peerStats.FirstOrDefault(s => s.IsSeeder)?.Size ?? 0L);
-
-        return new UserProfileDetailDto
-        {
-            Id = user.Id,
-            UserName = user.UserName,
-            Email = user.Email,
-            Role = user.Role.ToString(),
-            Avatar = user.Avatar,
-            CreatedAt = user.CreatedAt,
-            UploadedBytes = user.UploadedBytes,
-            DownloadedBytes = user.DownloadedBytes,
-            NominalUploadedBytes = user.NominalUploadedBytes,
-            NominalDownloadedBytes = user.NominalDownloadedBytes,
-            Coins = user.Coins,
-            TotalSeedingTimeMinutes = user.TotalSeedingTimeMinutes,
-            TotalLeechingTimeMinutes = user.TotalLeechingTimeMinutes,
-            InvitedBy = invitedBy,
-            SeedingSize = seedingSize,
-            CurrentSeedingCount = seedingCount,
-            CurrentLeechingCount = leechingCount
-        };
     }
 
     public async Task<IEnumerable<TorrentDto>> GetUserUploadsAsync(int userId)
@@ -624,5 +629,36 @@ public class UserService : IUserService
             return Task.FromResult(tfa.ValidateTwoFactorPIN(secret, code));
         }
         catch (CryptographicException) { return Task.FromResult(false); }
+    }
+
+    public async Task EquipBadgeAsync(int userId, int badgeId)
+    {
+        var user = await GetUserByIdAsync(userId) ?? throw new Exception("User not found.");
+
+        var userHasBadge = await _context.UserBadges.AnyAsync(ub => ub.UserId == userId && ub.BadgeId == badgeId);
+        if (!userHasBadge)
+        {
+            throw new Exception("User does not own this badge.");
+        }
+
+        user.EquippedBadgeId = badgeId;
+        await UpdateUserAsync(user);
+        _logger.LogInformation("User {UserId} equipped badge {BadgeId}.", userId, badgeId);
+    }
+
+    public async Task UpdateShortSignatureAsync(int userId, string newSignature)
+    {
+        var user = await GetUserByIdAsync(userId) ?? throw new Exception("User not found.");
+        
+        // In a real application, we might want to check if the user has purchased the right to change the signature.
+        // For now, we assume the API endpoint is protected and this check happens at the controller/API level before calling the service.
+        if (newSignature.Length > 30)
+        {
+            throw new ArgumentException("Signature cannot be longer than 30 characters.");
+        }
+
+        user.ShortSignature = newSignature;
+        await UpdateUserAsync(user);
+        _logger.LogInformation("User {UserId} updated their short signature.", userId);
     }
 }

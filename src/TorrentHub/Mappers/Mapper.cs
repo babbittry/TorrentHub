@@ -24,6 +24,10 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.TwoFactorSecretKey))]
     [MapperIgnoreSource(nameof(User.TwoFactorType))]
     [MapperIgnoreSource(nameof(User.IsEmailVerified))]
+    [MapperIgnoreTarget(nameof(UserPublicProfileDto.InvitedBy))]
+    [MapperIgnoreTarget(nameof(UserPublicProfileDto.SeedingSize))]
+    [MapperIgnoreTarget(nameof(UserPublicProfileDto.CurrentSeedingCount))]
+    [MapperIgnoreTarget(nameof(UserPublicProfileDto.CurrentLeechingCount))]
     public static partial UserPublicProfileDto ToUserPublicProfileDto(User user);
 
     // Private profile includes more details, but still hides sensitive info.
@@ -35,8 +39,8 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.Torrents))]
     [MapperIgnoreSource(nameof(User.GeneratedInvites))]
     [MapperIgnoreSource(nameof(User.TwoFactorSecretKey))]
-    [MapperIgnoreSource(nameof(User.TwoFactorType))]
     [MapperIgnoreSource(nameof(User.IsEmailVerified))]
+    [MapProperty(nameof(User.TwoFactorType), nameof(UserPrivateProfileDto.TwoFactorMethod))]
     public static partial UserPrivateProfileDto ToUserPrivateProfileDto(User user);
     
     // Maps fields a user is allowed to change on their own profile.
@@ -72,6 +76,9 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.TwoFactorSecretKey))]
     [MapperIgnoreTarget(nameof(User.TwoFactorType))]
     [MapperIgnoreTarget(nameof(User.IsEmailVerified))]
+    [MapperIgnoreTarget(nameof(User.ShortSignature))]
+    [MapperIgnoreTarget(nameof(User.EquippedBadgeId))]
+    [MapperIgnoreTarget(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial void MapTo(UpdateUserProfileDto dto, User user);
 
         // Maps fields an admin is allowed to change.
@@ -94,9 +101,12 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.TwoFactorSecretKey))]
     [MapperIgnoreTarget(nameof(User.TwoFactorType))]
     [MapperIgnoreTarget(nameof(User.IsEmailVerified))]
+    [MapperIgnoreTarget(nameof(User.ShortSignature))]
+    [MapperIgnoreTarget(nameof(User.EquippedBadgeId))]
+    [MapperIgnoreTarget(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
 
-    [MapProperty(nameof(Torrent.UploadedByUser.UserName), nameof(TorrentDto.UploaderUsername))]
+    [MapProperty(nameof(Torrent.UploadedByUser), nameof(TorrentDto.Uploader))]
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
@@ -147,6 +157,18 @@ public static partial class Mapper
     [MapProperty(nameof(Invite.UsedByUser.UserName), nameof(InviteDto.UsedByUsername))]
     [MapperIgnoreSource(nameof(Invite.GeneratorUserId))]
     public static partial InviteDto ToInviteDto(Invite invite);
+
+    [MapProperty(nameof(ForumPost.Author), nameof(ForumPostDto.Author))]
+    [MapperIgnoreSource(nameof(ForumPost.Topic))]
+    [MapperIgnoreSource(nameof(ForumPost.AuthorId))]
+    public static partial ForumPostDto ToForumPostDto(ForumPost post);
+
+    [MapProperty(nameof(ForumTopic.Author), nameof(ForumTopicDto.Author))]
+    [MapProperty(nameof(ForumTopic.Posts.Count), nameof(ForumTopicDto.PostCount))]
+    [MapperIgnoreSource(nameof(ForumTopic.Posts))]
+    [MapperIgnoreSource(nameof(ForumTopic.Category))]
+    [MapperIgnoreSource(nameof(ForumTopic.AuthorId))]
+    public static partial ForumTopicDto ToForumTopicDto(ForumTopic topic);
     
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
@@ -160,4 +182,50 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.BackdropPath))]
     [MapperIgnoreSource(nameof(Torrent.Rating))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
+
+    [MapProperty(nameof(User.UserName), nameof(UserDisplayDto.Username))]
+    [MapProperty(nameof(User.ColorfulUsernameExpiresAt), nameof(UserDisplayDto.IsColorfulUsernameActive), Use = nameof(MapIsColorful))]
+    [MapperIgnoreTarget(nameof(UserDisplayDto.UserLevelName))]
+    [MapperIgnoreTarget(nameof(UserDisplayDto.UserLevelColor))]
+    [MapperIgnoreTarget(nameof(UserDisplayDto.EquippedBadge))]
+    [MapperIgnoreSource(nameof(User.Email))]
+    [MapperIgnoreSource(nameof(User.IsEmailVerified))]
+    [MapperIgnoreSource(nameof(User.PasswordHash))]
+    [MapperIgnoreSource(nameof(User.Avatar))]
+    [MapperIgnoreSource(nameof(User.Signature))]
+    [MapperIgnoreSource(nameof(User.Language))]
+    [MapperIgnoreSource(nameof(User.UploadedBytes))]
+    [MapperIgnoreSource(nameof(User.DownloadedBytes))]
+    [MapperIgnoreSource(nameof(User.NominalUploadedBytes))]
+    [MapperIgnoreSource(nameof(User.NominalDownloadedBytes))]
+    [MapperIgnoreSource(nameof(User.RssKey))]
+    [MapperIgnoreSource(nameof(User.Passkey))]
+    [MapperIgnoreSource(nameof(User.Role))]
+    [MapperIgnoreSource(nameof(User.CreatedAt))]
+    [MapperIgnoreSource(nameof(User.BanStatus))]
+    [MapperIgnoreSource(nameof(User.BanReason))]
+    [MapperIgnoreSource(nameof(User.CheatWarningCount))]
+    [MapperIgnoreSource(nameof(User.BanUntil))]
+    [MapperIgnoreSource(nameof(User.InviteNum))]
+    [MapperIgnoreSource(nameof(User.Coins))]
+    [MapperIgnoreSource(nameof(User.TotalSeedingTimeMinutes))]
+    [MapperIgnoreSource(nameof(User.TotalLeechingTimeMinutes))]
+    [MapperIgnoreSource(nameof(User.IsDoubleUploadActive))]
+    [MapperIgnoreSource(nameof(User.DoubleUploadExpiresAt))]
+    [MapperIgnoreSource(nameof(User.IsNoHRActive))]
+    [MapperIgnoreSource(nameof(User.NoHRExpiresAt))]
+    [MapperIgnoreSource(nameof(User.InviteId))]
+    [MapperIgnoreSource(nameof(User.Invite))]
+    [MapperIgnoreSource(nameof(User.TwoFactorSecretKey))]
+    [MapperIgnoreSource(nameof(User.TwoFactorType))]
+    [MapperIgnoreSource(nameof(User.Torrents))]
+    [MapperIgnoreSource(nameof(User.GeneratedInvites))]
+    [MapperIgnoreSource(nameof(User.EquippedBadgeId))]
+    [MapperIgnoreSource(nameof(User.ColorfulUsernameExpiresAt))]
+    public static partial UserDisplayDto ToUserDisplayDto(User user);
+    
+    private static bool MapIsColorful(DateTimeOffset? expiresAt)
+    {
+        return expiresAt.HasValue && expiresAt.Value > DateTimeOffset.UtcNow;
+    }
 }

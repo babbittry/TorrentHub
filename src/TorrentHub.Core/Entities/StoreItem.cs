@@ -35,6 +35,10 @@ public class StoreItem
 
     [ForeignKey(nameof(BadgeId))]
     public Badge? Badge { get; set; }
-
+    
+    /// <summary>
+    /// Optional: For items that involve user input, this specifies the maximum allowed string length.
+    /// </summary>
+    public int? MaxStringLength { get; set; }
 }
 

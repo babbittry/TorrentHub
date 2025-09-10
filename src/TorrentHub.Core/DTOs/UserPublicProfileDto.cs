@@ -22,5 +22,13 @@ public class UserPublicProfileDto
    public ulong TotalSeedingTimeMinutes { get; set; }
    public ulong TotalLeechingTimeMinutes { get; set; } 
    public uint InviteNum { get; set; }
-}
 
+   // --- Fields from UserProfileDetailDto ---
+   public string? InvitedBy { get; set; }
+   public ulong SeedingSize { get; set; }
+   public int CurrentSeedingCount { get; set; }
+   public int CurrentLeechingCount { get; set; }
+   public string? ShortSignature { get; set; }
+   public int? EquippedBadgeId { get; set; }
+   public DateTimeOffset? ColorfulUsernameExpiresAt { get; set; }
+}

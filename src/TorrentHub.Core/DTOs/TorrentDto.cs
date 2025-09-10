@@ -8,7 +8,7 @@ public class TorrentDto
     public required string Name { get; set; }
     public string? Description { get; set; }
     public long Size { get; set; }
-    public required string UploaderUsername { get; set; } 
+    public UserDisplayDto? Uploader { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public TorrentCategory Category { get; set; }
     public bool IsFree { get; set; }

@@ -22,6 +22,6 @@ public interface IAdminService
     Task<List<System.Text.Json.JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto);
 
     // User Management
-    Task<PaginatedResult<UserProfileDetailDto>> GetUsersAsync(int page, int pageSize);
+    Task<PaginatedResult<UserAdminProfileDto>> GetUsersAsync(int page, int pageSize);
 }
 

@@ -179,7 +179,7 @@ public class AdminService : IAdminService
         return results.OrderByDescending(j => j.RootElement.GetProperty("Timestamp").GetDateTimeOffset()).Skip(dto.Offset).Take(dto.Limit).ToList();
     }
 
-    public async Task<PaginatedResult<UserProfileDetailDto>> GetUsersAsync(int page, int pageSize)
+    public async Task<PaginatedResult<UserAdminProfileDto>> GetUsersAsync(int page, int pageSize)
     {
         var query = _context.Users.AsNoTracking()
             .Include(u => u.Invite)
@@ -191,29 +191,35 @@ public class AdminService : IAdminService
             .OrderBy(u => u.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(u => new UserProfileDetailDto
+            .Select(u => new UserAdminProfileDto
             {
                 Id = u.Id,
                 UserName = u.UserName,
                 Email = u.Email,
-                Role = u.Role.ToString(),
+                Role = u.Role,
                 Avatar = u.Avatar,
+                Signature = u.Signature,
                 CreatedAt = u.CreatedAt,
                 UploadedBytes = u.UploadedBytes,
                 DownloadedBytes = u.DownloadedBytes,
                 NominalUploadedBytes = u.NominalUploadedBytes,
                 NominalDownloadedBytes = u.NominalDownloadedBytes,
                 Coins = u.Coins,
+                InviteNum = u.InviteNum,
+                IsDoubleUploadActive = u.IsDoubleUploadActive,
+                DoubleUploadExpiresAt = u.DoubleUploadExpiresAt,
+                IsNoHRActive = u.IsNoHRActive,
+                NoHRExpiresAt = u.NoHRExpiresAt,
                 TotalSeedingTimeMinutes = u.TotalSeedingTimeMinutes,
                 TotalLeechingTimeMinutes = u.TotalLeechingTimeMinutes,
                 InvitedBy = u.Invite == null ? null : u.Invite.GeneratorUser!.UserName,
-                // SeedingSize = u.SeedingSize, // TODO: Calculate this
-                // CurrentSeedingCount = u.SeedingCount, // TODO: Calculate this
-                // CurrentLeechingCount = u.LeechingCount // TODO: Calculate this
+                SeedingSize = 0, // TODO: Calculate this
+                CurrentSeedingCount = 0, // TODO: Calculate this
+                CurrentLeechingCount = 0 // TODO: Calculate this
             })
             .ToListAsync();
 
-        return new PaginatedResult<UserProfileDetailDto>
+        return new PaginatedResult<UserAdminProfileDto>
         {
             Items = users,
             Page = page,

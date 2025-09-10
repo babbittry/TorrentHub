@@ -118,12 +118,12 @@ public class UsersController : ControllerBase
     [Authorize]
     public async Task<ActionResult<UserPublicProfileDto>> GetUser(int id)
     {
-        var user = await _userService.GetUserByIdAsync(id);
-        if (user == null)
+        var userProfile = await _userService.GetUserPublicProfileAsync(id);
+        if (userProfile == null)
         {
             return NotFound("User not found.");
         }
-        return Ok(Mapper.ToUserPublicProfileDto(user));
+        return Ok(userProfile);
     }
 
     [HttpGet("{userId}/badges")]
@@ -145,18 +145,6 @@ public class UsersController : ControllerBase
 
         var badges = await _userService.GetUserBadgesAsync(userId);
         return Ok(badges);
-    }
-
-    [HttpGet("{id:int}/profile")]
-    [Authorize]
-    public async Task<ActionResult<UserProfileDetailDto>> GetUserProfile(int id)
-    {
-        var profile = await _userService.GetUserProfileDetailAsync(id);
-        if (profile == null)
-        {
-            return NotFound();
-        }
-        return Ok(profile);
     }
 
     [HttpGet("{id:int}/uploads")]
@@ -250,6 +238,48 @@ public class UsersController : ControllerBase
         {
             _logger.LogError(ex, "Failed to switch to Email 2FA for user {UserId}", userId);
             return BadRequest(new { message = "Failed to switch 2FA method." });
+        }
+    }
+
+    [HttpPost("me/equip-badge/{badgeId:int}")]
+    [Authorize]
+    public async Task<IActionResult> EquipBadge(int badgeId)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            await _userService.EquipBadgeAsync(userId, badgeId);
+            return Ok(new { message = "Badge equipped successfully." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to equip badge {BadgeId} for user {UserId}", badgeId, userId);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPut("me/short-signature")]
+    [Authorize]
+    public async Task<IActionResult> UpdateShortSignature([FromBody] UpdateShortSignatureRequestDto request)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+        {
+            return Unauthorized("Invalid user identifier.");
+        }
+
+        try
+        {
+            await _userService.UpdateShortSignatureAsync(userId, request.Signature);
+            return Ok(new { message = "Short signature updated successfully." });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update short signature for user {UserId}", userId);
+            return BadRequest(new { message = ex.Message });
         }
     }
 }

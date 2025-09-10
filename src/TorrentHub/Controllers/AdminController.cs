@@ -98,7 +98,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("users")]
-    public async Task<ActionResult<PaginatedResult<UserProfileDetailDto>>> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
+    public async Task<ActionResult<PaginatedResult<UserAdminProfileDto>>> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
         var users = await _adminService.GetUsersAsync(page, pageSize);
         return Ok(users);

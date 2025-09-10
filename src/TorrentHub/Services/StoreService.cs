@@ -182,6 +182,30 @@ public class StoreService : IStoreService
                     user.UserName = newUsername;
                     _logger.LogInformation("User {UserId} changed their username to {NewUsername}.", userId, newUsername);
                     break;
+                case StoreItemCode.ShortSignature:
+                    if (request.Params == null || !request.Params.TryGetValue("newSignature", out var newSignatureObj) || newSignatureObj is not string newSignature)
+                    {
+                        return new PurchaseResultDto { Success = false, Message = "New signature must be provided for this item." };
+                    }
+                    if (newSignature.Length > 30) // Fallback validation
+                    {
+                        return new PurchaseResultDto { Success = false, Message = "Signature is too long." };
+                    }
+                    user.ShortSignature = newSignature;
+                    _logger.LogInformation("User {UserId} set their short signature.", userId);
+                    break;
+                case StoreItemCode.ColorfulUsername:
+                    var duration = TimeSpan.FromDays(7 * request.Quantity);
+                    if (user.ColorfulUsernameExpiresAt.HasValue && user.ColorfulUsernameExpiresAt.Value > DateTimeOffset.UtcNow)
+                    {
+                        user.ColorfulUsernameExpiresAt = user.ColorfulUsernameExpiresAt.Value.Add(duration);
+                    }
+                    else
+                    {
+                        user.ColorfulUsernameExpiresAt = DateTimeOffset.UtcNow.Add(duration);
+                    }
+                    _logger.LogInformation("User {UserId} purchased colorful username for {Days} days.", userId, duration.TotalDays);
+                    break;
                 default:
                     throw new Exception($"Unhandled store item code: {item.ItemCode}");
             }
@@ -241,6 +265,24 @@ public class StoreService : IStoreService
 
             default:
                 return (StoreActionType.SimplePurchase, null);
+
+            case StoreItemCode.ShortSignature:
+                return (StoreActionType.ChangeUsername, new ActionMetadata // Re-use the same action type
+                {
+                    InputLabelKey = "store.metadata.newSignature.label",
+                    PlaceholderKey = "store.metadata.newSignature.placeholder",
+                    MaxLength = item.MaxStringLength
+                });
+            
+            case StoreItemCode.ColorfulUsername:
+                 return (StoreActionType.PurchaseWithQuantity, new ActionMetadata
+                {
+                    Min = 1,
+                    Max = 10,
+                    Step = 1,
+                    UnitKey = "unit.week" // Assuming 1 quantity = 1 week
+                });
+
         }
     }
 }

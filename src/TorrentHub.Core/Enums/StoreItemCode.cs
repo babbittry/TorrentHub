@@ -45,4 +45,14 @@ public enum StoreItemCode
     /// Purchases a specific badge.
     /// </summary>
     Badge,
+
+    /// <summary>
+    /// Allows the user to set or change their short signature.
+    /// </summary>
+    ShortSignature,
+
+    /// <summary>
+    /// Activates a colorful username effect for a period.
+    /// </summary>
+    ColorfulUsername,
 }

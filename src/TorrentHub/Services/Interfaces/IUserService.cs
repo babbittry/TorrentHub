@@ -18,6 +18,7 @@ public interface IUserService
     Task<bool> AddCoinsAsync(int userId, UpdateCoinsRequestDto request);
     Task<bool> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount);
     Task<User?> GetUserByIdAsync(int userId);
+    Task<UserPublicProfileDto?> GetUserPublicProfileAsync(int userId);
     Task<List<BadgeDto>> GetUserBadgesAsync(int userId);
     Task<User> UpdateUserProfileAsync(int userId, UpdateUserProfileDto profileDto);
     Task ChangePasswordAsync(int userId, ChangePasswordDto changePasswordDto);
@@ -26,7 +27,8 @@ public interface IUserService
     Task<IEnumerable<Invite>> GetUserInvitesAsync(int userId);
     Task<Invite> GenerateInviteAsync(int userId, bool chargeForInvite = true);
     Task UpdateUserAsync(User user);
-    Task<UserProfileDetailDto?> GetUserProfileDetailAsync(int userId);
     Task<IEnumerable<TorrentDto>> GetUserUploadsAsync(int userId);
     Task<IEnumerable<PeerDto>> GetUserPeersAsync(int userId);
+    Task EquipBadgeAsync(int userId, int badgeId);
+    Task UpdateShortSignatureAsync(int userId, string newSignature);
 }
