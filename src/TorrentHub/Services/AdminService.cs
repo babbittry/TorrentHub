@@ -213,6 +213,9 @@ public class AdminService : IAdminService
                 TotalSeedingTimeMinutes = u.TotalSeedingTimeMinutes,
                 TotalLeechingTimeMinutes = u.TotalLeechingTimeMinutes,
                 InvitedBy = u.Invite == null ? null : u.Invite.GeneratorUser!.UserName,
+                BanStatus = u.BanStatus,
+                BanReason = u.BanReason,
+                BanUntil = u.BanUntil,
                 SeedingSize = 0, // TODO: Calculate this
                 CurrentSeedingCount = 0, // TODO: Calculate this
                 CurrentLeechingCount = 0 // TODO: Calculate this

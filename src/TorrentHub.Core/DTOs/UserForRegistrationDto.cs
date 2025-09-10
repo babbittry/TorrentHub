@@ -21,4 +21,6 @@ public class UserForRegistrationDto
 
     [Required]
     public required string AvatarSvg { get; set; }
+
+    public string? Language { get; set; }
 }

@@ -30,5 +30,5 @@ public interface IUserService
     Task<IEnumerable<TorrentDto>> GetUserUploadsAsync(int userId);
     Task<IEnumerable<PeerDto>> GetUserPeersAsync(int userId);
     Task EquipBadgeAsync(int userId, int badgeId);
-    Task UpdateShortSignatureAsync(int userId, string newSignature);
+    Task UpdateUserTitleAsync(int userId, string newTitle);
 }

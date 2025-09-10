@@ -7,9 +7,7 @@ public class ForumTopicDetailDto
     public int CategoryId { get; set; }
     public string? CategoryName { get; set; }
     
-    public int AuthorId { get; set; }
-    public string? AuthorName { get; set; }
-    public string? AuthorAvatar { get; set; }
+    public UserDisplayDto? Author { get; set; }
     
     public DateTimeOffset CreatedAt { get; set; }
     

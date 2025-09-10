@@ -228,10 +228,10 @@ public class User
     public ICollection<Invite> GeneratedInvites { get; set; } = new List<Invite>();
 
     /// <summary>
-    /// User's short signature, can be purchased from the store.
+    /// User's custom title, can be purchased from the store.
     /// </summary>
     [StringLength(30)]
-    public string? ShortSignature { get; set; }
+    public string? UserTitle { get; set; }
 
     /// <summary>
     /// The ID of the badge the user has currently equipped.

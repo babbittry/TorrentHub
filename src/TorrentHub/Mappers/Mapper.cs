@@ -76,7 +76,7 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.TwoFactorSecretKey))]
     [MapperIgnoreTarget(nameof(User.TwoFactorType))]
     [MapperIgnoreTarget(nameof(User.IsEmailVerified))]
-    [MapperIgnoreTarget(nameof(User.ShortSignature))]
+    [MapperIgnoreTarget(nameof(User.UserTitle))]
     [MapperIgnoreTarget(nameof(User.EquippedBadgeId))]
     [MapperIgnoreTarget(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial void MapTo(UpdateUserProfileDto dto, User user);
@@ -101,7 +101,7 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.TwoFactorSecretKey))]
     [MapperIgnoreTarget(nameof(User.TwoFactorType))]
     [MapperIgnoreTarget(nameof(User.IsEmailVerified))]
-    [MapperIgnoreTarget(nameof(User.ShortSignature))]
+    [MapperIgnoreTarget(nameof(User.UserTitle))]
     [MapperIgnoreTarget(nameof(User.EquippedBadgeId))]
     [MapperIgnoreTarget(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
@@ -165,7 +165,6 @@ public static partial class Mapper
 
     [MapProperty(nameof(ForumTopic.Author), nameof(ForumTopicDto.Author))]
     [MapProperty(nameof(ForumTopic.Posts.Count), nameof(ForumTopicDto.PostCount))]
-    [MapperIgnoreSource(nameof(ForumTopic.Posts))]
     [MapperIgnoreSource(nameof(ForumTopic.Category))]
     [MapperIgnoreSource(nameof(ForumTopic.AuthorId))]
     public static partial ForumTopicDto ToForumTopicDto(ForumTopic topic);
@@ -183,6 +182,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.Rating))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
 
+    [MapProperty(nameof(User.UserTitle), nameof(UserDisplayDto.UserTitle))]
     [MapProperty(nameof(User.UserName), nameof(UserDisplayDto.Username))]
     [MapProperty(nameof(User.ColorfulUsernameExpiresAt), nameof(UserDisplayDto.IsColorfulUsernameActive), Use = nameof(MapIsColorful))]
     [MapperIgnoreTarget(nameof(UserDisplayDto.UserLevelName))]
@@ -221,7 +221,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.Torrents))]
     [MapperIgnoreSource(nameof(User.GeneratedInvites))]
     [MapperIgnoreSource(nameof(User.EquippedBadgeId))]
-    [MapperIgnoreSource(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial UserDisplayDto ToUserDisplayDto(User user);
     
     private static bool MapIsColorful(DateTimeOffset? expiresAt)

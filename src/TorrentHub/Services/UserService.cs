@@ -104,7 +104,8 @@ public class UserService : IUserService
             Passkey = Guid.NewGuid(),
             RssKey = Guid.NewGuid(),
             IsEmailVerified = false,
-            TwoFactorType = TwoFactorType.Email
+            TwoFactorType = TwoFactorType.Email,
+            Language = userForRegistrationDto.Language ?? "zh-CN"
         };
         
         if (invite != null)
@@ -646,19 +647,19 @@ public class UserService : IUserService
         _logger.LogInformation("User {UserId} equipped badge {BadgeId}.", userId, badgeId);
     }
 
-    public async Task UpdateShortSignatureAsync(int userId, string newSignature)
+    public async Task UpdateUserTitleAsync(int userId, string newTitle)
     {
         var user = await GetUserByIdAsync(userId) ?? throw new Exception("User not found.");
         
-        // In a real application, we might want to check if the user has purchased the right to change the signature.
+        // In a real application, we might want to check if the user has purchased the right to change the title.
         // For now, we assume the API endpoint is protected and this check happens at the controller/API level before calling the service.
-        if (newSignature.Length > 30)
+        if (newTitle.Length > 30)
         {
-            throw new ArgumentException("Signature cannot be longer than 30 characters.");
+            throw new ArgumentException("Title cannot be longer than 30 characters.");
         }
 
-        user.ShortSignature = newSignature;
+        user.UserTitle = newTitle;
         await UpdateUserAsync(user);
-        _logger.LogInformation("User {UserId} updated their short signature.", userId);
+        _logger.LogInformation("User {UserId} updated their title.", userId);
     }
 }

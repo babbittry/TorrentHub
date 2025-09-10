@@ -11,6 +11,6 @@ public class UserDisplayDto
     public string? UserLevelName { get; set; }
     public string? UserLevelColor { get; set; }
     public BadgeDto? EquippedBadge { get; set; }
-    public string? ShortSignature { get; set; }
+    public string? UserTitle { get; set; }
     public bool IsColorfulUsernameActive { get; set; }
 }

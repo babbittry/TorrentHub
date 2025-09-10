@@ -28,7 +28,7 @@ public class UserPublicProfileDto
    public ulong SeedingSize { get; set; }
    public int CurrentSeedingCount { get; set; }
    public int CurrentLeechingCount { get; set; }
-   public string? ShortSignature { get; set; }
+   public string? UserTitle { get; set; }
    public int? EquippedBadgeId { get; set; }
    public DateTimeOffset? ColorfulUsernameExpiresAt { get; set; }
 }

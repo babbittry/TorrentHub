@@ -39,7 +39,7 @@ public class UserPrivateProfileDto
     /// Expected values: "Email", "AuthenticatorApp".
     /// </summary>
     public required string TwoFactorMethod { get; set; }
-    public string? ShortSignature { get; set; }
+    public string? UserTitle { get; set; }
     public int? EquippedBadgeId { get; set; }
     public DateTimeOffset? ColorfulUsernameExpiresAt { get; set; }
 }

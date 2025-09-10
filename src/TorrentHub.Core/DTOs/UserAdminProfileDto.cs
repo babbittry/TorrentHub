@@ -27,6 +27,9 @@ public class UserAdminProfileDto
     public ulong TotalSeedingTimeMinutes { get; set; }
     public ulong TotalLeechingTimeMinutes { get; set; }
     public uint InviteNum { get; set; }
+    public BanStatus BanStatus { get; set; }
+    public string? BanReason { get; set; }
+    public DateTimeOffset? BanUntil { get; set; }
 
     // --- Detail Fields ---
     public string? InvitedBy { get; set; }

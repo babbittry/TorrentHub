@@ -182,17 +182,17 @@ public class StoreService : IStoreService
                     user.UserName = newUsername;
                     _logger.LogInformation("User {UserId} changed their username to {NewUsername}.", userId, newUsername);
                     break;
-                case StoreItemCode.ShortSignature:
-                    if (request.Params == null || !request.Params.TryGetValue("newSignature", out var newSignatureObj) || newSignatureObj is not string newSignature)
+                case StoreItemCode.UserTitle:
+                    if (request.Params == null || !request.Params.TryGetValue("newTitle", out var newTitleObj) || newTitleObj is not string newTitle || string.IsNullOrWhiteSpace(newTitle))
                     {
-                        return new PurchaseResultDto { Success = false, Message = "New signature must be provided for this item." };
+                        return new PurchaseResultDto { Success = false, Message = "New title must be provided for this item." };
                     }
-                    if (newSignature.Length > 30) // Fallback validation
+                    if (newTitle.Length > 30) // Fallback validation
                     {
-                        return new PurchaseResultDto { Success = false, Message = "Signature is too long." };
+                        return new PurchaseResultDto { Success = false, Message = "Title is too long." };
                     }
-                    user.ShortSignature = newSignature;
-                    _logger.LogInformation("User {UserId} set their short signature.", userId);
+                    user.UserTitle = newTitle;
+                    _logger.LogInformation("User {UserId} set their title.", userId);
                     break;
                 case StoreItemCode.ColorfulUsername:
                     var duration = TimeSpan.FromDays(7 * request.Quantity);
@@ -266,11 +266,11 @@ public class StoreService : IStoreService
             default:
                 return (StoreActionType.SimplePurchase, null);
 
-            case StoreItemCode.ShortSignature:
+            case StoreItemCode.UserTitle:
                 return (StoreActionType.ChangeUsername, new ActionMetadata // Re-use the same action type
                 {
-                    InputLabelKey = "store.metadata.newSignature.label",
-                    PlaceholderKey = "store.metadata.newSignature.placeholder",
+                    InputLabelKey = "store.metadata.newTitle.label",
+                    PlaceholderKey = "store.metadata.newTitle.placeholder",
                     MaxLength = item.MaxStringLength
                 });
             

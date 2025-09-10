@@ -262,9 +262,9 @@ public class UsersController : ControllerBase
         }
     }
 
-    [HttpPut("me/short-signature")]
+    [HttpPut("me/title")]
     [Authorize]
-    public async Task<IActionResult> UpdateShortSignature([FromBody] UpdateShortSignatureRequestDto request)
+    public async Task<IActionResult> UpdateUserTitle([FromBody] UpdateUserTitleRequestDto request)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
@@ -273,12 +273,12 @@ public class UsersController : ControllerBase
 
         try
         {
-            await _userService.UpdateShortSignatureAsync(userId, request.Signature);
-            return Ok(new { message = "Short signature updated successfully." });
+            await _userService.UpdateUserTitleAsync(userId, request.Title);
+            return Ok(new { message = "User title updated successfully." });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to update short signature for user {UserId}", userId);
+            _logger.LogError(ex, "Failed to update user title for user {UserId}", userId);
             return BadRequest(new { message = ex.Message });
         }
     }

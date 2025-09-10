@@ -83,7 +83,7 @@ namespace TorrentHub.Data
                     },
                     new StoreItem
                     {
-                        Id = 9, ItemCode = StoreItemCode.ShortSignature, Price = 5000, IsAvailable = true, MaxStringLength = 30
+                        Id = 9, ItemCode = StoreItemCode.UserTitle, Price = 5000, IsAvailable = true, MaxStringLength = 30
                     },
                     new StoreItem
                     {

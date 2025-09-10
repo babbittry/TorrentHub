@@ -3,6 +3,8 @@ using TorrentHub.Core.Data;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Enums;
 
+using TorrentHub.Core.DTOs;
+
 namespace TorrentHub.Services;
 
 public class UserLevelService : IUserLevelService
@@ -25,7 +27,7 @@ public class UserLevelService : IUserLevelService
         foreach (var user in users)
         {
             var oldRole = user.Role;
-            var newRole = CalculateNewRole(user);
+            var newRole = CalculateUserRole(user);
 
             if (oldRole != newRole)
             {
@@ -38,9 +40,36 @@ public class UserLevelService : IUserLevelService
         _logger.LogInformation("User level check and update finished.");
     }
 
-    private UserRole CalculateNewRole(User user)
+    public UserLevelDto GetUserLevel(User user)
     {
-        // Calculate share ratio
+        var role = CalculateUserRole(user);
+        return new UserLevelDto
+        {
+            Name = role.ToString(),
+            Color = GetRoleColor(role)
+        };
+    }
+
+    private string GetRoleColor(UserRole role)
+    {
+        return role switch
+        {
+            UserRole.Administrator => "#FF0000", // Red
+            UserRole.Moderator => "#008000", // Green
+            UserRole.Uploader => "#800080", // Purple
+            UserRole.VIP => "#FFD700", // Gold
+            UserRole.VeteranUser => "#0000FF", // Blue
+            UserRole.CrazyUser => "#FFA500", // Orange
+            UserRole.EliteUser => "#00FFFF", // Cyan
+            UserRole.PowerUser => "#008080", // Teal
+            UserRole.Mosquito => "#A9A9A9", // Dark Gray
+            _ => "#808080" // Gray for User and others
+        };
+    }
+
+    private UserRole CalculateUserRole(User user)
+    {
+         // Calculate share ratio
         double shareRatio = 0;
         if (user.DownloadedBytes > 0)
         {

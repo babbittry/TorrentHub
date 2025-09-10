@@ -16,11 +16,13 @@ public class ForumService : IForumService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ForumService> _logger;
+    private readonly IUserLevelService _userLevelService;
 
-    public ForumService(ApplicationDbContext context, ILogger<ForumService> logger)
+    public ForumService(ApplicationDbContext context, ILogger<ForumService> logger, IUserLevelService userLevelService)
     {
         _context = context;
         _logger = logger;
+        _userLevelService = userLevelService;
     }
 
     public async Task<List<ForumCategoryDto>> GetCategoriesAsync()
@@ -51,23 +53,21 @@ public class ForumService : IForumService
         var topics = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => new ForumTopicDto
-            {
-                Id = t.Id,
-                Title = t.Title,
-                AuthorId = t.AuthorId,
-                AuthorName = t.Author!.UserName,
-                CreatedAt = t.CreatedAt,
-                LastPostTime = t.LastPostTime ?? t.CreatedAt,
-                PostCount = t.Posts.Count,
-                IsLocked = t.IsLocked,
-                IsSticky = t.IsSticky
-            })
             .ToListAsync();
+        
+        var authorIds = topics.Select(t => t.AuthorId).Distinct().ToList();
+        var authors = await GetUsersDisplayInfoAsync(authorIds);
+
+        var topicDtos = topics.Select(t =>
+        {
+            var dto = Mappers.Mapper.ToForumTopicDto(t);
+            dto.Author = authors.GetValueOrDefault(t.AuthorId);
+            return dto;
+        }).ToList();
 
         return new PaginatedResult<ForumTopicDto>
         {
-            Items = topics,
+            Items = topicDtos,
             Page = page,
             PageSize = pageSize,
             TotalItems = totalItems,
@@ -77,63 +77,63 @@ public class ForumService : IForumService
 
     public async Task<ForumTopicDetailDto> GetTopicByIdAsync(int topicId, int page, int pageSize)
     {
-        var topic = await _context.ForumTopics
+        var topicEntity = await _context.ForumTopics
             .Include(t => t.Author)
             .Include(t => t.Category)
-            .Where(t => t.Id == topicId)
-            .Select(t => new ForumTopicDetailDto
-            {
-                Id = t.Id,
-                Title = t.Title,
-                AuthorId = t.AuthorId,
-                AuthorName = t.Author!.UserName,
-                AuthorAvatar = t.Author!.Avatar,
-                CreatedAt = t.CreatedAt,
-                IsLocked = t.IsLocked,
-                IsSticky = t.IsSticky,
-                CategoryId = t.CategoryId,
-                CategoryName = t.Category!.Code.ToString(),
-            })
-            .FirstOrDefaultAsync();
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == topicId);
 
-        if (topic == null)
+        if (topicEntity == null)
         {
             throw new KeyNotFoundException("Topic not found");
         }
 
+        var topicAuthorDto = await MapToUserDisplayDtoAsync(topicEntity.Author!);
+
+        var topicDetailDto = new ForumTopicDetailDto
+        {
+            Id = topicEntity.Id,
+            Title = topicEntity.Title,
+            Author = topicAuthorDto,
+            CreatedAt = topicEntity.CreatedAt,
+            IsLocked = topicEntity.IsLocked,
+            IsSticky = topicEntity.IsSticky,
+            CategoryId = topicEntity.CategoryId,
+            CategoryName = topicEntity.Category!.Code.ToString()
+        };
+
         var postsQuery = _context.ForumPosts
-            .Include(p => p.Author)
             .Where(p => p.TopicId == topicId)
             .OrderBy(p => p.Floor);
 
         var totalPosts = await postsQuery.CountAsync();
 
         var posts = await postsQuery
+            .Include(p => p.Author) // Eager load author for posts
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(p => new ForumPostDto
-            {
-                Id = p.Id,
-                Floor = p.Floor,
-                AuthorId = p.AuthorId,
-                AuthorName = p.Author!.UserName,
-                AuthorAvatar = p.Author!.Avatar,
-                Content = p.Content,
-                CreatedAt = p.CreatedAt,
-                EditedAt = p.EditedAt
-            })
             .ToListAsync();
 
-        topic.Posts = new PaginatedResult<ForumPostDto>
+        var postAuthorIds = posts.Select(p => p.AuthorId).Distinct().ToList();
+        var postAuthors = await GetUsersDisplayInfoAsync(postAuthorIds);
+
+        var postDtos = posts.Select(p =>
         {
-            Items = posts,
+            var dto = Mappers.Mapper.ToForumPostDto(p);
+            dto.Author = postAuthors.GetValueOrDefault(p.AuthorId);
+            return dto;
+        }).ToList();
+
+        topicDetailDto.Posts = new PaginatedResult<ForumPostDto>
+        {
+            Items = postDtos,
             Page = page,
             PageSize = pageSize,
             TotalItems = totalPosts,
             TotalPages = (int)Math.Ceiling(totalPosts / (double)pageSize)
         };
 
-        return topic;
+        return topicDetailDto;
     }
 
     public async Task<ForumTopicDetailDto> CreateTopicAsync(CreateForumTopicDto createTopicDto, int authorId)
@@ -182,30 +182,23 @@ public class ForumService : IForumService
         _context.ForumTopics.Add(topic);
         await _context.SaveChangesAsync();
 
+        var authorDto = await MapToUserDisplayDtoAsync(user);
+        var postDto = Mappers.Mapper.ToForumPostDto(post);
+        postDto.Author = authorDto;
+
         return new ForumTopicDetailDto
         {
             Id = topic.Id,
             Title = topic.Title,
-            AuthorId = topic.AuthorId,
-            AuthorName = user.UserName,
+            Author = authorDto,
             CreatedAt = topic.CreatedAt,
             IsLocked = topic.IsLocked,
             IsSticky = topic.IsSticky,
+            CategoryId = topic.CategoryId,
+            CategoryName = category.Code.ToString(),
             Posts = new PaginatedResult<ForumPostDto>
             {
-                Items = new List<ForumPostDto>
-                {
-                    new()
-                    {
-                        Id = post.Id,
-                        AuthorId = post.AuthorId,
-                        AuthorName = user.UserName,
-                        Content = post.Content,
-                        CreatedAt = post.CreatedAt,
-                        EditedAt = post.EditedAt,
-                        Floor = post.Floor
-                    }
-                },
+                Items = new List<ForumPostDto> { postDto },
                 Page = 1,
                 PageSize = 1,
                 TotalItems = 1,
@@ -256,16 +249,9 @@ public class ForumService : IForumService
         _context.ForumPosts.Add(post);
         await _context.SaveChangesAsync();
 
-        return new ForumPostDto
-        {
-            Id = post.Id,
-            AuthorId = post.AuthorId,
-            AuthorName = user.UserName,
-            Content = post.Content,
-            CreatedAt = post.CreatedAt,
-            EditedAt = post.EditedAt,
-            Floor = post.Floor
-        };
+        var postDto = Mappers.Mapper.ToForumPostDto(post);
+        postDto.Author = await MapToUserDisplayDtoAsync(user);
+        return postDto;
     }
 
     public async Task UpdateTopicAsync(int topicId, UpdateForumTopicDto updateTopicDto, int userId)
@@ -437,5 +423,55 @@ public class ForumService : IForumService
         }
         topic.IsSticky = false;
         await _context.SaveChangesAsync();
+    }
+    private async Task<UserDisplayDto> MapToUserDisplayDtoAsync(User user)
+    {
+        var dto = Mappers.Mapper.ToUserDisplayDto(user);
+        var level = _userLevelService.GetUserLevel(user);
+        dto.UserLevelName = level.Name;
+        dto.UserLevelColor = level.Color;
+
+        if (user.EquippedBadgeId.HasValue)
+        {
+            var badge = await _context.Badges.FindAsync(user.EquippedBadgeId.Value);
+            if (badge != null)
+            {
+                dto.EquippedBadge = new BadgeDto { Id = badge.Id, Code = badge.Code };
+            }
+        }
+
+        return dto;
+    }
+
+    private async Task<Dictionary<int, UserDisplayDto>> GetUsersDisplayInfoAsync(List<int> userIds)
+    {
+        if (!userIds.Any())
+        {
+            return new Dictionary<int, UserDisplayDto>();
+        }
+
+        var users = await _context.Users
+            .Where(u => userIds.Contains(u.Id))
+            // No Include needed here as we fetch badges separately
+            .ToListAsync();
+
+        var badgeIds = users.Where(u => u.EquippedBadgeId.HasValue).Select(u => u.EquippedBadgeId!.Value).Distinct().ToList();
+        var badges = await _context.Badges.Where(b => badgeIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id);
+
+        var result = new Dictionary<int, UserDisplayDto>();
+        foreach (var user in users)
+        {
+            var dto = Mappers.Mapper.ToUserDisplayDto(user);
+            var level = _userLevelService.GetUserLevel(user);
+            dto.UserLevelName = level.Name;
+            dto.UserLevelColor = level.Color;
+
+            if (user.EquippedBadgeId.HasValue && badges.TryGetValue(user.EquippedBadgeId.Value, out var badge))
+            {
+                dto.EquippedBadge = new BadgeDto { Id = badge.Id, Code = badge.Code };
+            }
+            result[user.Id] = dto;
+        }
+        return result;
     }
 }

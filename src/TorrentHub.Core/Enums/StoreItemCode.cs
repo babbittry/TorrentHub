@@ -47,9 +47,9 @@ public enum StoreItemCode
     Badge,
 
     /// <summary>
-    /// Allows the user to set or change their short signature.
+    /// Allows the user to set or change their custom title.
     /// </summary>
-    ShortSignature,
+    UserTitle,
 
     /// <summary>
     /// Activates a colorful username effect for a period.

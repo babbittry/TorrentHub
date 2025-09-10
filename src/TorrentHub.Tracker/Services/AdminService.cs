@@ -66,5 +66,5 @@ public class AdminService : IAdminService
     public Task<List<DuplicateIpUserDto>> GetDuplicateIpUsersAsync() => throw new NotImplementedException();
     public Task<List<CheatLogDto>> GetCheatLogsAsync() => throw new NotImplementedException();
     public Task<List<JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto) => throw new NotImplementedException();
-    public Task<PaginatedResult<UserProfileDetailDto>> GetUsersAsync(int page, int pageSize) => throw new NotImplementedException();
+    public Task<PaginatedResult<UserAdminProfileDto>> GetUsersAsync(int page, int pageSize) => throw new NotImplementedException();
 }
