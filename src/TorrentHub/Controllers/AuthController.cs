@@ -82,27 +82,37 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<LoginResponseDto>> Login(UserForLoginDto userForLoginDto)
     {
-        _logger.LogInformation("Login request received for user: {UserName}", userForLoginDto.UserName);
-        try
-        {
-            var (loginResultDto, refreshToken) = await _userService.LoginAsync(userForLoginDto);
+        _logger.LogInformation("Login request received for user: {UserNameOrEmail}", userForLoginDto.UserNameOrEmail);
+        
+        var (loginResultDto, refreshToken) = await _userService.LoginAsync(userForLoginDto);
 
-            if (loginResultDto.RequiresTwoFactor)
-            {
+        switch (loginResultDto.Result)
+        {
+            case Core.Enums.LoginResultType.Success:
+                if (refreshToken != null)
+                {
+                    SetRefreshTokenCookie(refreshToken);
+                }
                 return Ok(loginResultDto);
-            }
 
-            if (refreshToken != null)
-            {
-                SetRefreshTokenCookie(refreshToken);
-            }
-            
-            return Ok(loginResultDto);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Login failed for user {UserName}: {ErrorMessage}", userForLoginDto.UserName, ex.Message);
-            return Unauthorized(new { message = ex.Message });
+            case Core.Enums.LoginResultType.RequiresTwoFactor:
+                return Ok(loginResultDto);
+
+            case Core.Enums.LoginResultType.InvalidCredentials:
+                _logger.LogWarning("Login failed for user {UserNameOrEmail}: Invalid credentials.", userForLoginDto.UserNameOrEmail);
+                return Unauthorized(new { message = "Invalid username or password." });
+
+            case Core.Enums.LoginResultType.EmailNotVerified:
+                _logger.LogWarning("Login failed for user {UserNameOrEmail}: Email not verified.", userForLoginDto.UserNameOrEmail);
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = "Please verify your email address before logging in." });
+
+            case Core.Enums.LoginResultType.Banned:
+                _logger.LogWarning("Login failed for user {UserNameOrEmail}: Account is banned.", userForLoginDto.UserNameOrEmail);
+                return Unauthorized(new { message = "Your account has been banned." });
+
+            default:
+                _logger.LogError("An unexpected login result was encountered for user {UserNameOrEmail}.", userForLoginDto.UserNameOrEmail);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "An unexpected error occurred." });
         }
     }
 
@@ -176,5 +186,18 @@ public class AuthController : ControllerBase
         var userProfile = Mapper.ToUserPrivateProfileDto(user);
 
         return Ok(new RefreshTokenResponseDto { AccessToken = newAccessToken, User = userProfile });
+    }
+
+    [HttpPost("resend-verification")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequestDto request)
+    {
+        var result = await _userService.ResendVerificationEmailAsync(request.UserNameOrEmail);
+        if (result)
+        {
+            return Ok(new { message = "If an account with that username or email exists and is not verified, a new verification link has been sent to the associated email address." });
+        }
+        
+        return BadRequest(new { message = "This account has already been verified." });
     }
 }

@@ -188,22 +188,22 @@ public class UserService : IUserService
 
     public async Task<(LoginResponseDto Dto, string? RefreshToken)> LoginAsync(UserForLoginDto userForLoginDto)
     {
-        _logger.LogInformation("Attempting login for user: {UserName}", userForLoginDto.UserName);
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userForLoginDto.UserName);
+        _logger.LogInformation("Attempting login for user: {UserNameOrEmail}", userForLoginDto.UserNameOrEmail);
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userForLoginDto.UserNameOrEmail || u.Email == userForLoginDto.UserNameOrEmail);
 
         if (user == null || !BCrypt.Net.BCrypt.Verify(userForLoginDto.Password, user.PasswordHash))
         {
-            throw new Exception("Invalid username or password.");
+            return (new LoginResponseDto { Result = LoginResultType.InvalidCredentials }, null);
         }
 
         if (!user.IsEmailVerified)
         {
-            throw new Exception("Please verify your email address before logging in.");
+            return (new LoginResponseDto { Result = LoginResultType.EmailNotVerified }, null);
         }
 
         if (user.BanStatus.HasFlag(BanStatus.LoginBan))
         {
-            throw new Exception("Your account has been banned.");
+            return (new LoginResponseDto { Result = LoginResultType.Banned }, null);
         }
 
         if (user.TwoFactorType == TwoFactorType.Email)
@@ -211,7 +211,7 @@ public class UserService : IUserService
             await SendLoginVerificationEmailAsync(user.UserName);
         }
 
-        return (new LoginResponseDto { RequiresTwoFactor = true }, null);
+        return (new LoginResponseDto { Result = LoginResultType.RequiresTwoFactor }, null);
     }
 
     public async Task<(string AccessToken, string RefreshToken, User User)> Login2faAsync(UserForLogin2faDto login2faDto)
@@ -661,5 +661,27 @@ public class UserService : IUserService
         user.UserTitle = newTitle;
         await UpdateUserAsync(user);
         _logger.LogInformation("User {UserId} updated their title.", userId);
+    }
+
+    public async Task<bool> ResendVerificationEmailAsync(string userNameOrEmail)
+    {
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.UserName == userNameOrEmail || u.Email == userNameOrEmail);
+        if (user == null)
+        {
+            // To prevent user enumeration, we don't reveal if the user exists.
+            _logger.LogInformation("Resend verification requested for non-existent user or email: {UserNameOrEmail}", userNameOrEmail);
+            return true;
+        }
+
+        if (user.IsEmailVerified)
+        {
+            return false;
+        }
+
+        var token = await GenerateEmailVerificationToken(user.Id);
+        await _emailService.SendEmailVerificationLinkAsync(user, token);
+
+        _logger.LogInformation("Resent email verification for user {UserId}", user.Id);
+        return true;
     }
 }

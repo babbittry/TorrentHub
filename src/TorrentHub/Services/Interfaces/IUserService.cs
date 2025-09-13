@@ -7,6 +7,7 @@ public interface IUserService
 {
     Task<User> RegisterAsync(UserForRegistrationDto userForRegistrationDto);
     Task<bool> VerifyEmailAsync(string token);
+    Task<bool> ResendVerificationEmailAsync(string userNameOrEmail);
     Task<(LoginResponseDto Dto, string? RefreshToken)> LoginAsync(UserForLoginDto userForLoginDto);
     Task<(string AccessToken, string RefreshToken, User User)> Login2faAsync(UserForLogin2faDto login2faDto);
     Task<(string AccessToken, User User)?> RefreshTokenAsync(string refreshToken);
