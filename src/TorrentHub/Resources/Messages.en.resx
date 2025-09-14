@@ -68,4 +68,31 @@
   <data name="Announcement_Content" xml:space="preserve">
     <value>{0}</value>
   </data>
+  <data name="Email_VerificationCode_Subject" xml:space="preserve">
+    <value>Verification Code from {0}</value>
+  </data>
+  <data name="Email_Greeting" xml:space="preserve">
+    <value>Hello {0},</value>
+  </data>
+  <data name="Email_VerificationCode_Body" xml:space="preserve">
+    <value>Your {0} verification code is:</value>
+  </data>
+  <data name="Email_CodeExpires_Body" xml:space="preserve">
+    <value>This code will expire in {0} minutes.</value>
+  </data>
+  <data name="Email_IgnoreIfNotRequested_Body" xml:space="preserve">
+    <value>If you did not request this email, please ignore it.</value>
+  </data>
+  <data name="Email_VerifyAddress_Subject" xml:space="preserve">
+    <value>Please verify your email address for {0}</value>
+  </data>
+  <data name="Email_VerifyAddress_Body" xml:space="preserve">
+    <value>Thanks for signing up! Please click the link below to verify your email address:</value>
+  </data>
+  <data name="Email_VerifyAddress_LinkText" xml:space="preserve">
+    <value>Verify My Email</value>
+  </data>
+  <data name="Login Verification" xml:space="preserve">
+    <value>Login</value>
+  </data>
 </root>
