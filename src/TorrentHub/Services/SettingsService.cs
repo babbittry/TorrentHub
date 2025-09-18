@@ -63,4 +63,21 @@ public class SettingsService : ISettingsService
         await _context.SaveChangesAsync();
         await _cache.RemoveAsync(SiteSettingsKey);
     }
+
+    public async Task<PublicSiteSettingsDto> GetPublicSiteSettingsAsync()
+    {
+        var fullSettings = await GetSiteSettingsAsync();
+
+        // Map the full settings to the public DTO
+        return new PublicSiteSettingsDto
+        {
+            SiteName = fullSettings.SiteName,
+            IsRequestSystemEnabled = fullSettings.IsRequestSystemEnabled,
+            CreateRequestCost = fullSettings.CreateRequestCost,
+            FillRequestBonus = fullSettings.FillRequestBonus,
+            TipTaxRate = fullSettings.TipTaxRate,
+            TransferTaxRate = fullSettings.TransferTaxRate,
+            InvitePrice = fullSettings.InvitePrice
+        };
+    }
 }

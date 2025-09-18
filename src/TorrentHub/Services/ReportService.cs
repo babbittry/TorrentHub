@@ -65,6 +65,7 @@ public class ReportService : IReportService
         return await _context.Reports
             .Where(r => !r.IsProcessed)
             .Include(r => r.Torrent)
+                .ThenInclude(t => t!.UploadedByUser)
             .Include(r => r.ReporterUser)
             .OrderBy(r => r.ReportedAt)
             .ToListAsync();
@@ -75,6 +76,7 @@ public class ReportService : IReportService
         return await _context.Reports
             .Where(r => r.IsProcessed)
             .Include(r => r.Torrent)
+                .ThenInclude(t => t!.UploadedByUser)
             .Include(r => r.ReporterUser)
             .Include(r => r.ProcessedByUser)
             .OrderByDescending(r => r.ProcessedAt)

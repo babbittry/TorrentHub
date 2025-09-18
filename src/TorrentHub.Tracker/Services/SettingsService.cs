@@ -51,4 +51,21 @@ public class SettingsService : ISettingsService
         // The Web project is responsible for writing settings.
         throw new NotImplementedException("Tracker service cannot update site settings.");
     }
+
+    public async Task<PublicSiteSettingsDto> GetPublicSiteSettingsAsync()
+    {
+        var fullSettings = await GetSiteSettingsAsync();
+
+        // Map the full settings to the public DTO
+        return new PublicSiteSettingsDto
+        {
+            SiteName = fullSettings.SiteName,
+            IsRequestSystemEnabled = fullSettings.IsRequestSystemEnabled,
+            CreateRequestCost = fullSettings.CreateRequestCost,
+            FillRequestBonus = fullSettings.FillRequestBonus,
+            TipTaxRate = fullSettings.TipTaxRate,
+            TransferTaxRate = fullSettings.TransferTaxRate,
+            InvitePrice = fullSettings.InvitePrice
+        };
+    }
 }

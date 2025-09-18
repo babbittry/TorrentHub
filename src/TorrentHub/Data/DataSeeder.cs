@@ -100,6 +100,24 @@ namespace TorrentHub.Data
                 logger.LogInformation("Default site settings seeded successfully.");
             }
 
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "CreateRequestCost"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "CreateRequestCost", Value = "1000" });
+                logger.LogInformation("Default CreateRequestCost setting seeded successfully.");
+            }
+            
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "TipTaxRate"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "TipTaxRate", Value = "0.10" });
+                logger.LogInformation("Default TipTaxRate setting seeded successfully.");
+            }
+            
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "TransferTaxRate"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "TransferTaxRate", Value = "0.05" });
+                logger.LogInformation("Default TransferTaxRate setting seeded successfully.");
+            }
+
             await context.SaveChangesAsync();
         }
 

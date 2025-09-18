@@ -6,6 +6,7 @@ using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Resources;
 using TorrentHub.Core.Services;
+using TorrentHub.Core.Enums;
 using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
@@ -165,5 +166,19 @@ public class NotificationService : INotificationService
             }
         }
     }
-}
 
+    public async Task SendCoinTransactionNotificationAsync(int toUserId, ulong receivedAmount, TransactionType type, string fromUsername)
+    {
+        // Note: For this to work, you need to add corresponding entries into your Messages.resx files.
+        // For example:
+        // Name: CoinTransaction_Transfer_Subject, Value: You have received Coins!
+        // Name: CoinTransaction_Transfer_Content, Value: {0} has sent you {1} Coins.
+        // Name: CoinTransaction_Tip_Subject, Value: You have received a tip!
+        // Name: CoinTransaction_Tip_Content, Value: {0} has tipped you {1} Coins.
+        
+        var subjectKey = $"CoinTransaction_{type}_Subject";
+        var contentKey = $"CoinTransaction_{type}_Content";
+        
+        await SendLocalizedMessage(toUserId, subjectKey, contentKey, fromUsername, receivedAmount);
+    }
+}

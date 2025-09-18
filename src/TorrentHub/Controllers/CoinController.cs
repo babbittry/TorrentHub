@@ -1,45 +1,59 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Services;
-using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Controllers;
 
 [ApiController]
 [Route("api/coins")]
-[Authorize(Roles = "Administrator,Moderator")] // Only allow authorized staff to access
-public class CoinsController : ControllerBase
+[Authorize]
+public class CoinController : ControllerBase
 {
     private readonly IUserService _userService;
-    private readonly ILogger<CoinsController> _logger;
+    private readonly ILogger<CoinController> _logger;
 
-    public CoinsController(IUserService userService, ILogger<CoinsController> logger)
+    public CoinController(IUserService userService, ILogger<CoinController> logger)
     {
         _userService = userService;
         _logger = logger;
     }
 
     /// <summary>
-    /// Adds or removes Coins for a specific user.
+    /// Transfers coins to another user.
     /// </summary>
-    /// <param name="userId">The ID of the user to modify.</param>
-    /// <param name="request">The DTO containing the amount of coins to add (can be negative to remove).</param>
-    /// <returns>A confirmation message.</returns>
-    [HttpPatch("{userId}")]
-    public async Task<IActionResult> UpdateCoins(int userId, [FromBody] UpdateCoinsRequestDto request)
+    [HttpPost("transfer")]
+    public async Task<IActionResult> TransferCoins([FromBody] TransferCoinsRequestDto dto)
     {
-        _logger.LogInformation("Attempting to update {Amount} Coins for user {UserId} by {AdminUserName}", request.Amount, userId, User.Identity?.Name ?? "UnknownAdmin");
-        var result = await _userService.AddCoinsAsync(userId, request);
+        var fromUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var (success, message) = await _userService.TransferCoinsAsync(fromUserId, dto.ToUserId, dto.Amount, dto.Notes);
 
-        if (!result)
+        if (!success)
         {
-            _logger.LogWarning("Failed to update Coins for user {UserId}.", userId);
-            return BadRequest(new { message = "Failed to update Coins. User not found or insufficient balance." });
+            _logger.LogWarning("Coin transfer failed from {FromUserId} to {ToUserId}. Reason: {Message}", fromUserId, dto.ToUserId, message);
+            return BadRequest(new { message });
         }
 
-        _logger.LogInformation("Successfully updated {Amount} Coins for user {UserId}.", request.Amount, userId);
-        return Ok(new { message = "Coins updated successfully." });
+        return Ok(new { message });
+    }
+
+    /// <summary>
+    /// Tips coins to another user for their contribution.
+    /// </summary>
+    [HttpPost("tip")]
+    public async Task<IActionResult> TipCoins([FromBody] TipCoinsRequestDto dto)
+    {
+        var fromUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var notes = $"{dto.ContextType}:{dto.ContextId}"; // Combine context into notes
+        var (success, message) = await _userService.TipCoinsAsync(fromUserId, dto.ToUserId, dto.Amount, notes);
+
+        if (!success)
+        {
+            _logger.LogWarning("Coin tip failed from {FromUserId} to {ToUserId}. Reason: {Message}", fromUserId, dto.ToUserId, message);
+            return BadRequest(new { message });
+        }
+
+        return Ok(new { message });
     }
 }

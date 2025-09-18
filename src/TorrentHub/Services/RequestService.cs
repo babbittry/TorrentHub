@@ -50,7 +50,10 @@ public class RequestService : IRequestService
             return (false, "error.user.notFound", null);
         }
 
-        if (createRequestDto.InitialBounty > 0 && user.Coins < createRequestDto.InitialBounty)
+        // Calculate total cost: base cost + user's additional bounty
+        var totalCost = settings.CreateRequestCost + createRequestDto.InitialBounty;
+
+        if (user.Coins < totalCost)
         {
             return (false, "error.request.insufficientCoins", null);
         }
@@ -65,15 +68,14 @@ public class RequestService : IRequestService
             BountyAmount = createRequestDto.InitialBounty
         };
 
-        if (createRequestDto.InitialBounty > 0)
-        {
-            user.Coins -= createRequestDto.InitialBounty;
-        }
+        // Always deduct the total cost
+        user.Coins -= totalCost;
 
         _context.Requests.Add(newRequest);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} created a new request titled '{RequestTitle}' with initial bounty {BountyAmount}.", userId, newRequest.Title, newRequest.BountyAmount);
+        _logger.LogInformation("User {UserId} created a new request titled '{RequestTitle}' with initial bounty {BountyAmount}. Total cost deducted: {TotalCost} (base: {BaseCost} + bounty: {BountyAmount}).",
+            userId, newRequest.Title, newRequest.BountyAmount, totalCost, settings.CreateRequestCost, createRequestDto.InitialBounty);
         return (true, "request.create.success", newRequest);
     }
 

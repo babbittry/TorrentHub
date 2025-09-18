@@ -7,6 +7,7 @@ public interface ISettingsService
 {
     Task<SiteSettingsDto> GetSiteSettingsAsync();
     Task UpdateSiteSettingsAsync(SiteSettingsDto dto);
+    Task<PublicSiteSettingsDto> GetPublicSiteSettingsAsync();
 }
 
 

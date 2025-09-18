@@ -34,9 +34,11 @@ namespace TorrentHub.Core.Data
         public DbSet<BannedClient> BannedClients { get; set; }
         public DbSet<CheatLog> CheatLogs { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
+        public DbSet<CoinTransaction> CoinTransactions { get; set; }
  
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.HasPostgresEnum<TransactionType>();
             modelBuilder.HasPostgresEnum<UserRole>();
             modelBuilder.HasPostgresEnum<BadgeCode>();
             modelBuilder.HasPostgresEnum<ForumCategoryCode>();

@@ -17,7 +17,8 @@ public interface IUserService
     Task<bool> SwitchToAuthenticatorAppAsync(int userId, string code);
     Task<bool> SwitchToEmailAsync(int userId, string code);
     Task<bool> AddCoinsAsync(int userId, UpdateCoinsRequestDto request);
-    Task<bool> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount);
+    Task<(bool Success, string Message)> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount, string? notes);
+    Task<(bool Success, string Message)> TipCoinsAsync(int fromUserId, int toUserId, ulong amount, string? notes);
     Task<User?> GetUserByIdAsync(int userId);
     Task<UserPublicProfileDto?> GetUserPublicProfileAsync(int userId);
     Task<List<BadgeDto>> GetUserBadgesAsync(int userId);

@@ -42,6 +42,9 @@ public class SiteSettingsDto
     public int InviteExpirationDays { get; set; } = 30;
 
     [Range(0, 1000000)]
+    public ulong CreateRequestCost { get; set; } = 1000;
+
+    [Range(0, 1000000)]
     public ulong FillRequestBonus { get; set; } = 500;
 
     [Range(0, 100000)]
@@ -55,6 +58,12 @@ public class SiteSettingsDto
 
     [Range(0, 1.0)]
     public double TransactionTaxRate { get; set; } = 0.05;
+
+    [Range(0, 1.0)]
+    public double TipTaxRate { get; set; } = 0.10; // Tax rate for user-to-user tips
+
+    [Range(0, 1.0)]
+    public double TransferTaxRate { get; set; } = 0.05; // Tax rate for user-to-user coin transfers
 
     // Torrents
     public string TorrentStoragePath { get; set; } = "torrents"; // Relative to app root

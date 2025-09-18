@@ -1,5 +1,6 @@
 
 using TorrentHub.Core.Entities;
+using TorrentHub.Core.Enums;
 
 namespace TorrentHub.Services.Interfaces;
 
@@ -29,5 +30,10 @@ public interface INotificationService
     /// Sends a new announcement as a private message to a list of users.
     /// </summary>
     Task SendNewAnnouncementNotificationAsync(Announcement announcement, IEnumerable<int> userIds);
+    
+    /// <summary>
+    /// Notifies a user about a coin transaction.
+    /// </summary>
+    Task SendCoinTransactionNotificationAsync(int toUserId, ulong receivedAmount, TransactionType type, string fromUsername);
 }
 

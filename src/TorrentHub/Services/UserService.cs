@@ -324,45 +324,103 @@ public class UserService : IUserService
         return true;
     }
 
-    public async Task<bool> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount)
+    public async Task<(bool Success, string Message)> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount, string? notes)
     {
-        if (amount <= 0)
-        {
-            return false;
-        }
+        if (fromUserId == toUserId) return (false, "error.transfer.self");
+        if (amount == 0) return (false, "error.transfer.zeroAmount");
 
-        await using var transaction = await _context.Database.BeginTransactionAsync();
+        await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
         try
         {
             var fromUser = await _context.Users.FindAsync(fromUserId);
             var toUser = await _context.Users.FindAsync(toUserId);
 
-            if (fromUser == null || toUser == null)
-            {
-                return false;
-            }
-
-            if (fromUser.Coins < amount)
-            {
-                return false;
-            }
+            if (fromUser == null || toUser == null) return (false, "error.user.notFound");
+            if (fromUser.Coins < amount) return (false, "error.transfer.insufficientCoins");
 
             var settings = await _settingsService.GetSiteSettingsAsync();
-            var taxAmount = (ulong)Math.Ceiling(amount * settings.TransactionTaxRate);
-            var actualTransferAmount = amount - taxAmount;
+            var tax = (ulong)(amount * settings.TransferTaxRate);
+            var receivedAmount = amount - tax;
 
             fromUser.Coins -= amount;
-            toUser.Coins += actualTransferAmount;
+            toUser.Coins += receivedAmount;
+
+            var coinTransaction = new CoinTransaction
+            {
+                Type = TransactionType.Transfer,
+                FromUserId = fromUserId,
+                ToUserId = toUserId,
+                Amount = amount,
+                TaxAmount = tax,
+                Notes = notes,
+                FromUser = fromUser,
+                ToUser = toUser
+            };
+            _context.CoinTransactions.Add(coinTransaction);
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-            return true;
+            await dbTransaction.CommitAsync();
+
+            await _notificationService.SendCoinTransactionNotificationAsync(toUserId, receivedAmount, TransactionType.Transfer, fromUser.UserName);
+
+            return (true, "transfer.success");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred during Coin transfer.");
-            await transaction.RollbackAsync();
-            return false;
+            await dbTransaction.RollbackAsync();
+            _logger.LogError(ex, "An error occurred during coin transfer from {FromUserId} to {ToUserId}.", fromUserId, toUserId);
+            return (false, "error.transfer.unknown");
+        }
+    }
+
+    public async Task<(bool Success, string Message)> TipCoinsAsync(int fromUserId, int toUserId, ulong amount, string? notes)
+    {
+        if (fromUserId == toUserId) return (false, "error.tip.self");
+        if (amount == 0) return (false, "error.tip.zeroAmount");
+
+        await using var dbTransaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            var fromUser = await _context.Users.FindAsync(fromUserId);
+            var toUser = await _context.Users.FindAsync(toUserId);
+
+            if (fromUser == null || toUser == null) return (false, "error.user.notFound");
+            if (fromUser.Coins < amount) return (false, "error.tip.insufficientCoins");
+
+            var settings = await _settingsService.GetSiteSettingsAsync();
+            var tax = (ulong)(amount * settings.TipTaxRate);
+            var receivedAmount = amount - tax;
+
+            fromUser.Coins -= amount;
+            toUser.Coins += receivedAmount;
+
+            var coinTransaction = new CoinTransaction
+            {
+                Type = TransactionType.Tip,
+                FromUserId = fromUserId,
+                ToUserId = toUserId,
+                Amount = amount,
+                TaxAmount = tax,
+                Notes = notes,
+                FromUser = fromUser,
+                ToUser = toUser
+            };
+            _context.CoinTransactions.Add(coinTransaction);
+
+            await _context.SaveChangesAsync();
+            await dbTransaction.CommitAsync();
+
+            await _notificationService.SendCoinTransactionNotificationAsync(toUserId, receivedAmount, TransactionType.Tip, fromUser.UserName);
+
+            return (true, "tip.success");
+        }
+        catch (Exception ex)
+        {
+            await dbTransaction.RollbackAsync();
+            _logger.LogError(ex, "An error occurred during coin tip from {FromUserId} to {ToUserId}.", fromUserId, toUserId);
+            return (false, "error.tip.unknown");
         }
     }
 
