@@ -14,22 +14,22 @@ public class NotificationService : INotificationService
 {
     private readonly IMessageService _messageService;
     private readonly IEmailService _emailService;
-    private readonly IStringLocalizer<Messages> _localizer;
+    private readonly IStringLocalizerFactory _localizerFactory;
     private readonly ApplicationDbContext _context;
     private readonly ISettingsService _settingsService;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
-        IMessageService messageService, 
-        IEmailService emailService, 
-        IStringLocalizer<Messages> localizer, 
+        IMessageService messageService,
+        IEmailService emailService,
+        IStringLocalizerFactory localizerFactory,
         ApplicationDbContext context,
         ILogger<NotificationService> logger,
         ISettingsService settingsService)
     {
         _messageService = messageService;
         _emailService = emailService;
-        _localizer = localizer;
+        _localizerFactory = localizerFactory;
         _context = context;
         _logger = logger;
         _settingsService = settingsService;
@@ -44,19 +44,26 @@ public class NotificationService : INotificationService
             return;
         }
 
-        var originalCulture = CultureInfo.CurrentUICulture;
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUICulture = CultureInfo.CurrentUICulture;
+
         try
         {
-            CultureInfo.CurrentUICulture = new CultureInfo(user.Language);
+            var culture = new CultureInfo(user.Language);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
 
-            var subject = _localizer[subjectKey, args];
-            var content = _localizer[contentKey, args];
+            var localizer = _localizerFactory.Create(typeof(Messages).Name, typeof(Messages).Assembly.GetName().Name!);
+
+            var subject = localizer[subjectKey, args];
+            var content = localizer[contentKey, args];
 
             await _messageService.SendMessageAsync(0, new SendMessageRequestDto { ReceiverId = recipientId, Subject = subject, Content = content });
         }
         finally
         {
-            CultureInfo.CurrentUICulture = originalCulture;
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUICulture;
         }
     }
 
@@ -105,40 +112,56 @@ public class NotificationService : INotificationService
 
     public async Task SendWelcomeEmailAsync(User user)
     {
-        var originalCulture = CultureInfo.CurrentUICulture;
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUICulture = CultureInfo.CurrentUICulture;
+
         try
         {
-            CultureInfo.CurrentUICulture = new CultureInfo(user.Language);
-            var subject = _localizer["Welcome_Subject"];
-            var body = _localizer["Welcome_Content", user.UserName];
+            var culture = new CultureInfo(user.Language);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+
+            var localizer = _localizerFactory.Create(typeof(Messages).Name, typeof(Messages).Assembly.GetName().Name!);
+
+            var subject = localizer["Welcome_Subject"];
+            var body = localizer["Welcome_Content", user.UserName];
             await _emailService.SendEmailAsync(user.Email, subject, body);
         }
         finally
         {
-            CultureInfo.CurrentUICulture = originalCulture;
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUICulture;
         }
     }
 
     public async Task SendNewAnnouncementNotificationAsync(Announcement announcement, IEnumerable<int> userIds)
     {
         _logger.LogInformation("Sending announcement {AnnouncementId} to {UserCount} users.", announcement.Id, userIds.Count());
-        
+
         var users = await _context.Users.Where(u => userIds.Contains(u.Id)).ToListAsync();
 
         foreach (var user in users)
         {
-            var originalCulture = CultureInfo.CurrentUICulture;
+            var originalCulture = CultureInfo.CurrentCulture;
+            var originalUICulture = CultureInfo.CurrentUICulture;
+
             try
             {
-                CultureInfo.CurrentUICulture = new CultureInfo(user.Language);
-                var subject = _localizer["Announcement_Subject", announcement.Title];
-                var content = _localizer["Announcement_Content", announcement.Content];
+                var culture = new CultureInfo(user.Language);
+                CultureInfo.CurrentCulture = culture;
+                CultureInfo.CurrentUICulture = culture;
+
+                var localizer = _localizerFactory.Create(typeof(Messages).Name, typeof(Messages).Assembly.GetName().Name!);
+
+                var subject = localizer["Announcement_Subject", announcement.Title];
+                var content = localizer["Announcement_Content", announcement.Content];
 
                 await _messageService.SendMessageAsync(0, new SendMessageRequestDto { ReceiverId = user.Id, Subject = subject, Content = content });
             }
             finally
             {
-                CultureInfo.CurrentUICulture = originalCulture;
+                CultureInfo.CurrentCulture = originalCulture;
+                CultureInfo.CurrentUICulture = originalUICulture;
             }
         }
     }

@@ -15,13 +15,13 @@ public class EmailService : IEmailService
 {
     private readonly SmtpSettings _smtpSettings;
     private readonly ILogger<EmailService> _logger;
-    private readonly IStringLocalizer<Messages> _localizer;
+    private readonly IStringLocalizerFactory _localizerFactory;
 
-    public EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger, IStringLocalizer<Messages> localizer)
+    public EmailService(IOptions<SmtpSettings> smtpSettings, ILogger<EmailService> logger, IStringLocalizerFactory localizerFactory)
     {
         _smtpSettings = smtpSettings.Value;
         _logger = logger;
-        _localizer = localizer;
+        _localizerFactory = localizerFactory;
     }
 
     public async Task SendEmailAsync(string toEmail, string subject, string message)
@@ -29,7 +29,7 @@ public class EmailService : IEmailService
         try
         {
             var email = new MimeMessage();
-            email.Sender = MailboxAddress.Parse(_smtpSettings.FromAddress);
+            email.From.Add(new MailboxAddress(_smtpSettings.FromName, _smtpSettings.FromAddress));
             email.To.Add(MailboxAddress.Parse(toEmail));
             email.Subject = subject;
             email.Body = new TextPart(MimeKit.Text.TextFormat.Html) { Text = message };
@@ -47,66 +47,91 @@ public class EmailService : IEmailService
             _logger.LogError(ex, "Failed to send email to {ToEmail} with subject {Subject}.", toEmail, subject);
         }
     }
-    
-    private void SetCulture(string language)
-    {
-        try
-        {
-            var cultureInfo = new CultureInfo(language);
-            CultureInfo.CurrentUICulture = cultureInfo;
-        }
-        catch (CultureNotFoundException)
-        {
-            _logger.LogWarning("Could not set culture to '{Language}', language not found. Falling back to default.", language);
-        }
-    }
 
     public async Task SendVerificationCodeAsync(User user, string code, string purpose, int expiresInMinutes)
     {
-        var originalCulture = CultureInfo.CurrentUICulture;
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUICulture = CultureInfo.CurrentUICulture;
+
         try
         {
-            SetCulture(user.Language);
+            _logger.LogDebug("Sending verification code email. User language: {UserLanguage}", user.Language);
 
-            var subject = _localizer["Email_VerificationCode_Subject", _smtpSettings.FromAddress];
-            var purposeLocalized = _localizer[purpose]; // Assuming purpose is a resource key like "LoginVerification"
+            // Set the culture for this thread
+            var culture = new CultureInfo(user.Language);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+
+            // Create a culture-specific localizer
+            var localizer = _localizerFactory.Create(typeof(Messages).Name, typeof(Messages).Assembly.GetName().Name!);
+
+            _logger.LogDebug("Using culture: {Culture}", culture.Name);
+
+            var subject = localizer["Email_VerificationCode_Subject", _smtpSettings.FromName];
+            var purposeLocalized = localizer[purpose]; // Assuming purpose is a resource key like "LoginVerification"
+
+            _logger.LogDebug("Localized subject: '{LocalizedSubject}'", subject);
+            _logger.LogDebug("Localized purpose: '{LocalizedPurpose}'", purposeLocalized);
+
             var message = $"""
-                <p>{_localizer["Email_Greeting", user.UserName]}</p>
-                <p>{_localizer["Email_VerificationCode_Body", purposeLocalized]}</p>
+                <p>{localizer["Email_Greeting", user.UserName]}</p>
+                <p>{localizer["Email_VerificationCode_Body", purposeLocalized]}</p>
                 <h2 style="font-weight:bold; letter-spacing: 2px;">{code}</h2>
-                <p>{_localizer["Email_CodeExpires_Body", expiresInMinutes]}</p>
-                <p>{_localizer["Email_IgnoreIfNotRequested_Body"]}</p>
+                <p>{localizer["Email_CodeExpires_Body", expiresInMinutes]}</p>
+                <p>{localizer["Email_IgnoreIfNotRequested_Body"]}</p>
                 """;
 
             await SendEmailAsync(user.Email, subject, message);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send email verification code for {UserName}", user.UserName);
+            throw;
+        }
         finally
         {
-            CultureInfo.CurrentUICulture = originalCulture;
+            // Restore original culture
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUICulture;
         }
     }
 
     public async Task SendEmailVerificationLinkAsync(User user, string verificationToken)
     {
-        var originalCulture = CultureInfo.CurrentUICulture;
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUICulture = CultureInfo.CurrentUICulture;
+
         try
         {
-            SetCulture(user.Language);
-            var subject = _localizer["Email_VerifyAddress_Subject", _smtpSettings.FromAddress];
-            var verificationLink = $"https://localhost:7122/api/auth/verify-email?token={verificationToken}"; 
+            // Set the culture for this thread
+            var culture = new CultureInfo(user.Language);
+            CultureInfo.CurrentCulture = culture;
+            CultureInfo.CurrentUICulture = culture;
+
+            var localizer = _localizerFactory.Create(typeof(Messages).Name, typeof(Messages).Assembly.GetName().Name!);
+
+            var subject = localizer["Email_VerifyAddress_Subject", _smtpSettings.FromAddress];
+            var verificationLink = $"https://localhost:7122/api/auth/verify-email?token={verificationToken}";
 
             var message = $"""
-                <p>{_localizer["Email_Greeting", user.UserName]}</p>
-                <p>{_localizer["Email_VerifyAddress_Body"]}</p>
-                <p><a href="{verificationLink}">{_localizer["Email_VerifyAddress_LinkText"]}</a></p>
-                <p>{_localizer["Email_IgnoreIfNotRequested_Body"]}</p>
+                <p>{localizer["Email_Greeting", user.UserName]}</p>
+                <p>{localizer["Email_VerifyAddress_Body"]}</p>
+                <p><a href="{verificationLink}">{localizer["Email_VerifyAddress_LinkText"]}</a></p>
+                <p>{localizer["Email_IgnoreIfNotRequested_Body"]}</p>
                 """;
 
             await SendEmailAsync(user.Email, subject, message);
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send email verification link for {UserName}", user.UserName);
+            throw;
+        }
         finally
         {
-            CultureInfo.CurrentUICulture = originalCulture;
+            // Restore original culture
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUICulture;
         }
     }
 }
