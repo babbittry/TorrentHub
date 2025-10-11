@@ -12,24 +12,24 @@
   <ItemGroup>
     <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
     <PackageReference Include="BencodeNET" Version="5.0.0" />
-    <PackageReference Include="Bogus" Version="35.6.3" />
+    <PackageReference Include="Bogus" Version="35.6.4" />
     <PackageReference Include="GoogleAuthenticator" Version="3.2.0" />
-    <PackageReference Include="MailKit" Version="4.13.0" />
-    <PackageReference Include="MeiliSearch" Version="0.17.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.8" />
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.8" />
+    <PackageReference Include="MailKit" Version="4.14.0" />
+    <PackageReference Include="MeiliSearch" Version="0.17.1" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.9" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
     <PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.8">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.9">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.8" />
-    <PackageReference Include="Microsoft.Garnet" Version="1.0.83" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.9" />
+    <PackageReference Include="Microsoft.Garnet" Version="1.0.84" />
     <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.22.1" />
-    <PackageReference Include="MimeKit" Version="4.13.0" />
+    <PackageReference Include="MimeKit" Version="4.14.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="Riok.Mapperly" Version="4.2.1" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.7.4" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.8.11" />
     <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
     <PackageReference Include="Serilog.Sinks.Http" Version="9.2.0" />
   </ItemGroup>
