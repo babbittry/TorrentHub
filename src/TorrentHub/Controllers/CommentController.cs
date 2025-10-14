@@ -38,13 +38,21 @@ public class CommentsController : ControllerBase
     }
 
     [HttpGet("torrents/{torrentId}/comments")]
-    public async Task<ActionResult<IEnumerable<CommentDto>>> GetCommentsForTorrent(
-        int torrentId, 
-        [FromQuery] int page = 1, 
+    public async Task<ActionResult<PaginatedResult<CommentDto>>> GetCommentsForTorrent(
+        int torrentId,
+        [FromQuery] int page = 1,
         [FromQuery] int pageSize = 10)
     {
-        var comments = await _commentService.GetCommentsForTorrentAsync(torrentId, page, pageSize);
-        return Ok(comments.Select(Mapper.ToCommentDto));
+        var result = await _commentService.GetCommentsForTorrentAsync(torrentId, page, pageSize);
+        
+        return Ok(new PaginatedResult<CommentDto>
+        {
+            Items = result.Items.Select(Mapper.ToCommentDto).ToList(),
+            Page = result.Page,
+            PageSize = result.PageSize,
+            TotalItems = result.TotalItems,
+            TotalPages = result.TotalPages
+        });
     }
 
     [HttpPut("comments/{id:int}")]

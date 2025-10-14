@@ -70,15 +70,28 @@ public class CommentService : ICommentService
         return (true, "comment.post.success", newComment);
     }
 
-    public async Task<IEnumerable<Comment>> GetCommentsForTorrentAsync(int torrentId, int page, int pageSize)
+    public async Task<PaginatedResult<Comment>> GetCommentsForTorrentAsync(int torrentId, int page, int pageSize)
     {
-        return await _context.Comments
+        var query = _context.Comments
             .Where(c => c.TorrentId == torrentId)
-            .OrderBy(c => c.CreatedAt)
+            .OrderBy(c => c.CreatedAt);
+
+        var totalItems = await query.CountAsync();
+
+        var comments = await query
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .Include(c => c.User)
             .ToListAsync();
+
+        return new PaginatedResult<Comment>
+        {
+            Items = comments,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+        };
     }
 
     public async Task<(bool Success, string Message)> UpdateCommentAsync(int commentId, UpdateCommentRequestDto request, int userId)
