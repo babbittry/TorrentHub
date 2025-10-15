@@ -229,7 +229,9 @@ namespace TorrentHub.Data
                     var color = f.Internet.Color().Replace("#", ""); // Get a hex color without #
                     var svgContent = GenerateSimpleAvatarSvg(firstLetter, color);
 
-                    var avatarDirectory = Path.Combine(env.WebRootPath, "avatars");
+                    // Use relative path to avoid WebRootPath null issue
+                    var webRootPath = env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                    var avatarDirectory = Path.Combine(webRootPath, "avatars");
                     if (!Directory.Exists(avatarDirectory))
                     {
                         Directory.CreateDirectory(avatarDirectory);
@@ -246,6 +248,8 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.UploadedBytes, f => (ulong)f.Random.Long(0, 100_000_000_000)) // Up to 100 GB
                 .RuleFor(u => u.DownloadedBytes,
                     (f, u) => (ulong)f.Random.Long(0, (long)u.UploadedBytes)) // Downloaded less than uploaded
+                .RuleFor(u => u.NominalUploadedBytes, (f, u) => u.UploadedBytes)
+                .RuleFor(u => u.NominalDownloadedBytes, (f, u) => u.DownloadedBytes)
                 .RuleFor(u => u.RssKey, f => f.Random.Guid())
                 .RuleFor(u => u.Passkey, f => f.Random.Guid())
                 .RuleFor(u => u.Role, f => f.PickRandom<UserRole>(UserRole.User, UserRole.Moderator))
@@ -253,17 +257,23 @@ namespace TorrentHub.Data
                 .RuleFor(u => u.TwoFactorType, f => TwoFactorType.Email)
                 .RuleFor(u => u.CreatedAt, f => f.Date.Past(5).ToUniversalTime())
                 .RuleFor(u => u.BanStatus, f => f.Random.Bool(0.1f) ? f.PickRandom<BanStatus>() : BanStatus.None)
+                .RuleFor(u => u.CheatWarningCount, f => 0) // Default to 0 for seed data
                 .RuleFor(u => u.BanReason, (f, u) => u.BanStatus != BanStatus.None ? f.Lorem.Sentence(50).Substring(0, 50) : null)
                 .RuleFor(u => u.BanUntil, (f, u) => u.BanStatus != BanStatus.None ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
                 .RuleFor(u => u.InviteNum, f => f.Random.UInt(0, 5))
                 .RuleFor(u => u.Coins, f => (ulong)f.Random.Long(0, 1000))
                 .RuleFor(u => u.TotalSeedingTimeMinutes, f => (ulong)f.Random.Long(0, 10000))
+                .RuleFor(u => u.TotalLeechingTimeMinutes, f => (ulong)f.Random.Long(0, 5000))
                 .RuleFor(u => u.IsDoubleUploadActive, f => f.Random.Bool(0.05f))
                 .RuleFor(u => u.DoubleUploadExpiresAt,
                     (f, u) => u.IsDoubleUploadActive ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
                 .RuleFor(u => u.IsNoHRActive, f => f.Random.Bool(0.05f))
                 .RuleFor(u => u.NoHRExpiresAt,
                     (f, u) => u.IsNoHRActive ? f.Date.Future(1).ToUniversalTime() : (DateTime?)null)
+                .RuleFor(u => u.UserTitle, f => f.Random.Bool(0.2f) ? f.Lorem.Word() : null)
+                .RuleFor(u => u.EquippedBadgeId, f => null) // Will be set randomly in SeedUserBadgesAsync
+                .RuleFor(u => u.ColorfulUsernameExpiresAt, f =>
+                    f.Random.Bool(0.1f) ? f.Date.Future(1).ToUniversalTime() : (DateTimeOffset?)null)
                 .RuleFor(u => u.InviteId, f => null); // Explicitly set InviteId to null
 
             var users = userFaker.Generate(count);
@@ -453,6 +463,9 @@ namespace TorrentHub.Data
                             context.Comments.AddRange(replies);
                             parentComment.ReplyCount = replyCount;
                             
+                            // 先保存二级回复以获取ID
+                            await context.SaveChangesAsync();
+                            
                             // 为二级回复生成三级回复(10%概率)
                             foreach (var secondLevelReply in replies)
                             {
@@ -496,10 +509,18 @@ namespace TorrentHub.Data
             if (!await context.Messages.AnyAsync() && users.Count >= 2)
             {
                 var messageFaker = new Faker<Message>()
-                    .RuleFor(m => m.Sender, f => f.PickRandom(users))
-                    .RuleFor(m => m.Receiver,
-                        (f, m) => f.PickRandom(users.Where(u => u.Id != m.Sender!.Id)
-                            .ToList())) // Ensure sender != receiver
+                    .RuleFor(m => m.SenderId, f =>
+                    {
+                        var sender = f.PickRandom(users);
+                        return sender.Id;
+                    })
+                    .RuleFor(m => m.Sender, (f, m) => users.First(u => u.Id == m.SenderId))
+                    .RuleFor(m => m.ReceiverId, (f, m) =>
+                    {
+                        var receiver = f.PickRandom(users.Where(u => u.Id != m.SenderId).ToList());
+                        return receiver.Id;
+                    })
+                    .RuleFor(m => m.Receiver, (f, m) => users.First(u => u.Id == m.ReceiverId))
                     .RuleFor(m => m.Subject, f => f.Lorem.Sentence(5))
                     .RuleFor(m => m.Content, f => f.Lorem.Paragraph())
                     .RuleFor(m => m.SentAt, f => f.Date.Past(1).ToUniversalTime())
@@ -527,7 +548,12 @@ namespace TorrentHub.Data
                     .RuleFor(a => a.Title, f => f.Lorem.Sentence(5))
                     .RuleFor(a => a.Content, f => f.Lorem.Paragraph())
                     .RuleFor(a => a.CreatedAt, f => f.Date.Past(1).ToUniversalTime())
-                    .RuleFor(a => a.CreatedByUser, f => f.PickRandom(adminModerators));
+                    .RuleFor(a => a.CreatedByUserId, f =>
+                    {
+                        var user = f.PickRandom(adminModerators);
+                        return user.Id;
+                    })
+                    .RuleFor(a => a.CreatedByUser, (f, a) => adminModerators.First(u => u.Id == a.CreatedByUserId));
 
                 var announcements = announcementFaker.Generate(count);
                 context.Announcements.AddRange(announcements);
@@ -629,7 +655,9 @@ namespace TorrentHub.Data
                     Port = faker.Internet.Port(),
                     LastAnnounce = faker.Date.Recent(1).ToUniversalTime(),
                     IsSeeder = faker.Random.Bool(),
-                    UserAgent = (new Func<string>(() => { var ua = faker.Internet.UserAgent(); return ua.Substring(0, Math.Min(ua.Length, 50)); }))() // Add fake user agent, limited to 50 chars
+                    UserAgent = (new Func<string>(() => { var ua = faker.Internet.UserAgent(); return ua.Substring(0, Math.Min(ua.Length, 100)); }))(), // Updated to 100 chars to match Entity definition
+                    Uploaded = (ulong)faker.Random.Long(0, 100_000_000_000), // 0-100GB
+                    Downloaded = (ulong)faker.Random.Long(0, 100_000_000_000) // 0-100GB
                 }).ToList();
 
                 context.Peers.AddRange(peers);
@@ -794,6 +822,9 @@ namespace TorrentHub.Data
                             context.ForumPosts.AddRange(replies);
                             parentPost.ReplyCount = replyCount;
 
+                            // 先保存二级回复以获取ID
+                            await context.SaveChangesAsync();
+
                             foreach (var secondLevelReply in replies)
                             {
                                 if (faker.Random.Bool(0.15f) && secondLevelReply.Depth < 2)
@@ -823,7 +854,7 @@ namespace TorrentHub.Data
                     var maxCreatedAt = await context.ForumPosts
                         .Where(p => p.TopicId == topic.Id)
                         .MaxAsync(p => (DateTimeOffset?)p.CreatedAt);
-                    topic.LastPostTime = (maxCreatedAt ?? topic.CreatedAt).DateTime;
+                    topic.LastPostTime = (maxCreatedAt ?? topic.CreatedAt).UtcDateTime;
                 }
 
                 await context.SaveChangesAsync();
