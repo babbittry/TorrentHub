@@ -9,4 +9,10 @@ public class ForumPostDto
     public UserDisplayDto? Author { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? EditedAt { get; set; }
+
+    // Reply functionality fields
+    public int? ParentPostId { get; set; }
+    public UserDisplayDto? ReplyToUser { get; set; }
+    public int Depth { get; set; }
+    public int ReplyCount { get; set; }
 }

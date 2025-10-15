@@ -37,22 +37,17 @@ public class CommentsController : ControllerBase
         return Ok(Mapper.ToCommentDto(comment!));
     }
 
+    /// <summary>
+    /// Get comments with lazy loading
+    /// </summary>
     [HttpGet("torrents/{torrentId}/comments")]
-    public async Task<ActionResult<PaginatedResult<CommentDto>>> GetCommentsForTorrent(
+    public async Task<ActionResult<CommentListResponse>> GetCommentsLazy(
         int torrentId,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery] int afterFloor = 0,
+        [FromQuery] int limit = 30)
     {
-        var result = await _commentService.GetCommentsForTorrentAsync(torrentId, page, pageSize);
-        
-        return Ok(new PaginatedResult<CommentDto>
-        {
-            Items = result.Items.Select(Mapper.ToCommentDto).ToList(),
-            Page = result.Page,
-            PageSize = result.PageSize,
-            TotalItems = result.TotalItems,
-            TotalPages = result.TotalPages
-        });
+        var result = await _commentService.GetCommentsLazyAsync(torrentId, afterFloor, limit);
+        return Ok(result);
     }
 
     [HttpPut("comments/{id:int}")]

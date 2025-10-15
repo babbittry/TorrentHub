@@ -32,4 +32,24 @@ public class ForumPost
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? EditedAt { get; set; }
+
+    // Reply functionality fields
+    public int? ParentPostId { get; set; }
+
+    [ForeignKey(nameof(ParentPostId))]
+    public ForumPost? ParentPost { get; set; }
+
+    public int? ReplyToUserId { get; set; }
+
+    [ForeignKey(nameof(ReplyToUserId))]
+    public User? ReplyToUser { get; set; }
+
+    [Required]
+    public int Depth { get; set; } = 0;
+
+    [Required]
+    public int ReplyCount { get; set; } = 0;
+
+    // Navigation property for replies
+    public ICollection<ForumPost> Replies { get; set; } = new List<ForumPost>();
 }

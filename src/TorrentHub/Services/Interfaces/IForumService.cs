@@ -17,5 +17,6 @@ public interface IForumService
     Task UnlockTopicAsync(int topicId);
     Task PinTopicAsync(int topicId);
     Task UnpinTopicAsync(int topicId);
+    Task<ForumPostListResponse> GetPostsLazyAsync(int topicId, int afterFloor = 0, int limit = 30);
 }
 

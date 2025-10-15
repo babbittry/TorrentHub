@@ -33,66 +33,122 @@ public class CommentService : ICommentService
             return (false, "error.torrent.notFound", null);
         }
 
-        var newComment = new Comment
+        // Validate parent comment if provided
+        Comment? parentComment = null;
+        if (request.ParentCommentId.HasValue)
         {
-            TorrentId = torrentId,
-            UserId = userId,
-            Text = request.Text,
-            CreatedAt = DateTimeOffset.UtcNow
-        };
-
-        _context.Comments.Add(newComment);
-
-        var settings = await _settingsService.GetSiteSettingsAsync();
-
-        var dailyStats = await _context.UserDailyStats
-            .FirstOrDefaultAsync(s => s.UserId == userId && s.Date == today);
-
-        if (dailyStats == null)
-        {
-            dailyStats = new UserDailyStats { UserId = userId, Date = today };
-            _context.UserDailyStats.Add(dailyStats);
+            parentComment = await _context.Comments
+                .FirstOrDefaultAsync(c => c.Id == request.ParentCommentId.Value && c.TorrentId == torrentId);
+            
+            if (parentComment == null)
+            {
+                return (false, "error.comment.parent.notFound", null);
+            }
+            
+            // Check depth limit (max 10 levels)
+            if (parentComment.Depth >= 10)
+            {
+                return (false, "error.comment.maxDepth", null);
+            }
         }
 
-        if (dailyStats.CommentBonusesGiven < settings.MaxDailyCommentBonuses)
+        // Get next Floor number with retry for concurrency
+        const int maxRetries = 3;
+        for (int retry = 0; retry < maxRetries; retry++)
         {
-            dailyStats.CommentBonusesGiven++;
-            await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = settings.CommentBonus });
-            _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId} and earned {Bonus} Coins. Daily count: {Count}", userId, torrentId, settings.CommentBonus, dailyStats.CommentBonusesGiven);
-        }
-        else
-        {
-            _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId}. Daily bonus limit reached.", userId, torrentId);
+            try
+            {
+                var maxFloor = await _context.Comments
+                    .Where(c => c.TorrentId == torrentId)
+                    .MaxAsync(c => (int?)c.Floor) ?? 0;
+
+                var newComment = new Comment
+                {
+                    TorrentId = torrentId,
+                    UserId = userId,
+                    Text = request.Text,
+                    Floor = maxFloor + 1,
+                    ParentCommentId = request.ParentCommentId,
+                    ReplyToUserId = request.ReplyToUserId,
+                    Depth = parentComment?.Depth + 1 ?? 0,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+
+                _context.Comments.Add(newComment);
+
+                // Update parent comment reply count
+                if (parentComment != null)
+                {
+                    parentComment.ReplyCount++;
+                }
+
+                var settings = await _settingsService.GetSiteSettingsAsync();
+
+                var dailyStats = await _context.UserDailyStats
+                    .FirstOrDefaultAsync(s => s.UserId == userId && s.Date == today);
+
+                if (dailyStats == null)
+                {
+                    dailyStats = new UserDailyStats { UserId = userId, Date = today };
+                    _context.UserDailyStats.Add(dailyStats);
+                }
+
+                if (dailyStats.CommentBonusesGiven < settings.MaxDailyCommentBonuses)
+                {
+                    dailyStats.CommentBonusesGiven++;
+                    await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = settings.CommentBonus });
+                    _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId} and earned {Bonus} Coins. Daily count: {Count}", userId, torrentId, settings.CommentBonus, dailyStats.CommentBonusesGiven);
+                }
+                else
+                {
+                    _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId}. Daily bonus limit reached.", userId, torrentId);
+                }
+
+                await _context.SaveChangesAsync();
+
+                return (true, "comment.post.success", newComment);
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && retry < maxRetries - 1)
+            {
+                // Floor conflict, retry with a short delay
+                await Task.Delay(Random.Shared.Next(20, 50));
+            }
         }
 
-        await _context.SaveChangesAsync();
-
-        return (true, "comment.post.success", newComment);
+        return (false, "error.comment.create.failed", null);
     }
 
-    public async Task<PaginatedResult<Comment>> GetCommentsForTorrentAsync(int torrentId, int page, int pageSize)
+    private bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
-        var query = _context.Comments
-            .Where(c => c.TorrentId == torrentId)
-            .OrderBy(c => c.CreatedAt);
+        return ex.InnerException?.Message.Contains("IX_Comments_TorrentId_Floor") ?? false;
+    }
 
-        var totalItems = await query.CountAsync();
+    public async Task<CommentListResponse> GetCommentsLazyAsync(int torrentId, int afterFloor = 0, int limit = 30)
+    {
+        // Limit to maximum 100 items per request
+        limit = Math.Min(limit, 100);
 
-        var comments = await query
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
+        var comments = await _context.Comments
+            .Where(c => c.TorrentId == torrentId && c.Floor > afterFloor)
             .Include(c => c.User)
+            .Include(c => c.ReplyToUser)
+            .OrderBy(c => c.Floor)
+            .Take(limit)
+            .AsNoTracking()
             .ToListAsync();
 
-        return new PaginatedResult<Comment>
+        var totalCount = await _context.Comments
+            .CountAsync(c => c.TorrentId == torrentId);
+
+        return new CommentListResponse
         {
-            Items = comments,
-            Page = page,
-            PageSize = pageSize,
-            TotalItems = totalItems,
-            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+            Comments = comments.Select(c => Mappers.Mapper.ToCommentDto(c)).ToList(),
+            HasMore = afterFloor + limit < totalCount,
+            TotalCount = totalCount,
+            LoadedCount = afterFloor + comments.Count
         };
     }
+
 
     public async Task<(bool Success, string Message)> UpdateCommentAsync(int commentId, UpdateCommentRequestDto request, int userId)
     {
@@ -128,6 +184,17 @@ public class CommentService : ICommentService
         if (user == null || (comment.UserId != userId && user.Role != UserRole.Administrator))
         {
             return (false, "error.unauthorized");
+        }
+
+        // Update parent comment reply count if exists
+        if (comment.ParentCommentId.HasValue)
+        {
+            var parent = await _context.Comments.FindAsync(comment.ParentCommentId.Value);
+            if (parent != null)
+            {
+                parent.ReplyCount = await _context.Comments
+                    .CountAsync(c => c.ParentCommentId == comment.ParentCommentId.Value && c.Id != commentId);
+            }
         }
 
         _context.Comments.Remove(comment);

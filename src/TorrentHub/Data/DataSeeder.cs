@@ -393,16 +393,96 @@ namespace TorrentHub.Data
         {
             if (!await context.Comments.AnyAsync() && torrents.Any() && users.Any())
             {
-                var commentFaker = new Faker<Comment>()
-                    .RuleFor(c => c.Text, f => f.Lorem.Sentence())
-                    .RuleFor(c => c.Torrent, f => f.PickRandom(torrents))
-                    .RuleFor(c => c.User, f => f.PickRandom(users))
-                    .RuleFor(c => c.CreatedAt, f => f.Date.Past(1).ToUniversalTime());
+                var faker = new Faker();
+                var totalComments = 0;
 
-                var comments = commentFaker.Generate(count);
-                context.Comments.AddRange(comments);
-                await context.SaveChangesAsync();
-                logger.LogInformation("{Count} comments seeded successfully.", count);
+                foreach (var torrent in torrents.Take(5)) // 为前5个种子生成评论
+                {
+                    var commentsForTorrent = new List<Comment>();
+                    var topLevelCount = faker.Random.Int(5, 15); // 每个种子5-15条顶级评论
+                    int currentFloor = 1;
+
+                    // 生成顶级评论
+                    for (int i = 0; i < topLevelCount; i++)
+                    {
+                        var topLevelComment = new Comment
+                        {
+                            Text = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
+                            Torrent = torrent,
+                            User = faker.PickRandom(users),
+                            CreatedAt = faker.Date.Past(1).ToUniversalTime(),
+                            Floor = currentFloor++,
+                            ParentCommentId = null,
+                            ReplyToUserId = null,
+                            Depth = 0,
+                            ReplyCount = 0
+                        };
+                        commentsForTorrent.Add(topLevelComment);
+                    }
+
+                    // 保存顶级评论以获取ID
+                    context.Comments.AddRange(commentsForTorrent);
+                    await context.SaveChangesAsync();
+
+                    // 为部分顶级评论生成回复(30%概率)
+                    foreach (var parentComment in commentsForTorrent.Where(c => c.Depth == 0).OrderBy(c => c.Floor))
+                    {
+                        if (faker.Random.Bool(0.3f)) // 30%的顶级评论有回复
+                        {
+                            var replyCount = faker.Random.Int(1, 3); // 1-3条回复
+                            var replies = new List<Comment>();
+
+                            for (int i = 0; i < replyCount; i++)
+                            {
+                                var replyUser = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList());
+                                var reply = new Comment
+                                {
+                                    Text = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
+                                    Torrent = torrent,
+                                    User = replyUser,
+                                    CreatedAt = faker.Date.Between(parentComment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                    Floor = currentFloor++,
+                                    ParentCommentId = parentComment.Id,
+                                    ReplyToUserId = parentComment.UserId,
+                                    Depth = 1,
+                                    ReplyCount = 0
+                                };
+                                replies.Add(reply);
+                            }
+
+                            context.Comments.AddRange(replies);
+                            parentComment.ReplyCount = replyCount;
+                            
+                            // 为二级回复生成三级回复(10%概率)
+                            foreach (var secondLevelReply in replies)
+                            {
+                                if (faker.Random.Bool(0.1f) && secondLevelReply.Depth < 2)
+                                {
+                                    var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList());
+                                    var thirdLevelReply = new Comment
+                                    {
+                                        Text = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
+                                        Torrent = torrent,
+                                        User = thirdLevelUser,
+                                        CreatedAt = faker.Date.Between(secondLevelReply.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                        Floor = currentFloor++,
+                                        ParentCommentId = secondLevelReply.Id,
+                                        ReplyToUserId = secondLevelReply.UserId,
+                                        Depth = 2,
+                                        ReplyCount = 0
+                                    };
+                                    context.Comments.Add(thirdLevelReply);
+                                    secondLevelReply.ReplyCount++;
+                                }
+                            }
+                        }
+                    }
+
+                    await context.SaveChangesAsync();
+                    totalComments += commentsForTorrent.Count;
+                }
+
+                logger.LogInformation("{Count} comments with replies seeded successfully.", totalComments);
             }
             else
             {
@@ -645,6 +725,7 @@ namespace TorrentHub.Data
             // 2. Seed Forum Topics and Posts
             if (!await context.ForumTopics.AnyAsync() && users.Any() && forumCategories.Any())
             {
+                var faker = new Faker();
                 var topicFaker = new Faker<ForumTopic>()
                     .RuleFor(t => t.Title, f => f.Lorem.Sentence(5))
                     .RuleFor(t => t.Author, f => f.PickRandom(users))
@@ -655,43 +736,98 @@ namespace TorrentHub.Data
 
                 var topics = topicFaker.Generate(25); // Create 25 topics
 
-                var postFaker = new Faker<ForumPost>()
-                    .RuleFor(p => p.Content, f => { var content = string.Join("\n", f.Lorem.Paragraphs(f.Random.Int(1, 4))); return content.Substring(0, Math.Min(content.Length, 1000)); })
-                    .RuleFor(p => p.Author, f => f.PickRandom(users));
-
-                var dateFaker = new Faker();
-
                 foreach (var topic in topics)
                 {
-                    var postCount = new Faker().Random.Int(1, 15);
-                    var posts = new List<ForumPost>();
+                    var postsForTopic = new List<ForumPost>();
+                    var topLevelCount = faker.Random.Int(3, 12);
+                    int currentFloor = 1;
 
-                    // Ensure the first post is by the topic author
-                    var firstPost = postFaker.Clone()
-                        .RuleFor(p => p.Author, (f, p) => topic.Author)
-                        .Generate();
-
-                    firstPost.Topic = topic;
-                    firstPost.CreatedAt = topic.CreatedAt;
-                    posts.Add(firstPost);
-
-                    // Generate subsequent posts
-                    for (int i = 1; i < postCount; i++)
+                    // 生成顶级帖子
+                    for (int i = 0; i < topLevelCount; i++)
                     {
-                        var subsequentPost = postFaker.Generate();
-                        subsequentPost.Topic = topic;
-                        subsequentPost.CreatedAt =
-                            dateFaker.Date.Between(topic.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime();
-                        posts.Add(subsequentPost);
+                        var content = string.Join("\n", faker.Lorem.Paragraphs(faker.Random.Int(1, 4)));
+                        var topLevelPost = new ForumPost
+                        {
+                            Content = content.Substring(0, Math.Min(content.Length, 1000)),
+                            Topic = topic,
+                            Author = i == 0 ? topic.Author : faker.PickRandom(users),
+                            CreatedAt = i == 0 ? topic.CreatedAt : faker.Date.Between(topic.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                            Floor = currentFloor++,
+                            ParentPostId = null,
+                            ReplyToUserId = null,
+                            Depth = 0,
+                            ReplyCount = 0
+                        };
+                        postsForTopic.Add(topLevelPost);
                     }
 
-                    topic.Posts = posts;
-                    topic.LastPostTime = posts.Max(p => p.CreatedAt);
+                    context.ForumPosts.AddRange(postsForTopic);
+                    await context.SaveChangesAsync();
+
+                    // 为部分顶级帖子生成回复
+                    foreach (var parentPost in postsForTopic.Where(p => p.Depth == 0).OrderBy(p => p.Floor))
+                    {
+                        if (faker.Random.Bool(0.4f))
+                        {
+                            var replyCount = faker.Random.Int(1, 4);
+                            var replies = new List<ForumPost>();
+
+                            for (int i = 0; i < replyCount; i++)
+                            {
+                                var replyUser = faker.PickRandom(users.Where(u => u.Id != parentPost.AuthorId).ToList());
+                                var replyContent = string.Join("\n", faker.Lorem.Paragraphs(faker.Random.Int(1, 2)));
+                                var reply = new ForumPost
+                                {
+                                    Content = $"@{parentPost.Author?.UserName ?? "User"}\n{replyContent.Substring(0, Math.Min(replyContent.Length, 800))}",
+                                    Topic = topic,
+                                    Author = replyUser,
+                                    CreatedAt = faker.Date.Between(parentPost.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                    Floor = currentFloor++,
+                                    ParentPostId = parentPost.Id,
+                                    ReplyToUserId = parentPost.AuthorId,
+                                    Depth = 1,
+                                    ReplyCount = 0
+                                };
+                                replies.Add(reply);
+                            }
+
+                            context.ForumPosts.AddRange(replies);
+                            parentPost.ReplyCount = replyCount;
+
+                            foreach (var secondLevelReply in replies)
+                            {
+                                if (faker.Random.Bool(0.15f) && secondLevelReply.Depth < 2)
+                                {
+                                    var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.AuthorId).ToList());
+                                    var thirdContent = faker.Lorem.Sentence(faker.Random.Int(3, 8));
+                                    var thirdLevelReply = new ForumPost
+                                    {
+                                        Content = $"@{secondLevelReply.Author?.UserName ?? "User"} {thirdContent}",
+                                        Topic = topic,
+                                        Author = thirdLevelUser,
+                                        CreatedAt = faker.Date.Between(secondLevelReply.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                        Floor = currentFloor++,
+                                        ParentPostId = secondLevelReply.Id,
+                                        ReplyToUserId = secondLevelReply.AuthorId,
+                                        Depth = 2,
+                                        ReplyCount = 0
+                                    };
+                                    context.ForumPosts.Add(thirdLevelReply);
+                                    secondLevelReply.ReplyCount++;
+                                }
+                            }
+                        }
+                    }
+
+                    await context.SaveChangesAsync();
+                    var maxCreatedAt = await context.ForumPosts
+                        .Where(p => p.TopicId == topic.Id)
+                        .MaxAsync(p => (DateTimeOffset?)p.CreatedAt);
+                    topic.LastPostTime = (maxCreatedAt ?? topic.CreatedAt).DateTime;
                 }
 
-                context.ForumTopics.AddRange(topics);
                 await context.SaveChangesAsync();
-                logger.LogInformation("{TopicCount} forum topics and their posts seeded successfully.", topics.Count);
+                logger.LogInformation("{TopicCount} forum topics with posts and replies seeded successfully.", topics.Count);
             }
             else
             {

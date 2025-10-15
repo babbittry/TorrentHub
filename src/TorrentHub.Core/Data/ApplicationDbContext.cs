@@ -113,6 +113,46 @@ namespace TorrentHub.Core.Data
                 .HasForeignKey(p => p.TopicId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // ForumPost reply relationships
+            modelBuilder.Entity<ForumPost>()
+                .HasOne(p => p.ParentPost)
+                .WithMany(p => p.Replies)
+                .HasForeignKey(p => p.ParentPostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ForumPost>()
+                .HasOne(p => p.ReplyToUser)
+                .WithMany()
+                .HasForeignKey(p => p.ReplyToUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<ForumPost>()
+                .HasIndex(p => new { p.TopicId, p.Floor })
+                .IsUnique();
+
+            modelBuilder.Entity<ForumPost>()
+                .HasIndex(p => p.ParentPostId);
+
+            // Comment reply relationships
+            modelBuilder.Entity<Comment>()
+                .HasOne(c => c.ParentComment)
+                .WithMany(c => c.Replies)
+                .HasForeignKey(c => c.ParentCommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Comment>()
+                .HasOne(c => c.ReplyToUser)
+                .WithMany()
+                .HasForeignKey(c => c.ReplyToUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<Comment>()
+                .HasIndex(c => new { c.TorrentId, c.Floor })
+                .IsUnique();
+
+            modelBuilder.Entity<Comment>()
+                .HasIndex(c => c.ParentCommentId);
+
             modelBuilder.Entity<SiteSetting>()
                 .Property(s => s.Value)
                 .HasColumnType("jsonb");

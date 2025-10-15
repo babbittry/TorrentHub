@@ -120,8 +120,12 @@ public static partial class Mapper
     public static partial RequestDto ToRequestDto(Request request);
 
     [MapProperty(nameof(Comment.User), nameof(CommentDto.User))]
+    [MapProperty(nameof(Comment.ReplyToUser), nameof(CommentDto.ReplyToUser))]
     [MapperIgnoreSource(nameof(Comment.Torrent))]
     [MapperIgnoreSource(nameof(Comment.UserId))]
+    [MapperIgnoreSource(nameof(Comment.ParentComment))]
+    [MapperIgnoreSource(nameof(Comment.Replies))]
+    [MapperIgnoreSource(nameof(Comment.ReplyToUserId))]
     public static partial CommentDto ToCommentDto(Comment comment);
 
     [MapProperty(nameof(Message.Sender), nameof(MessageDto.Sender))]
@@ -159,8 +163,12 @@ public static partial class Mapper
     public static partial InviteDto ToInviteDto(Invite invite);
 
     [MapProperty(nameof(ForumPost.Author), nameof(ForumPostDto.Author))]
+    [MapProperty(nameof(ForumPost.ReplyToUser), nameof(ForumPostDto.ReplyToUser))]
     [MapperIgnoreSource(nameof(ForumPost.Topic))]
     [MapperIgnoreSource(nameof(ForumPost.AuthorId))]
+    [MapperIgnoreSource(nameof(ForumPost.ParentPost))]
+    [MapperIgnoreSource(nameof(ForumPost.Replies))]
+    [MapperIgnoreSource(nameof(ForumPost.ReplyToUserId))]
     public static partial ForumPostDto ToForumPostDto(ForumPost post);
 
     [MapProperty(nameof(ForumTopic.Author), nameof(ForumTopicDto.Author))]

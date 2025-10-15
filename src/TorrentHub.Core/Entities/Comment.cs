@@ -28,4 +28,27 @@ public class Comment
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset? EditedAt { get; set; }
+
+    // Reply functionality fields
+    [Required]
+    public int Floor { get; set; }
+
+    public int? ParentCommentId { get; set; }
+
+    [ForeignKey(nameof(ParentCommentId))]
+    public Comment? ParentComment { get; set; }
+
+    public int? ReplyToUserId { get; set; }
+
+    [ForeignKey(nameof(ReplyToUserId))]
+    public User? ReplyToUser { get; set; }
+
+    [Required]
+    public int Depth { get; set; } = 0;
+
+    [Required]
+    public int ReplyCount { get; set; } = 0;
+
+    // Navigation property for replies
+    public ICollection<Comment> Replies { get; set; } = new List<Comment>();
 }

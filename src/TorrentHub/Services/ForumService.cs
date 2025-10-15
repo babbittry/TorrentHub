@@ -231,27 +231,78 @@ public class ForumService : IForumService
             throw new InvalidOperationException("Topic is locked");
         }
 
+        // Validate parent post if provided
+        ForumPost? parentPost = null;
+        if (createPostDto.ParentPostId.HasValue)
+        {
+            parentPost = await _context.ForumPosts
+                .FirstOrDefaultAsync(p => p.Id == createPostDto.ParentPostId.Value && p.TopicId == topicId);
+            
+            if (parentPost == null)
+            {
+                throw new KeyNotFoundException("Parent post not found");
+            }
+            
+            // Check depth limit (max 10 levels)
+            if (parentPost.Depth >= 10)
+            {
+                throw new InvalidOperationException("Maximum reply depth exceeded");
+            }
+        }
+
         var now = DateTimeOffset.UtcNow;
 
-        var floor = await _context.ForumPosts.CountAsync(p => p.TopicId == topicId) + 1;
-
-        var post = new ForumPost
+        // Get next Floor number with retry for concurrency
+        const int maxRetries = 3;
+        for (int retry = 0; retry < maxRetries; retry++)
         {
-            TopicId = topicId,
-            AuthorId = authorId,
-            Content = createPostDto.Content,
-            CreatedAt = now,
-            Floor = floor
-        };
+            try
+            {
+                var maxFloor = await _context.ForumPosts
+                    .Where(p => p.TopicId == topicId)
+                    .MaxAsync(p => (int?)p.Floor) ?? 0;
 
-        topic.LastPostTime = now;
+                var post = new ForumPost
+                {
+                    TopicId = topicId,
+                    AuthorId = authorId,
+                    Content = createPostDto.Content,
+                    CreatedAt = now,
+                    Floor = maxFloor + 1,
+                    ParentPostId = createPostDto.ParentPostId,
+                    ReplyToUserId = createPostDto.ReplyToUserId,
+                    Depth = parentPost?.Depth + 1 ?? 0,
+                    ReplyCount = 0
+                };
 
-        _context.ForumPosts.Add(post);
-        await _context.SaveChangesAsync();
+                // Update parent post reply count
+                if (parentPost != null)
+                {
+                    parentPost.ReplyCount++;
+                }
 
-        var postDto = Mappers.Mapper.ToForumPostDto(post);
-        postDto.Author = await MapToUserDisplayDtoAsync(user);
-        return postDto;
+                topic.LastPostTime = now;
+
+                _context.ForumPosts.Add(post);
+                await _context.SaveChangesAsync();
+
+                var postDto = Mappers.Mapper.ToForumPostDto(post);
+                postDto.Author = await MapToUserDisplayDtoAsync(user);
+                return postDto;
+            }
+            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && retry < maxRetries - 1)
+            {
+                // Floor conflict, retry with a short delay
+                await Task.Delay(Random.Shared.Next(20, 50));
+            }
+        }
+
+        throw new InvalidOperationException("Failed to create post after retries");
+    }
+
+    private bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        return ex.InnerException?.Message.Contains("IX_ForumPosts_TopicId_Floor") ?? false;
     }
 
     public async Task UpdateTopicAsync(int topicId, UpdateForumTopicDto updateTopicDto, int userId)
@@ -351,6 +402,17 @@ public class ForumService : IForumService
         {
             throw new InvalidOperationException($"Post with ID {postId} is not associated with any topic.");
         }
+
+        // Update parent post reply count if exists
+        if (post.ParentPostId.HasValue)
+        {
+            var parent = await _context.ForumPosts.FindAsync(post.ParentPostId.Value);
+            if (parent != null)
+            {
+                parent.ReplyCount = await _context.ForumPosts
+                    .CountAsync(p => p.ParentPostId == post.ParentPostId.Value && p.Id != postId);
+            }
+        }
         
         var firstPostInTopic = await _context.ForumPosts.OrderBy(p => p.CreatedAt).FirstAsync(p => p.TopicId == topic.Id);
 
@@ -379,6 +441,50 @@ public class ForumService : IForumService
         }
 
         await _context.SaveChangesAsync();
+    }
+
+    public async Task<ForumPostListResponse> GetPostsLazyAsync(int topicId, int afterFloor = 0, int limit = 30)
+    {
+        // Limit to maximum 100 items per request
+        limit = Math.Min(limit, 100);
+
+        var posts = await _context.ForumPosts
+            .Where(p => p.TopicId == topicId && p.Floor > afterFloor)
+            .Include(p => p.Author)
+            .Include(p => p.ReplyToUser)
+            .OrderBy(p => p.Floor)
+            .Take(limit)
+            .AsNoTracking()
+            .ToListAsync();
+
+        var totalCount = await _context.ForumPosts
+            .CountAsync(p => p.TopicId == topicId);
+
+        var authorIds = posts.Select(p => p.AuthorId).Distinct().ToList();
+        var replyToUserIds = posts.Where(p => p.ReplyToUserId.HasValue)
+            .Select(p => p.ReplyToUserId!.Value).Distinct().ToList();
+        
+        var allUserIds = authorIds.Union(replyToUserIds).ToList();
+        var authors = await GetUsersDisplayInfoAsync(allUserIds);
+
+        var postDtos = posts.Select(p =>
+        {
+            var dto = Mappers.Mapper.ToForumPostDto(p);
+            dto.Author = authors.GetValueOrDefault(p.AuthorId);
+            if (p.ReplyToUserId.HasValue)
+            {
+                dto.ReplyToUser = authors.GetValueOrDefault(p.ReplyToUserId.Value);
+            }
+            return dto;
+        }).ToList();
+
+        return new ForumPostListResponse
+        {
+            Posts = postDtos,
+            HasMore = afterFloor + limit < totalCount,
+            TotalCount = totalCount,
+            LoadedCount = afterFloor + posts.Count
+        };
     }
 
     public async Task LockTopicAsync(int topicId)

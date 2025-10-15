@@ -90,6 +90,26 @@ public class ForumController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Get posts with lazy loading
+    /// </summary>
+    [HttpGet("topics/{topicId}/posts")]
+    public async Task<ActionResult<ForumPostListResponse>> GetPostsLazy(
+        int topicId,
+        [FromQuery] int afterFloor = 0,
+        [FromQuery] int limit = 30)
+    {
+        try
+        {
+            var result = await _forumService.GetPostsLazyAsync(topicId, afterFloor, limit);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException e)
+        {
+            return NotFound(e.Message);
+        }
+    }
+
     // PUT /api/forum/topics/{topicId}
     [HttpPut("topics/{topicId}")]
     public async Task<IActionResult> UpdateTopic(int topicId, [FromBody] UpdateForumTopicDto updateTopicDto)
