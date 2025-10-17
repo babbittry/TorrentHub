@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TorrentHub.Core.Entities;
 
-public class Comment
+public class TorrentComment
 {
     [Key]
     public int Id { get; set; }
@@ -36,7 +36,7 @@ public class Comment
     public int? ParentCommentId { get; set; }
 
     [ForeignKey(nameof(ParentCommentId))]
-    public Comment? ParentComment { get; set; }
+    public TorrentComment? ParentTorrentComment { get; set; }
 
     public int? ReplyToUserId { get; set; }
 
@@ -50,5 +50,5 @@ public class Comment
     public int ReplyCount { get; set; } = 0;
 
     // Navigation property for replies
-    public ICollection<Comment> Replies { get; set; } = new List<Comment>();
+    public ICollection<TorrentComment> Replies { get; set; } = new List<TorrentComment>();
 }

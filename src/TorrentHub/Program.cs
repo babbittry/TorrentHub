@@ -79,7 +79,7 @@ public class Program
         
         builder.Services.AddScoped<IStoreService, StoreService>();
         builder.Services.AddScoped<ITorrentService, TorrentService>();
-        builder.Services.AddScoped<ICommentService, CommentService>();
+        builder.Services.AddScoped<ITorrentCommentService, TorrentCommentService>();
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<IMessageService, MessageService>();
         builder.Services.AddScoped<IReportService, ReportService>();

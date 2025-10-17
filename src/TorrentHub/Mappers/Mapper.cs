@@ -119,14 +119,14 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Request.FilledWithTorrent))]
     public static partial RequestDto ToRequestDto(Request request);
 
-    [MapProperty(nameof(Comment.User), nameof(CommentDto.User))]
-    [MapProperty(nameof(Comment.ReplyToUser), nameof(CommentDto.ReplyToUser))]
-    [MapperIgnoreSource(nameof(Comment.Torrent))]
-    [MapperIgnoreSource(nameof(Comment.UserId))]
-    [MapperIgnoreSource(nameof(Comment.ParentComment))]
-    [MapperIgnoreSource(nameof(Comment.Replies))]
-    [MapperIgnoreSource(nameof(Comment.ReplyToUserId))]
-    public static partial CommentDto ToCommentDto(Comment comment);
+    [MapProperty(nameof(TorrentComment.User), nameof(TorrentCommentDto.User))]
+    [MapProperty(nameof(TorrentComment.ReplyToUser), nameof(TorrentCommentDto.ReplyToUser))]
+    [MapperIgnoreSource(nameof(TorrentComment.Torrent))]
+    [MapperIgnoreSource(nameof(TorrentComment.UserId))]
+    [MapperIgnoreSource(nameof(TorrentComment.ParentTorrentComment))]
+    [MapperIgnoreSource(nameof(TorrentComment.Replies))]
+    [MapperIgnoreSource(nameof(TorrentComment.ReplyToUserId))]
+    public static partial TorrentCommentDto ToTorrentCommentDto(TorrentComment comment);
 
     [MapProperty(nameof(Message.Sender), nameof(MessageDto.Sender))]
     [MapProperty(nameof(Message.Receiver), nameof(MessageDto.Receiver))]

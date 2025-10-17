@@ -11,22 +11,22 @@ namespace TorrentHub.Controllers;
 [ApiController]
 [Route("api")] // Changed route to handle /api/comments/{id} directly
 [Authorize]
-public class CommentsController : ControllerBase
+public class TorrentCommentsController : ControllerBase
 {
-    private readonly ICommentService _commentService;
-    private readonly ILogger<CommentsController> _logger;
+    private readonly ITorrentCommentService _torrentCommentService;
+    private readonly ILogger<TorrentCommentsController> _logger;
 
-    public CommentsController(ICommentService commentService, ILogger<CommentsController> logger)
+    public TorrentCommentsController(ITorrentCommentService torrentCommentService, ILogger<TorrentCommentsController> logger)
     {
-        _commentService = commentService;
+        _torrentCommentService = torrentCommentService;
         _logger = logger;
     }
 
     [HttpPost("torrents/{torrentId}/comments")]
-    public async Task<ActionResult<CommentDto>> PostComment(int torrentId, [FromBody] CreateCommentRequestDto request)
+    public async Task<ActionResult<TorrentCommentDto>> PostComment(int torrentId, [FromBody] CreateTorrentCommentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message, comment) = await _commentService.PostCommentAsync(torrentId, request, userId);
+        var (success, message, comment) = await _torrentCommentService.PostCommentAsync(torrentId, request, userId);
 
         if (!success)
         {
@@ -34,27 +34,27 @@ public class CommentsController : ControllerBase
             return BadRequest(new { message = message });
         }
 
-        return Ok(Mapper.ToCommentDto(comment!));
+        return Ok(Mapper.ToTorrentCommentDto(comment!));
     }
 
     /// <summary>
     /// Get comments with lazy loading
     /// </summary>
     [HttpGet("torrents/{torrentId}/comments")]
-    public async Task<ActionResult<CommentListResponse>> GetCommentsLazy(
+    public async Task<ActionResult<TorrentCommentListResponse>> GetCommentsLazy(
         int torrentId,
         [FromQuery] int afterFloor = 0,
         [FromQuery] int limit = 30)
     {
-        var result = await _commentService.GetCommentsLazyAsync(torrentId, afterFloor, limit);
+        var result = await _torrentCommentService.GetCommentsLazyAsync(torrentId, afterFloor, limit);
         return Ok(result);
     }
 
     [HttpPut("comments/{id:int}")]
-    public async Task<IActionResult> UpdateComment(int id, [FromBody] UpdateCommentRequestDto request)
+    public async Task<IActionResult> UpdateComment(int id, [FromBody] UpdateTorrentCommentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _commentService.UpdateCommentAsync(id, request, userId);
+        var (success, message) = await _torrentCommentService.UpdateCommentAsync(id, request, userId);
         if (!success)
         {
             return BadRequest(new { message = message });
@@ -66,7 +66,7 @@ public class CommentsController : ControllerBase
     public async Task<IActionResult> DeleteComment(int id)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message) = await _commentService.DeleteCommentAsync(id, userId);
+        var (success, message) = await _torrentCommentService.DeleteCommentAsync(id, userId);
         if (!success)
         {
             return BadRequest(new { message = message });

@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TorrentHub.Core.DTOs;
 
-public class CreateCommentRequestDto
+public class CreateTorrentCommentRequestDto
 {
     [Required]
     [StringLength(500)]

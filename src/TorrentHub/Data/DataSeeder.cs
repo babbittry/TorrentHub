@@ -401,21 +401,21 @@ namespace TorrentHub.Data
         public static async Task SeedCommentsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
             List<Torrent> torrents, int count)
         {
-            if (!await context.Comments.AnyAsync() && torrents.Any() && users.Any())
+            if (!await context.TorrentComments.AnyAsync() && torrents.Any() && users.Any())
             {
                 var faker = new Faker();
                 var totalComments = 0;
 
                 foreach (var torrent in torrents.Take(5)) // 为前5个种子生成评论
                 {
-                    var commentsForTorrent = new List<Comment>();
+                    var commentsForTorrent = new List<TorrentComment>();
                     var topLevelCount = faker.Random.Int(5, 15); // 每个种子5-15条顶级评论
                     int currentFloor = 1;
 
                     // 生成顶级评论
                     for (int i = 0; i < topLevelCount; i++)
                     {
-                        var topLevelComment = new Comment
+                        var topLevelComment = new TorrentComment
                         {
                             Text = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
                             Torrent = torrent,
@@ -431,7 +431,7 @@ namespace TorrentHub.Data
                     }
 
                     // 保存顶级评论以获取ID
-                    context.Comments.AddRange(commentsForTorrent);
+                    context.TorrentComments.AddRange(commentsForTorrent);
                     await context.SaveChangesAsync();
 
                     // 为部分顶级评论生成回复(30%概率)
@@ -440,12 +440,12 @@ namespace TorrentHub.Data
                         if (faker.Random.Bool(0.3f)) // 30%的顶级评论有回复
                         {
                             var replyCount = faker.Random.Int(1, 3); // 1-3条回复
-                            var replies = new List<Comment>();
+                            var replies = new List<TorrentComment>();
 
                             for (int i = 0; i < replyCount; i++)
                             {
                                 var replyUser = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList());
-                                var reply = new Comment
+                                var reply = new TorrentComment
                                 {
                                     Text = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
                                     Torrent = torrent,
@@ -460,7 +460,7 @@ namespace TorrentHub.Data
                                 replies.Add(reply);
                             }
 
-                            context.Comments.AddRange(replies);
+                            context.TorrentComments.AddRange(replies);
                             parentComment.ReplyCount = replyCount;
                             
                             // 先保存二级回复以获取ID
@@ -472,7 +472,7 @@ namespace TorrentHub.Data
                                 if (faker.Random.Bool(0.1f) && secondLevelReply.Depth < 2)
                                 {
                                     var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList());
-                                    var thirdLevelReply = new Comment
+                                    var thirdLevelReply = new TorrentComment
                                     {
                                         Text = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
                                         Torrent = torrent,
@@ -484,7 +484,7 @@ namespace TorrentHub.Data
                                         Depth = 2,
                                         ReplyCount = 0
                                     };
-                                    context.Comments.Add(thirdLevelReply);
+                                    context.TorrentComments.Add(thirdLevelReply);
                                     secondLevelReply.ReplyCount++;
                                 }
                             }

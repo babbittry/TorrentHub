@@ -1,6 +1,6 @@
 namespace TorrentHub.Core.DTOs;
 
-public class CommentDto
+public class TorrentCommentDto
 {
     public int Id { get; set; }
     public required string Text { get; set; }

@@ -15,7 +15,7 @@ namespace TorrentHub.Core.Data
         public DbSet<Invite> Invites { get; set; }
         public DbSet<Peers> Peers { get; set; }
         public DbSet<Request> Requests { get; set; }
-        public DbSet<Comment> Comments { get; set; }
+        public DbSet<TorrentComment> TorrentComments { get; set; }
         public DbSet<UserDailyStats> UserDailyStats { get; set; }
         public DbSet<StoreItem> StoreItems { get; set; }
         public DbSet<Badge> Badges { get; set; }
@@ -133,24 +133,24 @@ namespace TorrentHub.Core.Data
             modelBuilder.Entity<ForumPost>()
                 .HasIndex(p => p.ParentPostId);
 
-            // Comment reply relationships
-            modelBuilder.Entity<Comment>()
-                .HasOne(c => c.ParentComment)
+            // TorrentComment reply relationships
+            modelBuilder.Entity<TorrentComment>()
+                .HasOne(c => c.ParentTorrentComment)
                 .WithMany(c => c.Replies)
                 .HasForeignKey(c => c.ParentCommentId)
                 .OnDelete(DeleteBehavior.Cascade);
 
-            modelBuilder.Entity<Comment>()
+            modelBuilder.Entity<TorrentComment>()
                 .HasOne(c => c.ReplyToUser)
                 .WithMany()
                 .HasForeignKey(c => c.ReplyToUserId)
                 .OnDelete(DeleteBehavior.SetNull);
 
-            modelBuilder.Entity<Comment>()
+            modelBuilder.Entity<TorrentComment>()
                 .HasIndex(c => new { c.TorrentId, c.Floor })
                 .IsUnique();
 
-            modelBuilder.Entity<Comment>()
+            modelBuilder.Entity<TorrentComment>()
                 .HasIndex(c => c.ParentCommentId);
 
             modelBuilder.Entity<SiteSetting>()
