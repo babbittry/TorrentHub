@@ -94,14 +94,14 @@ public class ForumController : ControllerBase
     /// Get posts with lazy loading
     /// </summary>
     [HttpGet("topics/{topicId}/posts")]
-    public async Task<ActionResult<ForumPostListResponse>> GetPostsLazy(
+    public async Task<ActionResult<PaginatedResult<ForumPostDto>>> GetPosts(
         int topicId,
-        [FromQuery] int afterFloor = 0,
-        [FromQuery] int limit = 30)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 30)
     {
         try
         {
-            var result = await _forumService.GetPostsLazyAsync(topicId, afterFloor, limit);
+            var result = await _forumService.GetPostsAsync(topicId, page, pageSize);
             return Ok(result);
         }
         catch (KeyNotFoundException e)

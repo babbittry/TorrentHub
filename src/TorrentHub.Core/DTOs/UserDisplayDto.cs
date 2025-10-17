@@ -8,6 +8,7 @@ public class UserDisplayDto
 {
     public int Id { get; set; }
     public required string Username { get; set; }
+    public string? Avatar { get; set; }
     public string? UserLevelName { get; set; }
     public string? UserLevelColor { get; set; }
     public BadgeDto? EquippedBadge { get; set; }

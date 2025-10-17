@@ -443,22 +443,23 @@ public class ForumService : IForumService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<ForumPostListResponse> GetPostsLazyAsync(int topicId, int afterFloor = 0, int limit = 30)
+    public async Task<PaginatedResult<ForumPostDto>> GetPostsAsync(int topicId, int page = 1, int pageSize = 30)
     {
-        // Limit to maximum 100 items per request
-        limit = Math.Min(limit, 100);
+        pageSize = Math.Min(pageSize, 100);
 
-        var posts = await _context.ForumPosts
-            .Where(p => p.TopicId == topicId && p.Floor > afterFloor)
+        var query = _context.ForumPosts
+            .Where(p => p.TopicId == topicId)
+            .OrderBy(p => p.Floor);
+
+        var totalItems = await query.CountAsync();
+
+        var posts = await query
             .Include(p => p.Author)
             .Include(p => p.ReplyToUser)
-            .OrderBy(p => p.Floor)
-            .Take(limit)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .AsNoTracking()
             .ToListAsync();
-
-        var totalCount = await _context.ForumPosts
-            .CountAsync(p => p.TopicId == topicId);
 
         var authorIds = posts.Select(p => p.AuthorId).Distinct().ToList();
         var replyToUserIds = posts.Where(p => p.ReplyToUserId.HasValue)
@@ -478,12 +479,13 @@ public class ForumService : IForumService
             return dto;
         }).ToList();
 
-        return new ForumPostListResponse
+        return new PaginatedResult<ForumPostDto>
         {
-            Posts = postDtos,
-            HasMore = afterFloor + limit < totalCount,
-            TotalCount = totalCount,
-            LoadedCount = afterFloor + posts.Count
+            Items = postDtos,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
         };
     }
 

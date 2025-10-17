@@ -199,7 +199,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.Email))]
     [MapperIgnoreSource(nameof(User.IsEmailVerified))]
     [MapperIgnoreSource(nameof(User.PasswordHash))]
-    [MapperIgnoreSource(nameof(User.Avatar))]
     [MapperIgnoreSource(nameof(User.Signature))]
     [MapperIgnoreSource(nameof(User.Language))]
     [MapperIgnoreSource(nameof(User.UploadedBytes))]
