@@ -8,7 +8,7 @@ namespace TorrentHub.Services.Interfaces;
 
 public interface ITorrentService
 {
-    Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId);
+    Task<(bool Success, string Message, string? InfoHash, Torrent? Torrent)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId);
     Task<(bool Success, string Message)> SetFreeAsync(int torrentId, DateTime freeUntil);
     Task<(bool Success, string Message)> SetStickyAsync(int torrentId, SetStickyRequestDto request);
     Task<(bool Success, string Message)> CompleteTorrentInfoAsync(int torrentId, CompleteInfoRequestDto request, int userId);

@@ -22,20 +22,61 @@ public class TorrentsController : ControllerBase
         _logger = logger;
     }
 
+    [HttpGet("categories")]
+    public IActionResult GetCategories()
+    {
+        var categories = Enum.GetValues(typeof(TorrentCategory))
+            .Cast<TorrentCategory>()
+            .Select((category, index) => new
+            {
+                id = (int)category,
+                name = category.ToString(),
+                key = category.ToString().ToLowerInvariant()
+            })
+            .OrderBy(c => c.id)
+            .ToList();
+        return Ok(categories);
+    }
+
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Upload(IFormFile torrentFile, [FromForm] UploadTorrentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message, infoHash) = await _torrentService.UploadTorrentAsync(torrentFile, request, userId);
+        var (success, message, infoHash, torrent) = await _torrentService.UploadTorrentAsync(torrentFile, request, userId);
 
         if (!success)
         {
             _logger.LogWarning("Torrent upload failed: {Message}", message);
+            
+            // 区分错误类型：文件处理失败返回 422
+            if (message == "error.torrent.invalidFile")
+            {
+                return UnprocessableEntity(new { error = "Invalid .torrent file provided. Please check the file and try again." });
+            }
+            
+            // 其他验证失败返回 400
             return BadRequest(new { message = message });
         }
 
         _logger.LogInformation("Torrent uploaded successfully. InfoHash: {InfoHash}", infoHash);
+        
+        // 返回 201 Created 和新创建的种子数据
+        if (torrent != null)
+        {
+            var responseDto = new UploadTorrentResponseDto
+            {
+                Id = torrent.Id,
+                Name = torrent.Name,
+                Category = torrent.Category.ToString(),
+                Size = torrent.Size,
+                CreatedAt = torrent.CreatedAt
+            };
+            
+            return CreatedAtAction(nameof(GetTorrent), new { id = torrent.Id }, responseDto);
+        }
+
+        // 备用响应（理论上不应该到达这里）
         return Ok(new { message = message, infoHash = infoHash });
     }
 

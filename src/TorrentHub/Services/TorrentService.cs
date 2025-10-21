@@ -40,32 +40,32 @@ public class TorrentService : ITorrentService
         _settingsService = settingsService;
     }
 
-    public async Task<(bool Success, string Message, string? InfoHash)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
+    public async Task<(bool Success, string Message, string? InfoHash, TorrentHub.Core.Entities.Torrent? Torrent)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
     {
         _logger.LogInformation("Upload request received for file: {FileName}, category: {Category}, user: {UserId}", torrentFile.FileName, request.Category, userId);
 
         if (torrentFile.Length == 0)
         {
-            return (false, "error.torrent.empty", null);
+            return (false, "error.torrent.empty", null, null);
         }
 
         var settings = await _settingsService.GetSiteSettingsAsync();
         if (torrentFile.Length > settings.MaxTorrentSize)
         {
-            return (false, "error.torrent.tooLarge", null);
+            return (false, "error.torrent.tooLarge", null, null);
         }
 
         var torrent = await ParseTorrentFile(torrentFile);
         if (torrent == null)
         {
-            return (false, "error.torrent.invalidFile", null);
+            return (false, "error.torrent.invalidFile", null, null);
         }
 
         var infoHashBytes = torrent.GetInfoHashBytes();
         var infoHash = BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant();
         if (await _context.Torrents.AnyAsync(t => t.InfoHash == infoHashBytes))
         {
-            return (false, "error.torrent.alreadyExists", null);
+            return (false, "error.torrent.alreadyExists", null, null);
         }
 
         try
@@ -83,12 +83,12 @@ public class TorrentService : ITorrentService
             await _meiliSearchService.IndexTorrentAsync(torrentSearchDto);
 
             _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, userId);
-            return (true, "torrent.upload.success", infoHash);
+            return (true, "torrent.upload.success", infoHash, torrentEntity);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during torrent upload for file {FileName}.", torrentFile.FileName);
-            return (false, "error.torrent.uploadFailed", null);
+            return (false, "error.torrent.uploadFailed", null, null);
         }
     }
 

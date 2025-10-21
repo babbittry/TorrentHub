@@ -5,7 +5,7 @@ namespace TorrentHub.Core.DTOs;
 /// </summary>
 public class TorrentCommentListResponse
 {
-    public List<TorrentCommentDto> TorrentComments { get; set; } = new();
+    public List<TorrentCommentDto> Items { get; set; } = new();
     public bool HasMore { get; set; }
     public int TotalCount { get; set; }
     public int LoadedCount { get; set; }

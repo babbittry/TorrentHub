@@ -142,7 +142,7 @@ public class TorrentCommentService : ITorrentCommentService
 
         return new TorrentCommentListResponse
         {
-            TorrentComments = comments.Select(c => Mappers.Mapper.ToTorrentCommentDto(c)).ToList(),
+            Items = comments.Select(c => Mappers.Mapper.ToTorrentCommentDto(c)).ToList(),
             HasMore = afterFloor + limit < totalCount,
             TotalCount = totalCount,
             LoadedCount = afterFloor + comments.Count

@@ -127,6 +127,7 @@ public class AuthController : ControllerBase
             SetRefreshTokenCookie(refreshToken);
             
             var userProfile = Mapper.ToUserPrivateProfileDto(user);
+            userProfile.UnreadMessagesCount = await _userService.GetUnreadMessagesCountAsync(user.Id);
 
             return Ok(new LoginResponseDto { AccessToken = accessToken, User = userProfile });
         }
@@ -184,6 +185,7 @@ public class AuthController : ControllerBase
 
         var (newAccessToken, user) = result.Value;
         var userProfile = Mapper.ToUserPrivateProfileDto(user);
+        userProfile.UnreadMessagesCount = await _userService.GetUnreadMessagesCountAsync(user.Id);
 
         return Ok(new RefreshTokenResponseDto { AccessToken = newAccessToken, User = userProfile });
     }

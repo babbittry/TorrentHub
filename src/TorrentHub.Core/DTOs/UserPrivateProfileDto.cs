@@ -42,4 +42,9 @@ public class UserPrivateProfileDto
     public string? UserTitle { get; set; }
     public int? EquippedBadgeId { get; set; }
     public DateTimeOffset? ColorfulUsernameExpiresAt { get; set; }
+    
+    /// <summary>
+    /// The total number of unread messages in the user's inbox.
+    /// </summary>
+    public int UnreadMessagesCount { get; set; }
 }

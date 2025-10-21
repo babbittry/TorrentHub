@@ -76,13 +76,21 @@ public class UsersController : ControllerBase
             return Unauthorized("Invalid user identifier.");
         }
 
+        _logger.LogInformation("GetMyProfile called for UserId={UserId}", userId);
+
         var user = await _userService.GetUserByIdAsync(userId);
         if (user == null)
         {
             return NotFound("User not found.");
         }
 
-        return Ok(Mapper.ToUserPrivateProfileDto(user));
+        var userProfile = Mapper.ToUserPrivateProfileDto(user);
+        
+        _logger.LogInformation("About to call GetUnreadMessagesCountAsync for UserId={UserId}", userId);
+        userProfile.UnreadMessagesCount = await _userService.GetUnreadMessagesCountAsync(userId);
+        _logger.LogInformation("GetUnreadMessagesCountAsync returned {Count} for UserId={UserId}", userProfile.UnreadMessagesCount, userId);
+        
+        return Ok(userProfile);
     }
 
     [HttpGet]

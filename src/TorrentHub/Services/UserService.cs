@@ -429,6 +429,24 @@ public class UserService : IUserService
         return await _context.Users.FindAsync(userId);
     }
 
+    public async Task<int> GetUnreadMessagesCountAsync(int userId)
+    {
+        var unreadMessages = await _context.Messages
+            .Where(m => m.ReceiverId == userId && !m.IsRead && !m.ReceiverDeleted)
+            .ToListAsync();
+        
+        _logger.LogInformation(
+            "GetUnreadMessagesCount for UserId={UserId}: Found {Count} unread messages. Details: {Messages}",
+            userId,
+            unreadMessages.Count,
+            string.Join("; ", unreadMessages.Select(m =>
+                $"Id={m.Id}, SenderId={m.SenderId}, IsRead={m.IsRead}, ReceiverDeleted={m.ReceiverDeleted}"
+            ))
+        );
+        
+        return unreadMessages.Count;
+    }
+
     public async Task<UserPublicProfileDto?> GetUserPublicProfileAsync(int userId)
     {
         var user = await _context.Users.FindAsync(userId);

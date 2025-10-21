@@ -41,6 +41,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.TwoFactorSecretKey))]
     [MapperIgnoreSource(nameof(User.IsEmailVerified))]
     [MapProperty(nameof(User.TwoFactorType), nameof(UserPrivateProfileDto.TwoFactorMethod))]
+    [MapperIgnoreTarget(nameof(UserPrivateProfileDto.UnreadMessagesCount))]
     public static partial UserPrivateProfileDto ToUserPrivateProfileDto(User user);
     
     // Maps fields a user is allowed to change on their own profile.

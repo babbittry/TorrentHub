@@ -20,6 +20,7 @@ public interface IUserService
     Task<(bool Success, string Message)> TransferCoinsAsync(int fromUserId, int toUserId, ulong amount, string? notes);
     Task<(bool Success, string Message)> TipCoinsAsync(int fromUserId, int toUserId, ulong amount, string? notes);
     Task<User?> GetUserByIdAsync(int userId);
+    Task<int> GetUnreadMessagesCountAsync(int userId);
     Task<UserPublicProfileDto?> GetUserPublicProfileAsync(int userId);
     Task<List<BadgeDto>> GetUserBadgesAsync(int userId);
     Task<User> UpdateUserProfileAsync(int userId, UpdateUserProfileDto profileDto);
