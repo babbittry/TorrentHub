@@ -13,13 +13,20 @@ public class TorrentCommentService : ITorrentCommentService
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
     private readonly ISettingsService _settingsService;
+    private readonly IReactionService _reactionService;
     private readonly ILogger<TorrentCommentService> _logger;
 
-    public TorrentCommentService(ApplicationDbContext context, IUserService userService, ISettingsService settingsService, ILogger<TorrentCommentService> logger)
+    public TorrentCommentService(
+        ApplicationDbContext context,
+        IUserService userService,
+        ISettingsService settingsService,
+        IReactionService reactionService,
+        ILogger<TorrentCommentService> logger)
     {
         _context = context;
         _userService = userService;
         _settingsService = settingsService;
+        _reactionService = reactionService;
         _logger = logger;
     }
 
@@ -140,9 +147,26 @@ public class TorrentCommentService : ITorrentCommentService
         var totalCount = await _context.TorrentComments
             .CountAsync(c => c.TorrentId == torrentId);
 
+        var commentDtos = comments.Select(c => Mappers.Mapper.ToTorrentCommentDto(c)).ToList();
+
+        // Batch load reactions for all comments
+        if (commentDtos.Any())
+        {
+            var commentIds = commentDtos.Select(c => c.Id).ToList();
+            var reactionsDict = await _reactionService.GetReactionsBatchAsync("TorrentComment", commentIds, null);
+            
+            foreach (var comment in commentDtos)
+            {
+                if (reactionsDict.TryGetValue(comment.Id, out var reactions))
+                {
+                    comment.Reactions = reactions;
+                }
+            }
+        }
+
         return new TorrentCommentListResponse
         {
-            Items = comments.Select(c => Mappers.Mapper.ToTorrentCommentDto(c)).ToList(),
+            Items = commentDtos,
             HasMore = afterFloor + limit < totalCount,
             TotalCount = totalCount,
             LoadedCount = afterFloor + comments.Count

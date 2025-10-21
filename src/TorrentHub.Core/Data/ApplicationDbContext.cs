@@ -35,6 +35,7 @@ namespace TorrentHub.Core.Data
         public DbSet<CheatLog> CheatLogs { get; set; }
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<CoinTransaction> CoinTransactions { get; set; }
+        public DbSet<CommentReaction> CommentReactions { get; set; }
  
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -48,6 +49,7 @@ namespace TorrentHub.Core.Data
             modelBuilder.HasPostgresEnum<TorrentCategory>();
             modelBuilder.HasPostgresEnum<TorrentStickyStatus>();
             modelBuilder.HasPostgresEnum<BanStatus>();
+            modelBuilder.HasPostgresEnum<ReactionType>();
 
             modelBuilder.Entity<User>(entity =>
             {
@@ -156,6 +158,26 @@ namespace TorrentHub.Core.Data
             modelBuilder.Entity<SiteSetting>()
                 .Property(s => s.Value)
                 .HasColumnType("jsonb");
+
+            // CommentReaction configuration
+            modelBuilder.Entity<CommentReaction>()
+                .HasIndex(r => new { r.CommentType, r.CommentId })
+                .HasDatabaseName("IX_CommentReactions_Comment");
+
+            modelBuilder.Entity<CommentReaction>()
+                .HasIndex(r => new { r.CommentType, r.CommentId, r.UserId, r.Type })
+                .IsUnique()
+                .HasDatabaseName("IX_CommentReactions_Unique");
+
+            modelBuilder.Entity<CommentReaction>()
+                .HasIndex(r => r.UserId)
+                .HasDatabaseName("IX_CommentReactions_UserId");
+
+            modelBuilder.Entity<CommentReaction>()
+                .HasOne(r => r.User)
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

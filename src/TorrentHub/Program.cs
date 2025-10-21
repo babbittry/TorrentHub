@@ -72,6 +72,7 @@ public class Program
                 npgsqlOptions.MapEnum<TorrentCategory>();
                 npgsqlOptions.MapEnum<TorrentStickyStatus>();
                 npgsqlOptions.MapEnum<BanStatus>();
+                npgsqlOptions.MapEnum<ReactionType>();
             }));
 
         // Add custom services
@@ -94,6 +95,7 @@ public class Program
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IPollService, PollService>();
         builder.Services.AddScoped<IAdminService, AdminService>();
+        builder.Services.AddScoped<IReactionService, ReactionService>();
 
         var garnetConnectionString = builder.Configuration.GetConnectionString("Garnet");
         if (!string.IsNullOrEmpty(garnetConnectionString))

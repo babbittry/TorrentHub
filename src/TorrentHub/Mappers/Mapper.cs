@@ -127,6 +127,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(TorrentComment.ParentTorrentComment))]
     [MapperIgnoreSource(nameof(TorrentComment.Replies))]
     [MapperIgnoreSource(nameof(TorrentComment.ReplyToUserId))]
+    [MapperIgnoreTarget(nameof(TorrentCommentDto.Reactions))]
     public static partial TorrentCommentDto ToTorrentCommentDto(TorrentComment comment);
 
     [MapProperty(nameof(Message.Sender), nameof(MessageDto.Sender))]
@@ -170,6 +171,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(ForumPost.ParentPost))]
     [MapperIgnoreSource(nameof(ForumPost.Replies))]
     [MapperIgnoreSource(nameof(ForumPost.ReplyToUserId))]
+    [MapperIgnoreTarget(nameof(ForumPostDto.Reactions))]
     public static partial ForumPostDto ToForumPostDto(ForumPost post);
 
     [MapProperty(nameof(ForumTopic.Author), nameof(ForumTopicDto.Author))]

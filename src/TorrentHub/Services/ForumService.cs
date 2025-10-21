@@ -17,12 +17,18 @@ public class ForumService : IForumService
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ForumService> _logger;
     private readonly IUserLevelService _userLevelService;
+    private readonly IReactionService _reactionService;
 
-    public ForumService(ApplicationDbContext context, ILogger<ForumService> logger, IUserLevelService userLevelService)
+    public ForumService(
+        ApplicationDbContext context,
+        ILogger<ForumService> logger,
+        IUserLevelService userLevelService,
+        IReactionService reactionService)
     {
         _context = context;
         _logger = logger;
         _userLevelService = userLevelService;
+        _reactionService = reactionService;
     }
 
     public async Task<List<ForumCategoryDto>> GetCategoriesAsync()
@@ -478,6 +484,21 @@ public class ForumService : IForumService
             }
             return dto;
         }).ToList();
+
+        // Batch load reactions for all posts
+        if (postDtos.Any())
+        {
+            var postIds = postDtos.Select(p => p.Id).ToList();
+            var reactionsDict = await _reactionService.GetReactionsBatchAsync("ForumPost", postIds, null);
+            
+            foreach (var post in postDtos)
+            {
+                if (reactionsDict.TryGetValue(post.Id, out var reactions))
+                {
+                    post.Reactions = reactions;
+                }
+            }
+        }
 
         return new PaginatedResult<ForumPostDto>
         {

@@ -15,4 +15,7 @@ public class ForumPostDto
     public UserDisplayDto? ReplyToUser { get; set; }
     public int Depth { get; set; }
     public int ReplyCount { get; set; }
+
+    // Reaction functionality
+    public CommentReactionsDto? Reactions { get; set; }
 }

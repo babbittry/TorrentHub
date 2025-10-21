@@ -173,6 +173,9 @@ namespace TorrentHub.Data
             // Seed Polls
             await SeedPollsAsync(context, logger, users);
 
+            // Seed Comment Reactions
+            await SeedCommentReactionsAsync(context, logger, users);
+
             logger.LogInformation("All mock data seeding completed.");
         }
 
@@ -886,6 +889,103 @@ namespace TorrentHub.Data
             else
             {
                 logger.LogInformation("Polls already exist or no users, skipping seeding.");
+            }
+        }
+
+        public static async Task SeedCommentReactionsAsync(ApplicationDbContext context, ILogger logger, List<User> users)
+        {
+            var existingReactionsCount = await context.CommentReactions.CountAsync();
+            logger.LogInformation("Existing comment reactions count: {Count}", existingReactionsCount);
+            logger.LogInformation("Users count: {Count}", users.Count);
+            
+            if (existingReactionsCount == 0 && users.Any())
+            {
+                var faker = new Faker();
+                var reactions = new List<CommentReaction>();
+
+                // 为种子评论添加反应
+                var torrentComments = await context.TorrentComments
+                    .Where(c => c.Depth == 0) // 只为顶级评论添加反应
+                    .Take(20) // 取前20条评论
+                    .ToListAsync();
+
+                logger.LogInformation("Found {Count} torrent comments for reactions", torrentComments.Count);
+
+                foreach (var comment in torrentComments)
+                {
+                    // 每条评论随机添加3-8个反应（但不超过用户数量）
+                    var reactionCount = faker.Random.Int(3, Math.Min(8, users.Count));
+                    var commentUsers = faker.PickRandom(users, reactionCount).ToList();
+
+                    foreach (var user in commentUsers)
+                    {
+                        var reactionType = faker.PickRandom<ReactionType>();
+                        
+                        // 确保唯一性：同一用户对同一评论只能有一种反应类型
+                        if (!reactions.Any(r => r.CommentType == "TorrentComment" &&
+                                               r.CommentId == comment.Id &&
+                                               r.UserId == user.Id &&
+                                               r.Type == reactionType))
+                        {
+                            reactions.Add(new CommentReaction
+                            {
+                                CommentType = "TorrentComment",
+                                CommentId = comment.Id,
+                                UserId = user.Id,
+                                Type = reactionType,
+                                CreatedAt = faker.Date.Between(comment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
+                            });
+                        }
+                    }
+                }
+
+                // 为论坛帖子添加反应
+                var forumPosts = await context.ForumPosts
+                    .Where(p => p.Depth == 0) // 只为顶级帖子添加反应
+                    .Take(30) // 取前30条帖子
+                    .ToListAsync();
+
+                foreach (var post in forumPosts)
+                {
+                    // 每条帖子随机添加5-12个反应（但不超过用户数量）
+                    var reactionCount = faker.Random.Int(5, Math.Min(12, users.Count));
+                    var postUsers = faker.PickRandom(users, reactionCount).ToList();
+
+                    foreach (var user in postUsers)
+                    {
+                        var reactionType = faker.PickRandom<ReactionType>();
+                        
+                        // 确保唯一性
+                        if (!reactions.Any(r => r.CommentType == "ForumPost" &&
+                                               r.CommentId == post.Id &&
+                                               r.UserId == user.Id &&
+                                               r.Type == reactionType))
+                        {
+                            reactions.Add(new CommentReaction
+                            {
+                                CommentType = "ForumPost",
+                                CommentId = post.Id,
+                                UserId = user.Id,
+                                Type = reactionType,
+                                CreatedAt = faker.Date.Between(post.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
+                            });
+                        }
+                    }
+                }
+
+                if (reactions.Any())
+                {
+                    context.CommentReactions.AddRange(reactions);
+                    await context.SaveChangesAsync();
+                    logger.LogInformation("{Count} comment reactions seeded successfully (TorrentComments: {TorrentCount}, ForumPosts: {ForumCount}).",
+                        reactions.Count,
+                        reactions.Count(r => r.CommentType == "TorrentComment"),
+                        reactions.Count(r => r.CommentType == "ForumPost"));
+                }
+            }
+            else
+            {
+                logger.LogInformation("Comment reactions already exist or no users, skipping seeding.");
             }
         }
 
