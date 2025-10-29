@@ -45,6 +45,7 @@ else
 // Register the lightweight, tracker-specific implementations
 builder.Services.AddScoped<ISettingsService, SettingsService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<ITorrentCredentialService, TorrentHub.Services.TorrentCredentialService>();
 // Register the main announce service
 builder.Services.AddScoped<IAnnounceService, AnnounceService>();
 builder.Services.AddSingleton<ITrackerLocalizer, TrackerLocalizer>();

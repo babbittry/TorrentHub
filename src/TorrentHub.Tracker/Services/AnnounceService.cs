@@ -1,12 +1,11 @@
-
 using BencodeNET.Objects;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Web;
 using TorrentHub.Core.Data;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Enums;
 using TorrentHub.Core.Services;
-using BencodeNET.Torrents;
 
 namespace TorrentHub.Tracker.Services;
 
@@ -17,87 +16,223 @@ public class AnnounceService : IAnnounceService
     private readonly ISettingsService _settingsService;
     private readonly IAdminService _adminService;
     private readonly ITrackerLocalizer _localizer;
+    private readonly ITorrentCredentialService _credentialService;
 
-    public AnnounceService(ApplicationDbContext context, ILogger<AnnounceService> logger, ISettingsService settingsService, IAdminService adminService, ITrackerLocalizer localizer)
+    public AnnounceService(
+        ApplicationDbContext context,
+        ILogger<AnnounceService> logger,
+        ISettingsService settingsService,
+        IAdminService adminService,
+        ITrackerLocalizer localizer,
+        ITorrentCredentialService credentialService)
     {
         _context = context;
         _logger = logger;
         _settingsService = settingsService;
         _adminService = adminService;
         _localizer = localizer;
+        _credentialService = credentialService;
     }
 
-    public async Task<BDictionary> ProcessAnnounceRequest(
-        string infoHash,
-        string peerId,
-        int port,
-        ulong uploaded,
-        ulong downloaded,
-        long left,
-        string? @event,
-        int numWant,
-        System.Net.IPAddress ipAddress,
-        Guid passkey)
+    public async Task<byte[]> HandleAnnounceAsync(HttpContext context)
     {
+        // Extract credential from query string
+        var credentialParam = context.Request.Query["credential"].ToString();
+        if (string.IsNullOrEmpty(credentialParam) || !Guid.TryParse(credentialParam, out var credential))
+        {
+            return _localizer.GetError("InvalidCredential", null).EncodeAsBytes();
+        }
+
+        // Extract announce parameters
+        var infoHash = context.Request.Query["info_hash"].ToString();
+        var peerId = context.Request.Query["peer_id"].ToString();
+        var portStr = context.Request.Query["port"].ToString();
+        var uploadedStr = context.Request.Query["uploaded"].ToString();
+        var downloadedStr = context.Request.Query["downloaded"].ToString();
+        var leftStr = context.Request.Query["left"].ToString();
+        var @event = context.Request.Query["event"].ToString();
+        var numWantStr = context.Request.Query["numwant"].ToString();
+        
+        if (!int.TryParse(portStr, out var port) ||
+            !ulong.TryParse(uploadedStr, out var uploaded) ||
+            !ulong.TryParse(downloadedStr, out var downloaded) ||
+            !long.TryParse(leftStr, out var left))
+        {
+            return _localizer.GetError("InvalidInfoHash", null).EncodeAsBytes();
+        }
+        
+        var numWant = int.TryParse(numWantStr, out var nw) ? nw : 50;
+        var ipAddress = context.Connection.RemoteIpAddress;
+
         var settings = await _settingsService.GetSiteSettingsAsync();
 
-        // --- 1. User and Client Validation ---
-        var user = await _context.Users.FirstOrDefaultAsync(u => u.Passkey == passkey);
-        if (user == null) { _logger.LogWarning("Announce with invalid passkey: {Passkey}", passkey); return _localizer.GetError("InvalidPasskey", null); }
-        if (user.BanStatus.HasFlag(BanStatus.TrackerBan) || user.BanStatus.HasFlag(BanStatus.LoginBan)) { _logger.LogWarning("Announce from banned user: {UserId}", user.Id); return _localizer.GetError("BannedAccount", user.Language); }
+        // --- 1. Credential Validation ---
+        var (isValid, userId, torrentId) = await _credentialService.ValidateCredentialAsync(credential);
+        if (!isValid || !userId.HasValue || !torrentId.HasValue)
+        {
+            _logger.LogWarning("Announce with invalid credential: {Credential}", credential);
+            return _localizer.GetError("InvalidCredential", null).EncodeAsBytes();
+        }
+
+        // Update credential usage statistics
+        await _credentialService.UpdateCredentialUsageAsync(credential);
+
+        // --- 2. User and Client Validation ---
+        var user = await _context.Users.FindAsync(userId.Value);
+        if (user == null)
+        {
+            _logger.LogWarning("User not found for credential: {Credential}, userId: {UserId}", credential, userId.Value);
+            return _localizer.GetError("InvalidCredential", null).EncodeAsBytes();
+        }
+        
+        if (user.BanStatus.HasFlag(BanStatus.TrackerBan) || user.BanStatus.HasFlag(BanStatus.LoginBan))
+        {
+            _logger.LogWarning("Announce from banned user: {UserId}", user.Id);
+            return _localizer.GetError("BannedAccount", user.Language).EncodeAsBytes();
+        }
 
         var bannedClients = await _adminService.GetBannedClientsAsync();
-        if (bannedClients.Any(c => peerId.StartsWith(c.UserAgentPrefix))) { _logger.LogWarning("Announce from banned client: {PeerId}", peerId); return _localizer.GetError("BannedClient", user.Language); }
+        if (bannedClients.Any(c => peerId.StartsWith(c.UserAgentPrefix)))
+        {
+            _logger.LogWarning("Announce from banned client: {PeerId}", peerId);
+            return _localizer.GetError("BannedClient", user.Language).EncodeAsBytes();
+        }
 
-        // --- 2. Torrent Validation ---
+        // --- 3. Torrent Validation ---
         byte[] infoHashBytes;
         try { infoHashBytes = ParseInfoHash(infoHash); }
-        catch (Exception ex) { _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash); return _localizer.GetError("InvalidInfoHash", user.Language); }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to decode info_hash: {InfoHash}", infoHash);
+            return _localizer.GetError("InvalidInfoHash", user.Language).EncodeAsBytes();
+        }
 
-        var torrent = await _context.Torrents.FirstOrDefaultAsync(t => t.InfoHash == infoHashBytes);
-        if (torrent == null) { _logger.LogWarning("Announce for non-existent torrent: {InfoHash}", infoHash); return _localizer.GetError("TorrentNotFound", user.Language); }
+        var torrent = await _context.Torrents.FindAsync(torrentId.Value);
+        if (torrent == null)
+        {
+            _logger.LogWarning("Torrent not found for credential: {Credential}, torrentId: {TorrentId}", credential, torrentId.Value);
+            return _localizer.GetError("TorrentNotFound", user.Language).EncodeAsBytes();
+        }
 
-        // --- 3. Peer & Event Processing ---
+        // Verify that the info_hash matches the torrent from credential
+        if (!torrent.InfoHash.SequenceEqual(infoHashBytes))
+        {
+            _logger.LogWarning("InfoHash mismatch: credential torrentId {TorrentId} has different infohash than provided {InfoHash}", torrentId.Value, infoHash);
+            return _localizer.GetError("TorrentNotFound", user.Language).EncodeAsBytes();
+        }
+
+        // --- 4. Peer & Event Processing ---
         var peer = await _context.Peers.FirstOrDefaultAsync(p => p.TorrentId == torrent.Id && p.UserId == user.Id);
         double timeDelta = (peer != null) ? (DateTimeOffset.UtcNow - peer.LastAnnounce).TotalSeconds : 0;
 
-        // --- 4. Speed Check ---
-        if (peer != null && timeDelta > 5) // Only check if interval is reasonable
+        // --- 4.1. Announce Frequency Check ---
+        if (peer != null && timeDelta > 0)
+        {
+            // Enforce absolute minimum interval
+            if (timeDelta < settings.EnforcedMinAnnounceIntervalSeconds)
+            {
+                var waitTime = settings.EnforcedMinAnnounceIntervalSeconds - (int)timeDelta;
+                _logger.LogWarning(
+                    "Announce too frequent: User {UserId}, Torrent {TorrentId}, Interval: {Interval}s (min: {Min}s)",
+                    user.Id, torrent.Id, timeDelta, settings.EnforcedMinAnnounceIntervalSeconds
+                );
+                
+                var errorDict = new BDictionary
+                {
+                    { "failure reason", new BString($"Announce too frequent. Please wait {waitTime} seconds.") },
+                    { "interval", new BNumber(settings.MinAnnounceIntervalSeconds) },
+                    { "min interval", new BNumber(settings.EnforcedMinAnnounceIntervalSeconds) }
+                };
+                return errorDict.EncodeAsBytes();
+            }
+        }
+
+        // --- 4.2. Multi-Location Detection ---
+        if (settings.EnableMultiLocationDetection && peer != null && ipAddress != null)
+        {
+            var currentIp = ipAddress.ToString();
+            var lastIp = peer.IpAddress?.ToString();
+            
+            if (currentIp != lastIp)
+            {
+                // Get recent IPs for this user/torrent combination
+                var detectionWindow = DateTimeOffset.UtcNow.AddMinutes(-settings.MultiLocationDetectionWindowMinutes);
+                var recentIps = await _context.Peers
+                    .Where(p => p.UserId == user.Id && 
+                                p.TorrentId == torrent.Id &&
+                                p.LastAnnounce >= detectionWindow)
+                    .Select(p => p.IpAddress.ToString())
+                    .Distinct()
+                    .ToListAsync();
+                
+                if (recentIps.Count >= 3 && settings.LogMultiLocationCheating)
+                {
+                    await _adminService.LogCheatAsync(
+                        user.Id,
+                        "MultiLocation",
+                        $"Torrent: {torrent.Name}, IPs in {settings.MultiLocationDetectionWindowMinutes}min: {string.Join(", ", recentIps)}"
+                    );
+                }
+            }
+        }
+
+        // --- 5. Speed Check ---
+        if (peer != null && timeDelta > settings.MinSpeedCheckIntervalSeconds)
         {
             if (uploaded > peer.Uploaded)
             {
                 double uploadSpeedKBps = ((uploaded - peer.Uploaded) / 1024.0) / timeDelta;
                 if (settings.MaxUploadSpeed > 0 && uploadSpeedKBps > settings.MaxUploadSpeed)
                 {
-                    await _adminService.LogCheatAsync(user.Id, "Speed Cheat (Upload)", $"Reported upload speed {uploadSpeedKBps:F2} KB/s exceeds limit of {settings.MaxUploadSpeed} KB/s.");
-                    return _localizer.GetError("SpeedTooHigh", user.Language);
+                    await _adminService.LogCheatAsync(user.Id, "SpeedCheat", $"Upload speed {uploadSpeedKBps:F2} KB/s exceeds limit");
+                    return _localizer.GetError("SpeedTooHigh", user.Language).EncodeAsBytes();
                 }
             }
         }
 
         // Update peer activity times
-        if (peer != null && timeDelta > 0 && timeDelta <= 3600) // Cap at 1 hour
+        if (peer != null && timeDelta > 0 && timeDelta <= 3600)
         {
             if (peer.IsSeeder) user.TotalSeedingTimeMinutes += (ulong)timeDelta / 60;
             else user.TotalLeechingTimeMinutes += (ulong)timeDelta / 60;
         }
 
+        // Handle events
         switch (@event)
         {
             case "started":
             case null:
-                                if (peer == null)
+            case "":
+                if (peer == null)
                 {
-                    peer = new Peers { Torrent = torrent, User = user, IpAddress = ipAddress, Port = port, UserAgent = peerId, Uploaded = uploaded, Downloaded = downloaded };
+                    peer = new Peers
+                    {
+                        Torrent = torrent,
+                        User = user,
+                        IpAddress = ipAddress ?? throw new InvalidOperationException("IP address is required"),
+                        Port = port,
+                        UserAgent = peerId,
+                        Uploaded = uploaded,
+                        Downloaded = downloaded,
+                        Credential = credential
+                    };
                     _context.Peers.Add(peer);
                 }
-                peer.IpAddress = ipAddress;
+                if (ipAddress != null)
+                {
+                    peer.IpAddress = ipAddress;
+                }
                 peer.Port = port;
                 peer.LastAnnounce = DateTimeOffset.UtcNow;
                 peer.IsSeeder = (left == 0);
+                peer.Credential = credential;
                 break;
             case "completed":
-                if (peer != null && !peer.IsSeeder) { torrent.Snatched++; peer.IsSeeder = true; }
+                if (peer != null && !peer.IsSeeder)
+                {
+                    torrent.Snatched++;
+                    peer.IsSeeder = true;
+                }
                 break;
             case "stopped":
                 if (peer != null) _context.Peers.Remove(peer);
@@ -110,15 +245,18 @@ public class AnnounceService : IAnnounceService
             peer.Downloaded = downloaded;
         }
 
-        // --- 5. Stats Update ---
+        // --- 6. Stats Update ---
         var nominalUpload = uploaded;
         var nominalDownload = downloaded;
 
-        bool isFreeLeech = settings.GlobalFreeleechEnabled || (torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTimeOffset.UtcNow));
+        bool isFreeLeech = settings.GlobalFreeleechEnabled || 
+                          (torrent.IsFree && (!torrent.FreeUntil.HasValue || torrent.FreeUntil.Value > DateTimeOffset.UtcNow));
         if (isFreeLeech) nominalDownload = 0;
 
-        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTimeOffset.UtcNow) nominalUpload *= 2;
-        else if (user.IsDoubleUploadActive) user.IsDoubleUploadActive = false;
+        if (user.IsDoubleUploadActive && user.DoubleUploadExpiresAt > DateTimeOffset.UtcNow)
+            nominalUpload *= 2;
+        else if (user.IsDoubleUploadActive)
+            user.IsDoubleUploadActive = false;
 
         user.UploadedBytes += uploaded;
         user.DownloadedBytes += downloaded;
@@ -127,11 +265,11 @@ public class AnnounceService : IAnnounceService
 
         await _context.SaveChangesAsync();
 
-        // --- 6. Prepare Response ---
+        // --- 7. Prepare Response ---
         var response = new BDictionary
         {
-            { "interval", new BNumber(settings.AnnounceIntervalSeconds) },
-            { "min interval", new BNumber(settings.AnnounceIntervalSeconds / 2) }
+            { "interval", new BNumber(settings.MinAnnounceIntervalSeconds) },
+            { "min interval", new BNumber(settings.EnforcedMinAnnounceIntervalSeconds) }
         };
 
         var peers = await _context.Peers
@@ -140,7 +278,7 @@ public class AnnounceService : IAnnounceService
             .ToListAsync();
 
         response.Add("peers", ToPeerList(peers));
-        return response;
+        return response.EncodeAsBytes();
     }
 
     private static BList ToPeerList(IEnumerable<Peers> peers)
@@ -151,13 +289,12 @@ public class AnnounceService : IAnnounceService
             peerList.Add(new BDictionary
             {
                 { "peer id", new BString(p.UserAgent) },
-                { "ip", new BString(p.IpAddress.ToString()) },
+                { "ip", new BString(p.IpAddress?.ToString() ?? "") },
                 { "port", new BNumber(p.Port) }
             });
         }
         return peerList;
     }
-
 
     private static byte[] ParseInfoHash(string infoHash)
     {
@@ -172,8 +309,7 @@ public class AnnounceService : IAnnounceService
                 return Convert.FromHexString(hexString);
             }
         }
-        catch {}
+        catch { }
         throw new ArgumentException("Invalid info_hash format.");
     }
 }
-

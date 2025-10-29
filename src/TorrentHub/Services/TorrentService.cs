@@ -22,15 +22,17 @@ public class TorrentService : ITorrentService
     private readonly ISettingsService _settingsService;
     private readonly ILogger<TorrentService> _logger;
     private readonly IMeiliSearchService _meiliSearchService;
+    private readonly ITorrentCredentialService _credentialService;
     private readonly BencodeParser _bencodeParser = new();
 
     public TorrentService(
-        ApplicationDbContext context, 
-        IUserService userService, 
-        ILogger<TorrentService> logger, 
-        IMeiliSearchService meiliSearchService, 
+        ApplicationDbContext context,
+        IUserService userService,
+        ILogger<TorrentService> logger,
+        IMeiliSearchService meiliSearchService,
         ITMDbService tmdbService,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        ITorrentCredentialService credentialService)
     {
         _context = context;
         _userService = userService;
@@ -38,6 +40,7 @@ public class TorrentService : ITorrentService
         _meiliSearchService = meiliSearchService;
         _tmdbService = tmdbService;
         _settingsService = settingsService;
+        _credentialService = credentialService;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash, TorrentHub.Core.Entities.Torrent? Torrent)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
@@ -302,7 +305,7 @@ public class TorrentService : ITorrentService
             return null;
         }
 
-        _logger.LogInformation("Download request received for torrentId: {TorrentId}.", torrentId);
+        _logger.LogInformation("Download request received for torrentId: {TorrentId}, userId: {UserId}.", torrentId, userId);
         var torrent = await _context.Torrents.FindAsync(torrentId);
         if (torrent == null)
         {
@@ -319,13 +322,59 @@ public class TorrentService : ITorrentService
 
         try
         {
-            var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
-            _logger.LogInformation("Serving torrent file {FileName} for torrent {TorrentId}.", torrent.Name + ".torrent", torrentId);
-            return new FileStreamResult(fileStream, "application/x-bittorrent") { FileDownloadName = torrent.Name + ".torrent" };
+            // Generate or retrieve credential for this user-torrent combination
+            var credential = await _credentialService.GetOrCreateCredentialAsync(userId, torrentId);
+            _logger.LogInformation("Generated credential {Credential} for user {UserId} and torrent {TorrentId}.", credential, userId, torrentId);
+
+            // Parse the original torrent file
+            var originalTorrent = await ParseTorrentFileFromPath(filePath);
+            if (originalTorrent == null)
+            {
+                _logger.LogError("Failed to parse torrent file at {FilePath}.", filePath);
+                return null;
+            }
+
+            // Get tracker URL from settings
+            var settings = await _settingsService.GetSiteSettingsAsync();
+            var trackerUrl = settings.TrackerUrl;
+            if (string.IsNullOrEmpty(trackerUrl))
+            {
+                _logger.LogError("Tracker URL not configured in site settings.");
+                return null;
+            }
+
+            // Modify announce URL to include credential
+            var credentialAnnounceUrl = $"{trackerUrl.TrimEnd('/')}/{credential}/announce";
+            originalTorrent.Trackers = new List<IList<string>> { new List<string> { credentialAnnounceUrl } };
+
+            _logger.LogInformation("Modified announce URL to: {AnnounceUrl}", credentialAnnounceUrl);
+
+            // Encode the modified torrent to a memory stream
+            var memoryStream = new MemoryStream();
+            originalTorrent.EncodeTo(memoryStream);
+            memoryStream.Position = 0;
+
+            _logger.LogInformation("Serving modified torrent file {FileName} for torrent {TorrentId}.", torrent.Name + ".torrent", torrentId);
+            return new FileStreamResult(memoryStream, "application/x-bittorrent") { FileDownloadName = torrent.Name + ".torrent" };
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error serving torrent file {FileName} for torrent {TorrentId}.", torrent.Name + ".torrent", torrentId);
+            return null;
+        }
+    }
+
+    private async Task<BencodeNET.Torrents.Torrent?> ParseTorrentFileFromPath(string filePath)
+    {
+        try
+        {
+            _logger.LogDebug("Parsing torrent file from path: {FilePath}", filePath);
+            await using var stream = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+            return await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(stream);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error parsing torrent file from path: {FilePath}", filePath);
             return null;
         }
     }

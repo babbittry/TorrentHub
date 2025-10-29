@@ -115,12 +115,18 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<List<CheatLogDto>> GetCheatLogsAsync()
+    public async Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50)
     {
-        return await _context.CheatLogs
+        var query = _context.CheatLogs
             .AsNoTracking()
             .Include(l => l.User)
-            .OrderByDescending(l => l.Timestamp)
+            .OrderByDescending(l => l.Timestamp);
+
+        var totalItems = await query.CountAsync();
+
+        var logs = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(l => new CheatLogDto
             {
                 Id = l.Id,
@@ -131,6 +137,15 @@ public class AdminService : IAdminService
                 Details = l.Details
             })
             .ToListAsync();
+
+        return new PaginatedResult<CheatLogDto>
+        {
+            Items = logs,
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = totalItems,
+            TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
+        };
     }
 
     public async Task<List<JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto)

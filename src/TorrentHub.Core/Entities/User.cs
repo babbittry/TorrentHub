@@ -93,13 +93,6 @@ public class User
     [DefaultValue(0UL)]
     public ulong NominalDownloadedBytes { get; set; }
 
-    public required Guid RssKey { get; set; }
-
-    /// <summary>
-    /// Unique key for announce URL, do not expose to other users.
-    /// </summary>
-    public required Guid Passkey { get; set; }
-
     /// <summary>
     /// Role of the user in the system.
     /// </summary>

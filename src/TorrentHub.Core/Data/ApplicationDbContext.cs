@@ -36,6 +36,8 @@ namespace TorrentHub.Core.Data
         public DbSet<RefreshToken> RefreshTokens { get; set; }
         public DbSet<CoinTransaction> CoinTransactions { get; set; }
         public DbSet<CommentReaction> CommentReactions { get; set; }
+        public DbSet<TorrentCredential> TorrentCredentials { get; set; }
+        public DbSet<RssFeedToken> RssFeedTokens { get; set; }
  
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -178,6 +180,33 @@ namespace TorrentHub.Core.Data
                 .WithMany()
                 .HasForeignKey(r => r.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
+            modelBuilder.Entity<TorrentCredential>(entity =>
+            {
+                entity.HasIndex(e => e.Credential).IsUnique();
+                entity.HasIndex(e => new { e.UserId, e.TorrentId, e.IsRevoked }).IsUnique().HasFilter("\"IsRevoked\" = false");
+            });
+            
+            // RssFeedToken configuration
+            modelBuilder.Entity<RssFeedToken>(entity =>
+            {
+                entity.HasIndex(e => e.Token).IsUnique();
+                entity.HasIndex(e => e.UserId);
+                entity.HasIndex(e => e.IsActive).HasFilter("\"IsActive\" = true");
+                entity.HasIndex(e => e.ExpiresAt).HasFilter("\"ExpiresAt\" IS NOT NULL");
+                
+                // Configure CategoryFilter as JSON array
+                entity.Property(e => e.CategoryFilter)
+                    .HasConversion(
+                        v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
+                        v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<string[]>(v, (System.Text.Json.JsonSerializerOptions?)null))
+                    .HasColumnType("jsonb");
+                
+                entity.HasOne(e => e.User)
+                    .WithMany()
+                    .HasForeignKey(e => e.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
     }
 }

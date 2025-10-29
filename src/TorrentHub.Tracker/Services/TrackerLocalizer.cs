@@ -9,11 +9,11 @@ public class TrackerLocalizer : ITrackerLocalizer
 
     public TrackerLocalizer()
     {
-        // InvalidPasskey
-        AddTranslation("InvalidPasskey", "en", "Invalid passkey.");
-        AddTranslation("InvalidPasskey", "zh-CN", "无效的密钥。");
-        AddTranslation("InvalidPasskey", "ja", "無効なパスキーです。");
-        AddTranslation("InvalidPasskey", "fr", "Clé d'accès invalide.");
+        // InvalidCredential (formerly InvalidPasskey)
+        AddTranslation("InvalidCredential", "en", "Invalid credential.");
+        AddTranslation("InvalidCredential", "zh-CN", "无效的凭证。");
+        AddTranslation("InvalidCredential", "ja", "無効な認証情報です。");
+        AddTranslation("InvalidCredential", "fr", "Identifiant invalide.");
         
         // BannedAccount
         AddTranslation("BannedAccount", "en", "Your account is banned.");

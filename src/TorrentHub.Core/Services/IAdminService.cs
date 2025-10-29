@@ -16,7 +16,7 @@ public interface IAdminService
 
     // Cheating Detection
     Task LogCheatAsync(int userId, string reason, string details);
-    Task<List<CheatLogDto>> GetCheatLogsAsync();
+    Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50);
 
     // Log Viewing
     Task<List<System.Text.Json.JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto);

@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TorrentHub.Core\TorrentHub.Core.csproj" />
+    <ProjectReference Include="..\TorrentHub\TorrentHub.csproj" />
   </ItemGroup>
 
 </Project>

@@ -77,6 +77,8 @@ public class Program
 
         // Add custom services
         builder.Services.AddScoped<IUserService, UserService>();
+        builder.Services.AddScoped<ITorrentCredentialService, TorrentCredentialService>();
+        builder.Services.AddScoped<IRssFeedTokenService, RssFeedTokenService>();
         
         builder.Services.AddScoped<IStoreService, StoreService>();
         builder.Services.AddScoped<ITorrentService, TorrentService>();
@@ -150,6 +152,8 @@ public class Program
         builder.Services.AddHostedService<PeerCountUpdateService>();
         builder.Services.AddHostedService<StatsCacheRefreshService>();
         builder.Services.AddHostedService<RequestConfirmationService>();
+        builder.Services.AddHostedService<CredentialCleanupService>();
+        builder.Services.AddHostedService<RssFeedTokenCleanupService>();
 
         var jwtKey = builder.Configuration["Jwt:Key"];
         if (string.IsNullOrEmpty(jwtKey))

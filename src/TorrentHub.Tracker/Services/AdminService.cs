@@ -64,7 +64,7 @@ public class AdminService : IAdminService
     public Task<BannedClient> AddBannedClientAsync(BannedClientDto dto) => throw new NotImplementedException();
     public Task<(bool Success, string Message)> DeleteBannedClientAsync(int id) => throw new NotImplementedException();
     public Task<List<DuplicateIpUserDto>> GetDuplicateIpUsersAsync() => throw new NotImplementedException();
-    public Task<List<CheatLogDto>> GetCheatLogsAsync() => throw new NotImplementedException();
+    public Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50) => throw new NotImplementedException();
     public Task<List<JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto) => throw new NotImplementedException();
     public Task<PaginatedResult<UserAdminProfileDto>> GetUsersAsync(int page, int pageSize) => throw new NotImplementedException();
 }

@@ -84,9 +84,9 @@ public class AdminController : ControllerBase
     // Cheat Logs
 
     [HttpGet("logs/cheat")]
-    public async Task<ActionResult<List<CheatLogDto>>> GetCheatLogs()
+    public async Task<ActionResult<PaginatedResult<CheatLogDto>>> GetCheatLogs([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
     {
-        var logs = await _adminService.GetCheatLogsAsync();
+        var logs = await _adminService.GetCheatLogsAsync(page, pageSize);
         return Ok(logs);
     }
 

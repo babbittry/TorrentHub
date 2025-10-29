@@ -101,8 +101,6 @@ public class UserService : IUserService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(userForRegistrationDto.Password),
             InviteId = invite?.Id,
             CreatedAt = DateTimeOffset.UtcNow,
-            Passkey = Guid.NewGuid(),
-            RssKey = Guid.NewGuid(),
             IsEmailVerified = false,
             TwoFactorType = TwoFactorType.Email,
             Language = userForRegistrationDto.Language ?? "zh-CN"

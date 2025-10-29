@@ -80,4 +80,10 @@ public class Peers
     /// </summary>
     [Required]
     public ulong Downloaded { get; set; } = 0;
+
+    /// <summary>
+    /// The credential used by this peer to connect to the tracker.
+    /// This will be null for peers that connected before the credential system was implemented.
+    /// </summary>
+    public Guid? Credential { get; set; }
 }

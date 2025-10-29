@@ -118,6 +118,85 @@ namespace TorrentHub.Data
                 logger.LogInformation("Default TransferTaxRate setting seeded successfully.");
             }
 
+            // Tracker Anti-Cheat Settings
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MinAnnounceIntervalSeconds"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "MinAnnounceIntervalSeconds", Value = "900" });
+                logger.LogInformation("Default MinAnnounceIntervalSeconds setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnforcedMinAnnounceIntervalSeconds"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "EnforcedMinAnnounceIntervalSeconds", Value = "180" });
+                logger.LogInformation("Default EnforcedMinAnnounceIntervalSeconds setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnableMultiLocationDetection"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "EnableMultiLocationDetection", Value = "true" });
+                logger.LogInformation("Default EnableMultiLocationDetection setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MultiLocationDetectionWindowMinutes"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "MultiLocationDetectionWindowMinutes", Value = "5" });
+                logger.LogInformation("Default MultiLocationDetectionWindowMinutes setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "LogMultiLocationCheating"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "LogMultiLocationCheating", Value = "true" });
+                logger.LogInformation("Default LogMultiLocationCheating setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "AllowIpChange"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "AllowIpChange", Value = "true" });
+                logger.LogInformation("Default AllowIpChange setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MinIpChangeIntervalMinutes"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "MinIpChangeIntervalMinutes", Value = "10" });
+                logger.LogInformation("Default MinIpChangeIntervalMinutes setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MinSpeedCheckIntervalSeconds"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "MinSpeedCheckIntervalSeconds", Value = "5" });
+                logger.LogInformation("Default MinSpeedCheckIntervalSeconds setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnableDownloadSpeedCheck"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "EnableDownloadSpeedCheck", Value = "true" });
+                logger.LogInformation("Default EnableDownloadSpeedCheck setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "CheatWarningAnnounceThreshold"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "CheatWarningAnnounceThreshold", Value = "20" });
+                logger.LogInformation("Default CheatWarningAnnounceThreshold setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "AutoBanAfterCheatWarnings"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "AutoBanAfterCheatWarnings", Value = "10" });
+                logger.LogInformation("Default AutoBanAfterCheatWarnings setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "CredentialCleanupDays"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "CredentialCleanupDays", Value = "90" });
+                logger.LogInformation("Default CredentialCleanupDays setting seeded successfully.");
+            }
+
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnableCredentialAutoCleanup"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "EnableCredentialAutoCleanup", Value = "true" });
+                logger.LogInformation("Default EnableCredentialAutoCleanup setting seeded successfully.");
+            }
+
             await context.SaveChangesAsync();
         }
 
@@ -161,6 +240,9 @@ namespace TorrentHub.Data
             // Seed Peers
             await SeedPeersAsync(context, logger, users, torrents, 100); // Seed 100 peers
 
+            // Seed TorrentCredentials
+            await SeedTorrentCredentialsAsync(context, logger, users, torrents, 50); // Seed 50 credentials
+
             // Seed UserBadges
             await SeedUserBadgesAsync(context, logger, users, badges, 30); // Assign 30 user badges
 
@@ -190,8 +272,6 @@ namespace TorrentHub.Data
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("AdminPassword123"),
                     Role = UserRole.Administrator,
                     CreatedAt = DateTimeOffset.UtcNow,
-                    Passkey = Guid.NewGuid(),
-                    RssKey = Guid.NewGuid(),
                     IsEmailVerified = true,
                     TwoFactorType = TwoFactorType.Email
                 };
@@ -253,8 +333,6 @@ namespace TorrentHub.Data
                     (f, u) => (ulong)f.Random.Long(0, (long)u.UploadedBytes)) // Downloaded less than uploaded
                 .RuleFor(u => u.NominalUploadedBytes, (f, u) => u.UploadedBytes)
                 .RuleFor(u => u.NominalDownloadedBytes, (f, u) => u.DownloadedBytes)
-                .RuleFor(u => u.RssKey, f => f.Random.Guid())
-                .RuleFor(u => u.Passkey, f => f.Random.Guid())
                 .RuleFor(u => u.Role, f => f.PickRandom<UserRole>(UserRole.User, UserRole.Moderator))
                 .RuleFor(u => u.IsEmailVerified, f => true)
                 .RuleFor(u => u.TwoFactorType, f => TwoFactorType.Email)
@@ -670,6 +748,89 @@ namespace TorrentHub.Data
             else
             {
                 logger.LogInformation("Peers already exist or no users/torrents, skipping seeding.");
+            }
+        }
+
+        public static async Task SeedTorrentCredentialsAsync(ApplicationDbContext context, ILogger logger,
+            List<User> users, List<Torrent> torrents, int count)
+        {
+            if (!await context.TorrentCredentials.AnyAsync() && users.Any() && torrents.Any())
+            {
+                var faker = new Faker();
+                var credentials = new List<TorrentCredential>();
+
+                // 为每个用户随机生成几个种子的credentials
+                var allPossiblePairs = users.SelectMany(user => torrents.Select(torrent => new { user, torrent }))
+                    .ToList();
+
+                var uniquePairs = faker.PickRandom(allPossiblePairs, Math.Min(count, allPossiblePairs.Count)).ToList();
+
+                foreach (var pair in uniquePairs)
+                {
+                    var credential = new TorrentCredential
+                    {
+                        Credential = Guid.NewGuid(),
+                        UserId = pair.user.Id,
+                        User = pair.user,
+                        TorrentId = pair.torrent.Id,
+                        Torrent = pair.torrent,
+                        CreatedAt = faker.Date.Past(1).ToUniversalTime(),
+                        LastUsedAt = faker.Random.Bool(0.7f)
+                            ? faker.Date.Recent(7).ToUniversalTime()
+                            : (DateTimeOffset?)null, // 70%有使用记录
+                        IsRevoked = faker.Random.Bool(0.1f), // 10%被撤销
+                        RevokedAt = null,
+                        RevokeReason = null,
+                        UsageCount = faker.Random.Int(0, 100)
+                    };
+
+                    // 如果已撤销,设置撤销信息
+                    if (credential.IsRevoked)
+                    {
+                        credential.RevokedAt = faker.Date.Between(
+                            credential.CreatedAt.UtcDateTime,
+                            DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime();
+                        credential.RevokeReason = faker.PickRandom(
+                            "User requested",
+                            "Abuse detected",
+                            "Torrent removed",
+                            "Account suspended");
+                    }
+
+                    credentials.Add(credential);
+                }
+
+                context.TorrentCredentials.AddRange(credentials);
+                await context.SaveChangesAsync();
+                logger.LogInformation("{Count} torrent credentials seeded successfully.", credentials.Count);
+
+                // 为部分Peers添加credential引用
+                var peers = await context.Peers
+                    .Include(p => p.User)
+                    .Include(p => p.Torrent)
+                    .ToListAsync();
+
+                foreach (var peer in peers.Take(Math.Min(30, peers.Count)))
+                {
+                    // 查找对应的credential
+                    var matchingCredential = credentials.FirstOrDefault(c =>
+                        c.UserId == peer.UserId &&
+                        c.TorrentId == peer.TorrentId &&
+                        !c.IsRevoked);
+
+                    if (matchingCredential != null)
+                    {
+                        peer.Credential = matchingCredential.Credential;
+                    }
+                }
+
+                await context.SaveChangesAsync();
+                logger.LogInformation("Updated {Count} peers with credential references.",
+                    peers.Count(p => p.Credential != null));
+            }
+            else
+            {
+                logger.LogInformation("Torrent credentials already exist or no users/torrents, skipping seeding.");
             }
         }
 

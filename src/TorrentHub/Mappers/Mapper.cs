@@ -11,8 +11,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.PasswordHash))]
     [MapperIgnoreSource(nameof(User.Email))]
     [MapperIgnoreSource(nameof(User.Language))]
-    [MapperIgnoreSource(nameof(User.RssKey))]
-    [MapperIgnoreSource(nameof(User.Passkey))]
     [MapperIgnoreSource(nameof(User.InviteId))]
     [MapperIgnoreSource(nameof(User.Invite))]
     [MapperIgnoreSource(nameof(User.Torrents))]
@@ -32,8 +30,6 @@ public static partial class Mapper
 
     // Private profile includes more details, but still hides sensitive info.
     [MapperIgnoreSource(nameof(User.PasswordHash))]
-    [MapperIgnoreSource(nameof(User.RssKey))]
-    [MapperIgnoreSource(nameof(User.Passkey))]
     [MapperIgnoreSource(nameof(User.InviteId))]
     [MapperIgnoreSource(nameof(User.Invite))]
     [MapperIgnoreSource(nameof(User.Torrents))]
@@ -52,8 +48,6 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.PasswordHash))]
     [MapperIgnoreTarget(nameof(User.UploadedBytes))]
     [MapperIgnoreTarget(nameof(User.DownloadedBytes))]
-    [MapperIgnoreTarget(nameof(User.RssKey))]
-    [MapperIgnoreTarget(nameof(User.Passkey))]
     [MapperIgnoreTarget(nameof(User.Role))]
     [MapperIgnoreTarget(nameof(User.CreatedAt))]
     [MapperIgnoreTarget(nameof(User.InviteNum))]
@@ -92,8 +86,6 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.Language))]
     [MapperIgnoreTarget(nameof(User.UploadedBytes))]
     [MapperIgnoreTarget(nameof(User.DownloadedBytes))]
-    [MapperIgnoreTarget(nameof(User.RssKey))]
-    [MapperIgnoreTarget(nameof(User.Passkey))]
     [MapperIgnoreTarget(nameof(User.CreatedAt))]
     [MapperIgnoreTarget(nameof(User.InviteId))]
     [MapperIgnoreTarget(nameof(User.Invite))]
@@ -208,8 +200,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(User.DownloadedBytes))]
     [MapperIgnoreSource(nameof(User.NominalUploadedBytes))]
     [MapperIgnoreSource(nameof(User.NominalDownloadedBytes))]
-    [MapperIgnoreSource(nameof(User.RssKey))]
-    [MapperIgnoreSource(nameof(User.Passkey))]
     [MapperIgnoreSource(nameof(User.Role))]
     [MapperIgnoreSource(nameof(User.CreatedAt))]
     [MapperIgnoreSource(nameof(User.BanStatus))]
@@ -237,4 +227,17 @@ public static partial class Mapper
     {
         return expiresAt.HasValue && expiresAt.Value > DateTimeOffset.UtcNow;
     }
+
+    // TorrentCredential to CredentialDto mapping
+    [MapperIgnoreSource(nameof(TorrentCredential.UserId))]
+    [MapperIgnoreSource(nameof(TorrentCredential.User))]
+    [MapperIgnoreSource(nameof(TorrentCredential.TorrentId))]
+    [MapperIgnoreSource(nameof(TorrentCredential.Torrent))]
+    [MapperIgnoreSource(nameof(TorrentCredential.CreatedAt))]
+    [MapperIgnoreSource(nameof(TorrentCredential.LastUsedAt))]
+    [MapperIgnoreSource(nameof(TorrentCredential.IsRevoked))]
+    [MapperIgnoreSource(nameof(TorrentCredential.RevokedAt))]
+    [MapperIgnoreSource(nameof(TorrentCredential.RevokeReason))]
+    [MapperIgnoreSource(nameof(TorrentCredential.UsageCount))]
+    public static partial CredentialDto ToCredentialDto(TorrentCredential credential);
 }
