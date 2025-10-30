@@ -228,16 +228,27 @@ public static partial class Mapper
         return expiresAt.HasValue && expiresAt.Value > DateTimeOffset.UtcNow;
     }
 
-    // TorrentCredential to CredentialDto mapping
-    [MapperIgnoreSource(nameof(TorrentCredential.UserId))]
-    [MapperIgnoreSource(nameof(TorrentCredential.User))]
-    [MapperIgnoreSource(nameof(TorrentCredential.TorrentId))]
-    [MapperIgnoreSource(nameof(TorrentCredential.Torrent))]
-    [MapperIgnoreSource(nameof(TorrentCredential.CreatedAt))]
-    [MapperIgnoreSource(nameof(TorrentCredential.LastUsedAt))]
-    [MapperIgnoreSource(nameof(TorrentCredential.IsRevoked))]
-    [MapperIgnoreSource(nameof(TorrentCredential.RevokedAt))]
-    [MapperIgnoreSource(nameof(TorrentCredential.RevokeReason))]
-    [MapperIgnoreSource(nameof(TorrentCredential.UsageCount))]
-    public static partial CredentialDto ToCredentialDto(TorrentCredential credential);
+    // TorrentCredential to CredentialDto mapping - Manual mapping to handle navigation properties
+    public static CredentialDto ToCredentialDto(TorrentCredential credential)
+    {
+        return new CredentialDto
+        {
+            Id = credential.Id,
+            Credential = credential.Credential,
+            TorrentId = credential.TorrentId,
+            TorrentName = credential.Torrent?.Name ?? "Unknown",
+            IsRevoked = credential.IsRevoked,
+            CreatedAt = credential.CreatedAt,
+            RevokedAt = credential.RevokedAt,
+            RevokeReason = credential.RevokeReason,
+            LastUsedAt = credential.LastUsedAt,
+            FirstUsedAt = credential.FirstUsedAt,
+            UsageCount = credential.UsageCount,
+            AnnounceCount = credential.AnnounceCount,
+            TotalUploadedBytes = credential.TotalUploadedBytes,
+            TotalDownloadedBytes = credential.TotalDownloadedBytes,
+            LastIpAddress = credential.LastIpAddress,
+            LastUserAgent = credential.LastUserAgent
+        };
+    }
 }

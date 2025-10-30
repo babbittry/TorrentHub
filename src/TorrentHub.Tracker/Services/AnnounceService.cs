@@ -75,7 +75,8 @@ public class AnnounceService : IAnnounceService
         }
 
         // Update credential usage statistics
-        await _credentialService.UpdateCredentialUsageAsync(credential);
+        // This call is now redundant as we update usage stats below
+        // await _credentialService.UpdateCredentialUsageAsync(credential);
 
         // --- 2. User and Client Validation ---
         var user = await _context.Users.FindAsync(userId.Value);
@@ -169,7 +170,8 @@ public class AnnounceService : IAnnounceService
                 {
                     await _adminService.LogCheatAsync(
                         userId: user.Id,
-                        detectionType: "MultiLocation",
+                        detectionType: CheatDetectionType.MultiLocation,
+                        severity: CheatSeverity.High,
                         details: $"IPs in {settings.MultiLocationDetectionWindowMinutes}min: {string.Join(", ", recentIps)}",
                         torrentId: torrent.Id,
                         ipAddress: currentIp
@@ -186,9 +188,11 @@ public class AnnounceService : IAnnounceService
                 double uploadSpeedKBps = ((uploaded - peer.Uploaded) / 1024.0) / timeDelta;
                 if (settings.MaxUploadSpeed > 0 && uploadSpeedKBps > settings.MaxUploadSpeed)
                 {
+                    var severity = uploadSpeedKBps > (settings.MaxUploadSpeed * 5) ? CheatSeverity.Critical : CheatSeverity.Medium;
                     await _adminService.LogCheatAsync(
                         userId: user.Id,
-                        detectionType: "SpeedCheat",
+                        detectionType: CheatDetectionType.SpeedCheat,
+                        severity: severity,
                         details: $"Upload speed {uploadSpeedKBps:F2} KB/s exceeds limit",
                         torrentId: torrent.Id,
                         ipAddress: ipAddress?.ToString()
@@ -270,6 +274,39 @@ public class AnnounceService : IAnnounceService
         user.DownloadedBytes += downloaded;
         user.NominalUploadedBytes += nominalUpload;
         user.NominalDownloadedBytes += nominalDownload;
+
+        // --- 6.1. Update Credential Usage Statistics ---
+        var credentialEntity = await _context.TorrentCredentials
+            .FirstOrDefaultAsync(c => c.Credential == credential);
+
+        if (credentialEntity != null)
+        {
+            // Calculate traffic deltas
+            if (peer != null && timeDelta > 0)
+            {
+                var uploadDelta = uploaded > peer.Uploaded ? uploaded - peer.Uploaded : 0;
+                var downloadDelta = downloaded > peer.Downloaded ? downloaded - peer.Downloaded : 0;
+                
+                credentialEntity.TotalUploadedBytes += uploadDelta;
+                credentialEntity.TotalDownloadedBytes += downloadDelta;
+            }
+            
+            // Update announce count and timestamps
+            credentialEntity.AnnounceCount++;
+            credentialEntity.LastUsedAt = DateTimeOffset.UtcNow;
+            
+            if (!credentialEntity.FirstUsedAt.HasValue)
+            {
+                credentialEntity.FirstUsedAt = DateTimeOffset.UtcNow;
+            }
+            
+            // Update IP and UserAgent
+            if (ipAddress != null)
+            {
+                credentialEntity.LastIpAddress = ipAddress.ToString();
+            }
+            credentialEntity.LastUserAgent = peerId;
+        }
 
         await _context.SaveChangesAsync();
 

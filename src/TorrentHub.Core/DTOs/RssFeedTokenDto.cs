@@ -1,10 +1,12 @@
+using TorrentHub.Core.Enums;
+
 namespace TorrentHub.Core.DTOs
 {
     public class RssFeedTokenDto
     {
         public int Id { get; set; }
         public Guid Token { get; set; }
-        public string FeedType { get; set; } = string.Empty;
+        public RssFeedType FeedType { get; set; }
         public string? Name { get; set; }
         public string[]? CategoryFilter { get; set; }
         public int MaxResults { get; set; }
@@ -20,7 +22,7 @@ namespace TorrentHub.Core.DTOs
 
     public class CreateRssFeedTokenRequestDto
     {
-        public string FeedType { get; set; } = "Latest";
+        public RssFeedType FeedType { get; set; } = RssFeedType.Latest;
         public string? Name { get; set; }
         public string[]? CategoryFilter { get; set; }
         public int MaxResults { get; set; } = 50;

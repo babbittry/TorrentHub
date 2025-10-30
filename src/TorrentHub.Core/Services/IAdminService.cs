@@ -1,5 +1,6 @@
 
 using TorrentHub.Core.DTOs;
+using TorrentHub.Core.Enums;
 using TorrentHub.Core.Entities;
 
 namespace TorrentHub.Core.Services;
@@ -17,7 +18,8 @@ public interface IAdminService
     // Cheating Detection
     Task LogCheatAsync(
         int userId,
-        string detectionType,
+        CheatDetectionType detectionType,
+        CheatSeverity severity,
         string? details = null,
         int? torrentId = null,
         string? ipAddress = null);
@@ -27,6 +29,22 @@ public interface IAdminService
         int pageSize = 50,
         int? userId = null,
         string? detectionType = null);
+    
+    // CheatLog 处理状态管理
+    /// <summary>
+    /// 标记作弊日志为已处理
+    /// </summary>
+    Task<bool> MarkCheatLogAsProcessedAsync(int logId, int adminUserId, string? notes = null);
+    
+    /// <summary>
+    /// 批量标记作弊日志为已处理
+    /// </summary>
+    Task<int> MarkCheatLogsBatchAsProcessedAsync(int[] logIds, int adminUserId, string? notes = null);
+    
+    /// <summary>
+    /// 取消作弊日志的处理状态
+    /// </summary>
+    Task<bool> UnmarkCheatLogAsync(int logId);
 
     // Log Viewing
     Task<List<System.Text.Json.JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto);

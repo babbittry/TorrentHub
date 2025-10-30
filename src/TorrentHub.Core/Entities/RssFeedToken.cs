@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using TorrentHub.Core.Enums;
 
 namespace TorrentHub.Core.Entities;
 
@@ -24,8 +25,7 @@ public class RssFeedToken
     /// Type of RSS feed (Latest, Category, Bookmarks, Custom)
     /// </summary>
     [Required]
-    [MaxLength(50)]
-    public required string FeedType { get; set; }
+    public RssFeedType FeedType { get; set; }
 
     /// <summary>
     /// Array of category filters (e.g., ["Movie", "TV"])

@@ -83,4 +83,11 @@ public class TorrentCredential
     [Required]
     [DefaultValue(0)]
     public int UsageCount { get; set; } = 0;
+
+    public ulong TotalUploadedBytes { get; set; }
+    public ulong TotalDownloadedBytes { get; set; }
+    public int AnnounceCount { get; set; }
+    public DateTimeOffset? FirstUsedAt { get; set; }
+    public string? LastIpAddress { get; set; }
+    public string? LastUserAgent { get; set; }
 }

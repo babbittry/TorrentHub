@@ -34,7 +34,7 @@ namespace TorrentHub.Controllers
         /// </summary>
         [HttpPost("tokens")]
         [Authorize]
-        public async Task<ActionResult<RssFeedTokenResponseDto>> CreateToken([FromBody] CreateRssFeedTokenRequestDto request)
+        public async Task<ActionResult<ApiResponse<RssFeedTokenResponseDto>>> CreateToken([FromBody] CreateRssFeedTokenRequestDto request)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             
@@ -50,11 +50,12 @@ namespace TorrentHub.Controllers
             var baseUrl = _configuration["BaseUrl"] ?? $"{Request.Scheme}://{Request.Host}";
             var rssUrl = $"{baseUrl}/api/rssfeed/feed/{token.Token}";
 
-            return Ok(new RssFeedTokenResponseDto
+            var response = new RssFeedTokenResponseDto
             {
                 Token = MapToDto(token),
                 RssUrl = rssUrl
-            });
+            };
+            return Ok(ApiResponse<RssFeedTokenResponseDto>.SuccessResult(response));
         }
 
         /// <summary>
@@ -62,12 +63,46 @@ namespace TorrentHub.Controllers
         /// </summary>
         [HttpGet("tokens")]
         [Authorize]
-        public async Task<ActionResult<List<RssFeedTokenDto>>> GetTokens()
+        public async Task<ActionResult<ApiResponse<List<RssFeedTokenDto>>>> GetTokens()
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var tokens = await _tokenService.GetUserTokensAsync(userId);
             
-            return Ok(tokens.Select(MapToDto).ToList());
+            return Ok(ApiResponse<List<RssFeedTokenDto>>.SuccessResult(tokens.Select(MapToDto).ToList()));
+        }
+
+        /// <summary>
+        /// 更新RSS Feed Token
+        /// </summary>
+        [HttpPatch("tokens/{id}")]
+        [Authorize]
+        public async Task<ActionResult<ApiResponse<RssFeedTokenDto>>> UpdateToken(
+            int id,
+            [FromBody] UpdateRssFeedTokenRequest request)
+        {
+            try
+            {
+                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+                
+                var token = await _tokenService.UpdateTokenAsync(id, userId, request);
+                
+                if (token == null)
+                {
+                    return NotFound(ApiResponse<RssFeedTokenDto>.ErrorResult("Token not found or access denied"));
+                }
+
+                var dto = MapToDto(token);
+
+                return Ok(ApiResponse<RssFeedTokenDto>.SuccessResult(dto, "Token updated successfully"));
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ApiResponse<RssFeedTokenDto>.ErrorResult(ex.Message));
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, ApiResponse<RssFeedTokenDto>.ErrorResult("An error occurred while updating the token"));
+            }
         }
 
         /// <summary>
@@ -75,12 +110,12 @@ namespace TorrentHub.Controllers
         /// </summary>
         [HttpPost("tokens/{id}/revoke")]
         [Authorize]
-        public async Task<IActionResult> RevokeToken(int id)
+        public async Task<ActionResult<ApiResponse>> RevokeToken(int id)
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
             var result = await _tokenService.RevokeTokenAsync(id, userId);
             
-            return result ? Ok() : NotFound();
+            return result ? Ok(ApiResponse.SuccessResult("Token revoked successfully.")) : NotFound(ApiResponse.ErrorResult("Token not found."));
         }
 
         /// <summary>
@@ -88,12 +123,12 @@ namespace TorrentHub.Controllers
         /// </summary>
         [HttpPost("tokens/revoke-all")]
         [Authorize]
-        public async Task<IActionResult> RevokeAllTokens()
+        public async Task<ActionResult<ApiResponse<int>>> RevokeAllTokens()
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
-            await _tokenService.RevokeAllUserTokensAsync(userId);
+            var count = await _tokenService.RevokeAllUserTokensAsync(userId);
             
-            return Ok();
+            return Ok(ApiResponse<int>.SuccessResult(count, $"Successfully revoked {count} tokens."));
         }
 
         /// <summary>
@@ -175,9 +210,9 @@ namespace TorrentHub.Controllers
             writer.WriteStartElement("channel");
             
             // Channel metadata
-            writer.WriteElementString("title", $"TorrentHub RSS Feed - {token.Name ?? token.FeedType}");
+            writer.WriteElementString("title", $"TorrentHub RSS Feed - {token.Name ?? token.FeedType.ToString()}");
             writer.WriteElementString("link", baseUrl);
-            writer.WriteElementString("description", $"RSS feed for {token.FeedType} torrents");
+            writer.WriteElementString("description", $"RSS feed for {token.FeedType.ToString()} torrents");
             writer.WriteElementString("language", "zh-CN");
             writer.WriteElementString("lastBuildDate", DateTimeOffset.UtcNow.ToString("R"));
 

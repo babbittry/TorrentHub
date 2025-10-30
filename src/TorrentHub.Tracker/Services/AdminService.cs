@@ -4,6 +4,7 @@ using System.Text.Json;
 using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
+using TorrentHub.Core.Enums;
 using TorrentHub.Core.Services;
 
 namespace TorrentHub.Tracker.Services;
@@ -43,7 +44,8 @@ public class AdminService : IAdminService
 
     public async Task LogCheatAsync(
         int userId,
-        string detectionType,
+        CheatDetectionType detectionType,
+        CheatSeverity severity,
         string? details = null,
         int? torrentId = null,
         string? ipAddress = null)
@@ -57,7 +59,7 @@ public class AdminService : IAdminService
         {
             UserId = userId,
             DetectionType = detectionType,
-            Reason = detectionType, // 向后兼容
+            Severity = severity,
             Details = details,
             TorrentId = torrentId,
             IpAddress = ipAddress,
@@ -75,4 +77,9 @@ public class AdminService : IAdminService
     public Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50, int? userId = null, string? detectionType = null) => throw new NotImplementedException();
     public Task<List<JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto) => throw new NotImplementedException();
     public Task<PaginatedResult<UserAdminProfileDto>> GetUsersAsync(int page, int pageSize) => throw new NotImplementedException();
+    
+    // CheatLog processing methods - not needed by Tracker service
+    public Task<bool> MarkCheatLogAsProcessedAsync(int logId, int adminUserId, string? notes = null) => throw new NotImplementedException();
+    public Task<int> MarkCheatLogsBatchAsProcessedAsync(int[] logIds, int adminUserId, string? notes = null) => throw new NotImplementedException();
+    public Task<bool> UnmarkCheatLogAsync(int logId) => throw new NotImplementedException();
 }

@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using TorrentHub.Core.Data;
+using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
+using TorrentHub.Core.Enums;
 using TorrentHub.Core.Services;
 
 namespace TorrentHub.Services
@@ -14,7 +16,7 @@ namespace TorrentHub.Services
             _dbContext = dbContext;
         }
 
-        public async Task<RssFeedToken> CreateTokenAsync(int userId, string feedType, string? name = null, string[]? categoryFilter = null, int maxResults = 50, DateTimeOffset? expiresAt = null)
+        public async Task<RssFeedToken> CreateTokenAsync(int userId, RssFeedType feedType, string? name = null, string[]? categoryFilter = null, int maxResults = 50, DateTimeOffset? expiresAt = null)
         {
             // 获取User实体以满足required属性
             var user = await _dbContext.Users.FindAsync(userId);
@@ -90,11 +92,16 @@ namespace TorrentHub.Services
             return true;
         }
 
-        public async Task RevokeAllUserTokensAsync(int userId)
+        public async Task<int> RevokeAllUserTokensAsync(int userId)
         {
             var tokens = await _dbContext.RssFeedTokens
                 .Where(t => t.UserId == userId && t.IsActive)
                 .ToListAsync();
+
+            if (!tokens.Any())
+            {
+                return 0;
+            }
 
             foreach (var token in tokens)
             {
@@ -103,6 +110,7 @@ namespace TorrentHub.Services
             }
 
             await _dbContext.SaveChangesAsync();
+            return tokens.Count;
         }
 
         public async Task CleanupExpiredTokensAsync()
@@ -142,6 +150,51 @@ namespace TorrentHub.Services
             }
 
             return true;
+        }
+
+        public async Task<RssFeedToken?> UpdateTokenAsync(int tokenId, int userId, UpdateRssFeedTokenRequest request)
+        {
+            var token = await _dbContext.RssFeedTokens
+                .FirstOrDefaultAsync(t => t.Id == tokenId && t.UserId == userId);
+
+            if (token == null)
+            {
+                return null;
+            }
+
+            // 只更新提供的字段
+            if (request.FeedType.HasValue)
+            {
+                token.FeedType = request.FeedType.Value;
+            }
+
+            if (request.CategoryFilter != null)
+            {
+                token.CategoryFilter = request.CategoryFilter;
+            }
+
+            if (request.Name != null)
+            {
+                token.Name = request.Name;
+            }
+
+            if (request.MaxResults.HasValue)
+            {
+                if (request.MaxResults.Value < 1 || request.MaxResults.Value > 100)
+                {
+                    throw new ArgumentException("MaxResults must be between 1 and 100", nameof(request.MaxResults));
+                }
+                token.MaxResults = request.MaxResults.Value;
+            }
+
+            if (request.ExpiresAt.HasValue)
+            {
+                token.ExpiresAt = request.ExpiresAt.Value;
+            }
+
+            await _dbContext.SaveChangesAsync();
+
+            return token;
         }
     }
 }

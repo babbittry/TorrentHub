@@ -1,6 +1,7 @@
 
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using TorrentHub.Core.Enums;
 
 namespace TorrentHub.Core.Entities;
 
@@ -24,20 +25,45 @@ public class CheatLog
     [Required]
     public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 
-    // 检测类型 (替代原有的Reason字段)
+    // 检测类型
     [Required]
-    [StringLength(100)]
-    public required string DetectionType { get; set; }
+    public CheatDetectionType DetectionType { get; set; }
+
+    // 严重等级
+    [Required]
+    public CheatSeverity Severity { get; set; } = CheatSeverity.Medium;
 
     // IP地址
     [StringLength(45)] // IPv6最大长度
     public string? IpAddress { get; set; }
 
-    // 保留原有字段以向后兼容
-    [Required]
-    [StringLength(255)]
-    public required string Reason { get; set; }
-
     [StringLength(500)]
+    /// <summary>
+    /// 是否已处理
+    /// </summary>
+    [Required]
+    public bool IsProcessed { get; set; } = false;
+
+    /// <summary>
+    /// 处理时间
+    /// </summary>
+    public DateTimeOffset? ProcessedAt { get; set; }
+
+    /// <summary>
+    /// 处理的管理员用户ID
+    /// </summary>
+    public int? ProcessedByUserId { get; set; }
+
+    /// <summary>
+    /// 处理的管理员 (导航属性)
+    /// </summary>
+    [ForeignKey(nameof(ProcessedByUserId))]
+    public User? ProcessedByUser { get; set; }
+
+    /// <summary>
+    /// 管理员备注
+    /// </summary>
+    [StringLength(500)]
+    public string? AdminNotes { get; set; }
     public string? Details { get; set; }
 }

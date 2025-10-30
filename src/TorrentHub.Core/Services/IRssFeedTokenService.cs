@@ -1,4 +1,6 @@
+using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
+using TorrentHub.Core.Enums;
 
 namespace TorrentHub.Core.Services
 {
@@ -7,7 +9,7 @@ namespace TorrentHub.Core.Services
         /// <summary>
         /// 创建新的RSS Feed Token
         /// </summary>
-        Task<RssFeedToken> CreateTokenAsync(int userId, string feedType, string? name = null, string[]? categoryFilter = null, int maxResults = 50, DateTimeOffset? expiresAt = null);
+        Task<RssFeedToken> CreateTokenAsync(int userId, RssFeedType feedType, string? name = null, string[]? categoryFilter = null, int maxResults = 50, DateTimeOffset? expiresAt = null);
         
         /// <summary>
         /// 通过Token获取RSS Feed Token信息
@@ -32,7 +34,16 @@ namespace TorrentHub.Core.Services
         /// <summary>
         /// 撤销用户的所有Token
         /// </summary>
-        Task RevokeAllUserTokensAsync(int userId);
+        Task<int> RevokeAllUserTokensAsync(int userId);
+        
+        /// <summary>
+        /// 更新指定的RSS Feed Token
+        /// </summary>
+        /// <param name="tokenId">Token ID</param>
+        /// <param name="userId">用户ID (用于权限验证)</param>
+        /// <param name="request">更新请求</param>
+        /// <returns>更新后的Token,如果Token不存在或无权限则返回null</returns>
+        Task<RssFeedToken?> UpdateTokenAsync(int tokenId, int userId, UpdateRssFeedTokenRequest request);
         
         /// <summary>
         /// 清理过期的Token

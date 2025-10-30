@@ -4,6 +4,7 @@ using System.Text.Json;
 using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
+using TorrentHub.Core.Enums;
 using TorrentHub.Core.Services;
 using TorrentHub.Services.Interfaces;
 
@@ -98,7 +99,8 @@ public class AdminService : IAdminService
 
     public async Task LogCheatAsync(
         int userId,
-        string detectionType,
+        CheatDetectionType detectionType,
+        CheatSeverity severity,
         string? details = null,
         int? torrentId = null,
         string? ipAddress = null)
@@ -112,7 +114,7 @@ public class AdminService : IAdminService
         {
             UserId = userId,
             DetectionType = detectionType,
-            Reason = detectionType, // 向后兼容
+            Severity = severity,
             Details = details,
             TorrentId = torrentId,
             IpAddress = ipAddress,
@@ -139,8 +141,8 @@ public class AdminService : IAdminService
         if (userId.HasValue)
             query = query.Where(l => l.UserId == userId.Value);
 
-        if (!string.IsNullOrEmpty(detectionType))
-            query = query.Where(l => l.DetectionType == detectionType);
+        if (!string.IsNullOrEmpty(detectionType) && Enum.TryParse<CheatDetectionType>(detectionType, true, out var detectionTypeEnum))
+            query = query.Where(l => l.DetectionType == detectionTypeEnum);
 
         query = query.OrderByDescending(l => l.Timestamp);
 
@@ -157,10 +159,15 @@ public class AdminService : IAdminService
                 TorrentId = l.TorrentId,
                 TorrentName = l.Torrent == null ? null : l.Torrent.Name,
                 DetectionType = l.DetectionType,
+                Severity = l.Severity,
                 IpAddress = l.IpAddress,
                 Timestamp = l.Timestamp,
-                Reason = l.Reason,
-                Details = l.Details
+                Details = l.Details,
+                IsProcessed = l.IsProcessed,
+                ProcessedAt = l.ProcessedAt,
+                ProcessedByUserId = l.ProcessedByUserId,
+                ProcessedByUsername = l.ProcessedByUser == null ? null : l.ProcessedByUser.UserName,
+                AdminNotes = l.AdminNotes
             })
             .ToListAsync();
 
@@ -271,6 +278,79 @@ public class AdminService : IAdminService
             TotalItems = totalItems,
             TotalPages = (int)Math.Ceiling(totalItems / (double)pageSize)
         };
+    }
+
+    public async Task<bool> MarkCheatLogAsProcessedAsync(int logId, int adminUserId, string? notes = null)
+    {
+        var log = await _context.CheatLogs.FirstOrDefaultAsync(l => l.Id == logId);
+
+        if (log == null)
+        {
+            _logger.LogWarning("CheatLog {LogId} not found", logId);
+            return false;
+        }
+
+        log.IsProcessed = true;
+        log.ProcessedAt = DateTimeOffset.UtcNow;
+        log.ProcessedByUserId = adminUserId;
+        log.AdminNotes = notes?.Substring(0, Math.Min(notes.Length, 500));
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Admin {AdminId} marked CheatLog {LogId} as processed", adminUserId, logId);
+
+        return true;
+    }
+
+    public async Task<int> MarkCheatLogsBatchAsProcessedAsync(int[] logIds, int adminUserId, string? notes = null)
+    {
+        var logs = await _context.CheatLogs
+            .Where(l => logIds.Contains(l.Id) && !l.IsProcessed)
+            .ToListAsync();
+
+        if (!logs.Any())
+        {
+            return 0;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var truncatedNotes = notes?.Substring(0, Math.Min(notes.Length, 500));
+
+        foreach (var log in logs)
+        {
+            log.IsProcessed = true;
+            log.ProcessedAt = now;
+            log.ProcessedByUserId = adminUserId;
+            log.AdminNotes = truncatedNotes;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Admin {AdminId} marked {Count} CheatLogs as processed", adminUserId, logs.Count);
+
+        return logs.Count;
+    }
+
+    public async Task<bool> UnmarkCheatLogAsync(int logId)
+    {
+        var log = await _context.CheatLogs.FirstOrDefaultAsync(l => l.Id == logId);
+
+        if (log == null)
+        {
+            _logger.LogWarning("CheatLog {LogId} not found", logId);
+            return false;
+        }
+
+        log.IsProcessed = false;
+        log.ProcessedAt = null;
+        log.ProcessedByUserId = null;
+        log.AdminNotes = null;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("CheatLog {LogId} unmarked", logId);
+
+        return true;
     }
 }
 

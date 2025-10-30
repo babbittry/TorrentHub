@@ -1,3 +1,4 @@
+using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 
 namespace TorrentHub.Core.Services;
@@ -41,7 +42,24 @@ public interface ITorrentCredentialService
     /// <param name="userId">用户ID</param>
     /// <param name="reason">撤销原因</param>
     /// <returns>撤销的credential数量</returns>
-    Task<int> RevokeUserCredentialsAsync(int userId, string reason);
+    Task<(int Count, List<int> TorrentIds)> RevokeUserCredentialsAsync(int userId, string reason);
+
+    /// <summary>
+    /// 批量撤销用户的指定credentials
+    /// </summary>
+    /// <param name="userId">用户ID</param>
+    /// <param name="credentialIds">要撤销的credential GUID数组</param>
+    /// <param name="reason">撤销原因</param>
+    /// <returns>撤销的credential数量和受影响的种子ID列表</returns>
+    Task<(int Count, List<int> TorrentIds)> RevokeBatchAsync(int userId, Guid[] credentialIds, string reason);
+
+    /// <summary>
+    /// 管理员批量撤销任意credentials
+    /// </summary>
+    /// <param name="credentialIds">要撤销的credential GUID数组</param>
+    /// <param name="reason">撤销原因</param>
+    /// <returns>撤销的credential数量和受影响的种子ID列表</returns>
+    Task<(int Count, List<int> TorrentIds)> AdminRevokeBatchAsync(Guid[] credentialIds, string reason);
 
     Task<int> RevokeUserTorrentCredentialsAsync(int userId, int torrentId, string reason);
 
@@ -52,12 +70,12 @@ public interface ITorrentCredentialService
     Task UpdateCredentialUsageAsync(Guid credential);
 
     /// <summary>
-    /// 获取用户的所有credentials
+    /// 获取用户的credentials (支持筛选和分页)
     /// </summary>
     /// <param name="userId">用户ID</param>
-    /// <param name="includeRevoked">是否包含已撤销的credentials</param>
-    /// <returns>Credential列表</returns>
-    Task<List<TorrentCredential>> GetUserCredentialsAsync(int userId, bool includeRevoked = false);
+    /// <param name="filter">筛选条件</param>
+    /// <returns>Credential列表和总数</returns>
+    Task<(List<TorrentCredential> Items, int TotalCount)> GetUserCredentialsAsync(int userId, CredentialFilterRequest filter);
 
     /// <summary>
     /// 清理长期未使用的inactive credentials

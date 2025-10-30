@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using TorrentHub.Core.Data;
+using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Services;
 
@@ -142,7 +143,7 @@ public class TorrentCredentialService : ITorrentCredentialService
         return credentials.Count;
     }
 
-    public async Task<int> RevokeUserCredentialsAsync(int userId, string reason)
+    public async Task<(int Count, List<int> TorrentIds)> RevokeUserCredentialsAsync(int userId, string reason)
     {
         var credentials = await _context.TorrentCredentials
             .Where(tc => tc.UserId == userId && !tc.IsRevoked)
@@ -150,11 +151,12 @@ public class TorrentCredentialService : ITorrentCredentialService
 
         if (!credentials.Any())
         {
-            return 0;
+            return (0, new List<int>());
         }
 
         var now = DateTimeOffset.UtcNow;
         var truncatedReason = reason?.Substring(0, Math.Min(reason.Length, 200));
+        var torrentIds = credentials.Select(c => c.TorrentId).Distinct().ToList();
 
         foreach (var credential in credentials)
         {
@@ -168,7 +170,7 @@ public class TorrentCredentialService : ITorrentCredentialService
         _logger.LogInformation("Revoked {Count} credentials for User {UserId}. Reason: {Reason}",
             credentials.Count, userId, reason);
 
-        return credentials.Count;
+        return (credentials.Count, torrentIds);
     }
 
     public async Task UpdateCredentialUsageAsync(Guid credential)
@@ -192,20 +194,74 @@ public class TorrentCredentialService : ITorrentCredentialService
             credential, torrentCredential.UsageCount);
     }
 
-    public async Task<List<TorrentCredential>> GetUserCredentialsAsync(int userId, bool includeRevoked = false)
+    public async Task<(List<TorrentCredential> Items, int TotalCount)> GetUserCredentialsAsync(
+        int userId,
+        CredentialFilterRequest filter)
     {
         var query = _context.TorrentCredentials
             .Include(tc => tc.Torrent)
             .Where(tc => tc.UserId == userId);
 
-        if (!includeRevoked)
+        // 应用撤销状态筛选
+        if (filter.OnlyRevoked)
+        {
+            query = query.Where(tc => tc.IsRevoked);
+        }
+        else if (!filter.IncludeRevoked)
         {
             query = query.Where(tc => !tc.IsRevoked);
         }
 
-        return await query
-            .OrderByDescending(tc => tc.CreatedAt)
+        // 应用关键字搜索
+        if (!string.IsNullOrWhiteSpace(filter.SearchKeyword))
+        {
+            var keyword = filter.SearchKeyword.ToLower();
+            query = query.Where(tc => tc.Torrent!.Name.ToLower().Contains(keyword));
+        }
+
+        // 获取总数 (在应用筛选后)
+        var totalCount = await query.CountAsync();
+
+        // 应用排序
+        query = filter.SortBy switch
+        {
+            CredentialSortBy.CreatedAt => filter.SortDirection == SortDirection.Ascending
+                ? query.OrderBy(tc => tc.CreatedAt)
+                : query.OrderByDescending(tc => tc.CreatedAt),
+
+            CredentialSortBy.LastUsedAt => filter.SortDirection == SortDirection.Ascending
+                ? query.OrderBy(tc => tc.LastUsedAt ?? DateTimeOffset.MinValue)
+                : query.OrderByDescending(tc => tc.LastUsedAt ?? DateTimeOffset.MinValue),
+
+            CredentialSortBy.UsageCount => filter.SortDirection == SortDirection.Ascending
+                ? query.OrderBy(tc => tc.UsageCount)
+                : query.OrderByDescending(tc => tc.UsageCount),
+
+            CredentialSortBy.TorrentName => filter.SortDirection == SortDirection.Ascending
+                ? query.OrderBy(tc => tc.Torrent!.Name)
+                : query.OrderByDescending(tc => tc.Torrent!.Name),
+
+            CredentialSortBy.TotalUploadedBytes => filter.SortDirection == SortDirection.Ascending
+                ? query.OrderBy(tc => tc.TotalUploadedBytes)
+                : query.OrderByDescending(tc => tc.TotalUploadedBytes),
+
+            CredentialSortBy.TotalDownloadedBytes => filter.SortDirection == SortDirection.Ascending
+                ? query.OrderBy(tc => tc.TotalDownloadedBytes)
+                : query.OrderByDescending(tc => tc.TotalDownloadedBytes),
+
+            _ => query.OrderByDescending(tc => tc.CreatedAt)
+        };
+
+        // 应用分页
+        var items = await query
+            .Skip((filter.Page - 1) * filter.PageSize)
+            .Take(filter.PageSize)
             .ToListAsync();
+
+        _logger.LogDebug("Retrieved {Count} credentials for User {UserId} (Total: {TotalCount})",
+            items.Count, userId, totalCount);
+
+        return (items, totalCount);
     }
 
     public async Task<int> CleanupInactiveCredentialsAsync(int inactiveDays = 90)
@@ -234,5 +290,66 @@ public class TorrentCredentialService : ITorrentCredentialService
             inactiveCredentials.Count, inactiveDays);
 
         return inactiveCredentials.Count;
+    }
+    public async Task<(int Count, List<int> TorrentIds)> RevokeBatchAsync(int userId, Guid[] credentialIds, string reason)
+    {
+        var credentials = await _context.TorrentCredentials
+            .Where(c => c.UserId == userId && credentialIds.Contains(c.Credential) && !c.IsRevoked)
+            .ToListAsync();
+
+        var foundIds = credentials.Select(c => c.Credential).ToList();
+        var failedIds = credentialIds.Except(foundIds).ToList();
+
+        if (!credentials.Any())
+        {
+            return (0, new List<int>());
+        }
+        var torrentIds = credentials.Select(c => c.TorrentId).Distinct().ToList();
+
+        var now = DateTimeOffset.UtcNow;
+        var truncatedReason = reason?.Substring(0, Math.Min(reason.Length, 200));
+
+        foreach (var credential in credentials)
+        {
+            credential.IsRevoked = true;
+            credential.RevokedAt = now;
+            credential.RevokeReason = truncatedReason;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} revoked a batch of {Count} credentials. Reason: {Reason}",
+            userId, credentials.Count, reason);
+
+        return (credentials.Count, torrentIds);
+    }
+    public async Task<(int Count, List<int> TorrentIds)> AdminRevokeBatchAsync(Guid[] credentialIds, string reason)
+    {
+        var credentials = await _context.TorrentCredentials
+            .Where(c => credentialIds.Contains(c.Credential) && !c.IsRevoked)
+            .ToListAsync();
+
+        if (!credentials.Any())
+        {
+            return (0, new List<int>());
+        }
+
+        var torrentIds = credentials.Select(c => c.TorrentId).Distinct().ToList();
+        var now = DateTimeOffset.UtcNow;
+        var truncatedReason = reason?.Substring(0, Math.Min(reason.Length, 200));
+
+        foreach (var credential in credentials)
+        {
+            credential.IsRevoked = true;
+            credential.RevokedAt = now;
+            credential.RevokeReason = truncatedReason;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Admin revoked a batch of {Count} credentials. Reason: {Reason}",
+            credentials.Count, reason);
+
+        return (credentials.Count, torrentIds);
     }
 }
