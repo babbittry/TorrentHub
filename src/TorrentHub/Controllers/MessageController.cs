@@ -23,7 +23,7 @@ public class MessagesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> SendMessage([FromBody] SendMessageRequestDto request)
+    public async Task<ActionResult<ApiResponse<object>>> SendMessage([FromBody] SendMessageRequestDto request)
     {
         var senderId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _messageService.SendMessageAsync(senderId, request);
@@ -31,44 +31,71 @@ public class MessagesController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Failed to send message: {Message}", message);
-            return BadRequest(new { message = message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = message
+            });
         }
 
-        return Ok(new { message = message });
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = message
+        });
     }
 
     [HttpGet("inbox")]
-    public async Task<ActionResult<List<MessageDto>>> GetInbox()
+    public async Task<ActionResult<ApiResponse<List<MessageDto>>>> GetInbox()
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var messages = await _messageService.GetInboxAsync(userId);
-        return Ok(messages.Select(m => Mapper.ToMessageDto(m)).ToList());
+        return Ok(new ApiResponse<List<MessageDto>>
+        {
+            Success = true,
+            Data = messages.Select(m => Mapper.ToMessageDto(m)).ToList(),
+            Message = "Inbox retrieved successfully."
+        });
     }
 
     [HttpGet("sent")]
-    public async Task<ActionResult<List<MessageDto>>> GetSentMessages()
+    public async Task<ActionResult<ApiResponse<List<MessageDto>>>> GetSentMessages()
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var messages = await _messageService.GetSentMessagesAsync(userId);
-        return Ok(messages.Select(m => Mapper.ToMessageDto(m)).ToList());
+        return Ok(new ApiResponse<List<MessageDto>>
+        {
+            Success = true,
+            Data = messages.Select(m => Mapper.ToMessageDto(m)).ToList(),
+            Message = "Sent messages retrieved successfully."
+        });
     }
 
     [HttpGet("{messageId:int}")]
-    public async Task<ActionResult<MessageDto>> GetMessage(int messageId)
+    public async Task<ActionResult<ApiResponse<MessageDto>>> GetMessage(int messageId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var message = await _messageService.GetMessageAsync(messageId, userId);
 
         if (message == null)
         {
-            return NotFound(new { message = "Message not found or you are not authorized to view it." });
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Message not found or you are not authorized to view it."
+            });
         }
 
-        return Ok(Mapper.ToMessageDto(message));
+        return Ok(new ApiResponse<MessageDto>
+        {
+            Success = true,
+            Data = Mapper.ToMessageDto(message),
+            Message = "Message retrieved successfully."
+        });
     }
 
     [HttpPatch("{messageId}/read")]
-    public async Task<IActionResult> MarkAsRead(int messageId)
+    public async Task<ActionResult<ApiResponse<object>>> MarkAsRead(int messageId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _messageService.MarkMessageAsReadAsync(messageId, userId);
@@ -76,14 +103,22 @@ public class MessagesController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Failed to mark message {MessageId} as read: {ErrorMessage}", messageId, message);
-            return BadRequest(new { message = message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = message
+            });
         }
 
-        return Ok(new { message = message });
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = message
+        });
     }
 
     [HttpDelete("{messageId:int}")]
-    public async Task<IActionResult> DeleteMessage(int messageId)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteMessage(int messageId)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _messageService.DeleteMessageAsync(messageId, userId);
@@ -91,9 +126,17 @@ public class MessagesController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Failed to delete message {MessageId}: {ErrorMessage}", messageId, message);
-            return BadRequest(new { message = message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = message
+            });
         }
 
-        return Ok(new { message = message });
+        return Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = message
+        });
     }
 }

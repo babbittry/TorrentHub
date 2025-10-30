@@ -32,69 +32,106 @@ public class ForumController : ControllerBase
     }
 
     [HttpGet("categories")]
-    public async Task<ActionResult<List<ForumCategoryDto>>> GetCategories()
+    public async Task<ActionResult<ApiResponse<List<ForumCategoryDto>>>> GetCategories()
     {
         var categories = await _forumService.GetCategoriesAsync();
-        return Ok(categories);
+        return Ok(new ApiResponse<List<ForumCategoryDto>>
+        {
+            Success = true,
+            Data = categories,
+            Message = "Forum categories retrieved successfully."
+        });
     }
 
-    // GET /api/forum/topics?categoryId=1
     [HttpGet("topics")]
-    public async Task<ActionResult<PaginatedResult<ForumTopicDto>>> GetTopics([FromQuery] int categoryId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ForumTopicDto>>>> GetTopics(
+        [FromQuery] int categoryId, 
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 20)
     {
         var topics = await _forumService.GetTopicsAsync(categoryId, page, pageSize);
-        return Ok(topics);
+        return Ok(new ApiResponse<PaginatedResult<ForumTopicDto>>
+        {
+            Success = true,
+            Data = topics,
+            Message = "Forum topics retrieved successfully."
+        });
     }
 
-    // GET /api/forum/topics/{topicId}
     [HttpGet("topics/{topicId}")]
-    public async Task<ActionResult<ForumTopicDetailDto>> GetTopicById(int topicId, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<ActionResult<ApiResponse<ForumTopicDetailDto>>> GetTopicById(
+        int topicId, 
+        [FromQuery] int page = 1, 
+        [FromQuery] int pageSize = 20)
     {
         try
         {
             var topic = await _forumService.GetTopicByIdAsync(topicId, page, pageSize);
-            return Ok(topic);
+            return Ok(new ApiResponse<ForumTopicDetailDto>
+            {
+                Success = true,
+                Data = topic,
+                Message = "Forum topic retrieved successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
 
-    // POST /api/forum/topics
     [HttpPost("topics")]
-    public async Task<ActionResult<ForumTopicDetailDto>> CreateTopic([FromBody] CreateForumTopicDto createTopicDto)
+    public async Task<ActionResult<ApiResponse<ForumTopicDetailDto>>> CreateTopic([FromBody] CreateForumTopicDto createTopicDto)
     {
         var authorId = GetUserId();
         var topic = await _forumService.CreateTopicAsync(createTopicDto, authorId);
-        return CreatedAtAction(nameof(GetTopicById), new { topicId = topic.Id }, topic);
+        return CreatedAtAction(nameof(GetTopicById), new { topicId = topic.Id }, 
+            new ApiResponse<ForumTopicDetailDto>
+            {
+                Success = true,
+                Data = topic,
+                Message = "Forum topic created successfully."
+            });
     }
 
-    // POST /api/forum/topics/{topicId}/posts
     [HttpPost("topics/{topicId}/posts")]
-    public async Task<ActionResult<ForumPostDto>> CreatePost(int topicId, [FromBody] CreateForumPostDto createPostDto)
+    public async Task<ActionResult<ApiResponse<ForumPostDto>>> CreatePost(int topicId, [FromBody] CreateForumPostDto createPostDto)
     {
         try
         {
             var authorId = GetUserId();
             var post = await _forumService.CreatePostAsync(topicId, createPostDto, authorId);
-            return Ok(post);
+            return Ok(new ApiResponse<ForumPostDto>
+            {
+                Success = true,
+                Data = post,
+                Message = "Forum post created successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
         catch (InvalidOperationException e)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
 
-    /// <summary>
-    /// Get posts with lazy loading
-    /// </summary>
     [HttpGet("topics/{topicId}/posts")]
-    public async Task<ActionResult<PaginatedResult<ForumPostDto>>> GetPosts(
+    public async Task<ActionResult<ApiResponse<PaginatedResult<ForumPostDto>>>> GetPosts(
         int topicId,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 30)
@@ -102,27 +139,43 @@ public class ForumController : ControllerBase
         try
         {
             var result = await _forumService.GetPostsAsync(topicId, page, pageSize);
-            return Ok(result);
+            return Ok(new ApiResponse<PaginatedResult<ForumPostDto>>
+            {
+                Success = true,
+                Data = result,
+                Message = "Forum posts retrieved successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
 
-    // PUT /api/forum/topics/{topicId}
     [HttpPut("topics/{topicId}")]
-    public async Task<IActionResult> UpdateTopic(int topicId, [FromBody] UpdateForumTopicDto updateTopicDto)
+    public async Task<ActionResult<ApiResponse<object>>> UpdateTopic(int topicId, [FromBody] UpdateForumTopicDto updateTopicDto)
     {
         try
         {
             var userId = GetUserId();
             await _forumService.UpdateTopicAsync(topicId, updateTopicDto, userId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum topic updated successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
         catch (UnauthorizedAccessException)
         {
@@ -130,19 +183,26 @@ public class ForumController : ControllerBase
         }
     }
 
-    // PUT /api/forum/posts/{postId}
     [HttpPut("posts/{postId}")]
-    public async Task<IActionResult> UpdatePost(int postId, [FromBody] UpdateForumPostDto updatePostDto)
+    public async Task<ActionResult<ApiResponse<object>>> UpdatePost(int postId, [FromBody] UpdateForumPostDto updatePostDto)
     {
         try
         {
             var userId = GetUserId();
             await _forumService.UpdatePostAsync(postId, updatePostDto, userId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum post updated successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
         catch (UnauthorizedAccessException)
         {
@@ -150,19 +210,26 @@ public class ForumController : ControllerBase
         }
     }
 
-    // DELETE /api/forum/topics/{topicId}
     [HttpDelete("topics/{topicId}")]
-    public async Task<IActionResult> DeleteTopic(int topicId)
+    public async Task<ActionResult<ApiResponse<object>>> DeleteTopic(int topicId)
     {
         try
         {
             var userId = GetUserId();
             await _forumService.DeleteTopicAsync(topicId, userId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum topic deleted successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
         catch (UnauthorizedAccessException)
         {
@@ -170,19 +237,26 @@ public class ForumController : ControllerBase
         }
     }
 
-    // DELETE /api/forum/posts/{postId}
     [HttpDelete("posts/{postId}")]
-    public async Task<IActionResult> DeletePost(int postId)
+    public async Task<ActionResult<ApiResponse<object>>> DeletePost(int postId)
     {
         try
         {
             var userId = GetUserId();
             await _forumService.DeletePostAsync(postId, userId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum post deleted successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
         catch (UnauthorizedAccessException)
         {
@@ -190,72 +264,103 @@ public class ForumController : ControllerBase
         }
         catch (InvalidOperationException e)
         {
-            return BadRequest(e.Message);
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
 
-    // PATCH /api/forum/topics/{topicId}/lock
     [HttpPatch("topics/{topicId}/lock")]
     [Authorize(Roles = "Admin,Moderator")]
-    public async Task<IActionResult> LockTopic(int topicId)
+    public async Task<ActionResult<ApiResponse<object>>> LockTopic(int topicId)
     {
         try
         {
             await _forumService.LockTopicAsync(topicId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum topic locked successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
     
-    // PATCH /api/forum/topics/{topicId}/unlock
     [HttpPatch("topics/{topicId}/unlock")]
     [Authorize(Roles = "Admin,Moderator")]
-    public async Task<IActionResult> UnlockTopic(int topicId)
+    public async Task<ActionResult<ApiResponse<object>>> UnlockTopic(int topicId)
     {
         try
         {
             await _forumService.UnlockTopicAsync(topicId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum topic unlocked successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
 
-    // PATCH /api/forum/topics/{topicId}/sticky
     [HttpPatch("topics/{topicId}/sticky")]
     [Authorize(Roles = "Admin,Moderator")]
-    public async Task<IActionResult> PinTopic(int topicId)
+    public async Task<ActionResult<ApiResponse<object>>> PinTopic(int topicId)
     {
         try
         {
             await _forumService.PinTopicAsync(topicId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum topic pinned successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
     
-    // PATCH /api/forum/topics/{topicId}/unsticky
     [HttpPatch("topics/{topicId}/unsticky")]
     [Authorize(Roles = "Admin,Moderator")]
-    public async Task<IActionResult> UnpinTopic(int topicId)
+    public async Task<ActionResult<ApiResponse<object>>> UnpinTopic(int topicId)
     {
         try
         {
             await _forumService.UnpinTopicAsync(topicId);
-            return NoContent();
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Forum topic unpinned successfully."
+            });
         }
         catch (KeyNotFoundException e)
         {
-            return NotFound(e.Message);
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = e.Message
+            });
         }
     }
 }
-

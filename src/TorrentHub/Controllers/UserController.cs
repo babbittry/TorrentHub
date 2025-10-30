@@ -27,140 +27,220 @@ public class UsersController : ControllerBase
 
     [HttpPatch("me")]
     [Authorize]
-    public async Task<IActionResult> UpdateMyProfile([FromBody] UpdateUserProfileDto profileDto)
+    public async Task<ActionResult<ApiResponse<UserPrivateProfileDto>>> UpdateMyProfile([FromBody] UpdateUserProfileDto profileDto)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
         {
             var updatedUser = await _userService.UpdateUserProfileAsync(userId, profileDto);
-            return Ok(Mapper.ToUserPrivateProfileDto(updatedUser));
+            return Ok(new ApiResponse<UserPrivateProfileDto>
+            {
+                Success = true,
+                Data = Mapper.ToUserPrivateProfileDto(updatedUser),
+                Message = "Profile updated successfully."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update user profile for {UserId}: {ErrorMessage}", userId, ex.Message);
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
         }
     }
 
     [HttpPost("me/password")]
     [Authorize]
-    public async Task<IActionResult> ChangeMyPassword([FromBody] ChangePasswordDto changePasswordDto)
+    public async Task<ActionResult<ApiResponse<object>>> ChangeMyPassword([FromBody] ChangePasswordDto changePasswordDto)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
         {
             await _userService.ChangePasswordAsync(userId, changePasswordDto);
-            return Ok(new { message = "Password changed successfully." });
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Password changed successfully."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to change password for {UserId}: {ErrorMessage}", userId, ex.Message);
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
         }
     }
 
     [HttpGet("me")]
     [Authorize]
-    public async Task<ActionResult<UserPrivateProfileDto>> GetMyProfile()
+    public async Task<ActionResult<ApiResponse<UserPrivateProfileDto>>> GetMyProfile()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         var user = await _userService.GetUserByIdAsync(userId);
         if (user == null)
         {
-            return NotFound("User not found.");
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "User not found."
+            });
         }
 
         var userProfile = Mapper.ToUserPrivateProfileDto(user);
         userProfile.UnreadMessagesCount = await _userService.GetUnreadMessagesCountAsync(userId);
         
-        return Ok(userProfile);
+        return Ok(new ApiResponse<UserPrivateProfileDto>
+        {
+            Success = true,
+            Data = userProfile,
+            Message = "User profile retrieved successfully."
+        });
     }
 
     [HttpGet]
     [Authorize(Roles = nameof(UserRole.Administrator))]
-    public async Task<ActionResult<IEnumerable<UserPublicProfileDto>>> GetUsers(
+    public async Task<ActionResult<ApiResponse<IEnumerable<UserPublicProfileDto>>>> GetUsers(
         [FromQuery] int page = 1, 
         [FromQuery] int pageSize = 10, 
         [FromQuery] string? searchTerm = null)
     {
         var users = await _userService.GetUsersAsync(page, pageSize, searchTerm);
-        return Ok(users.Select(Mapper.ToUserPublicProfileDto));
+        return Ok(new ApiResponse<IEnumerable<UserPublicProfileDto>>
+        {
+            Success = true,
+            Data = users.Select(Mapper.ToUserPublicProfileDto),
+            Message = "Users retrieved successfully."
+        });
     }
 
     [HttpPatch("{id:int}")]
     [Authorize(Roles = nameof(UserRole.Administrator))]
-    public async Task<IActionResult> UpdateUser(
+    public async Task<ActionResult<ApiResponse<UserPublicProfileDto>>> UpdateUser(
         int id, 
         [FromBody] UpdateUserAdminDto updateUserAdminDto)
     {
         try
         {
             var updatedUser = await _userService.UpdateUserByAdminAsync(id, updateUserAdminDto);
-            return Ok(Mapper.ToUserPublicProfileDto(updatedUser));
+            return Ok(new ApiResponse<UserPublicProfileDto>
+            {
+                Success = true,
+                Data = Mapper.ToUserPublicProfileDto(updatedUser),
+                Message = "User updated successfully by administrator."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update user {UserId} by admin: {ErrorMessage}", id, ex.Message);
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
         }
     }
 
     [HttpGet("{id:int}")]
     [Authorize]
-    public async Task<ActionResult<UserPublicProfileDto>> GetUser(int id)
+    public async Task<ActionResult<ApiResponse<UserPublicProfileDto>>> GetUser(int id)
     {
         var userProfile = await _userService.GetUserPublicProfileAsync(id);
         if (userProfile == null)
         {
-            return NotFound("User not found.");
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "User not found."
+            });
         }
-        return Ok(userProfile);
+        return Ok(new ApiResponse<UserPublicProfileDto>
+        {
+            Success = true,
+            Data = userProfile,
+            Message = "User profile retrieved successfully."
+        });
     }
 
     [HttpGet("{userId}/badges")]
     [Authorize]
-    public async Task<ActionResult<List<BadgeDto>>> GetUserBadges(int userId)
+    public async Task<ActionResult<ApiResponse<List<BadgeDto>>>> GetUserBadges(int userId)
     {
         var badges = await _userService.GetUserBadgesAsync(userId);
-        return Ok(badges);
+        return Ok(new ApiResponse<List<BadgeDto>>
+        {
+            Success = true,
+            Data = badges,
+            Message = "User badges retrieved successfully."
+        });
     }
 
     [HttpGet("me/badges")]
     [Authorize]
-    public async Task<ActionResult<List<BadgeDto>>> GetMyBadges()
+    public async Task<ActionResult<ApiResponse<List<BadgeDto>>>> GetMyBadges()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         var badges = await _userService.GetUserBadgesAsync(userId);
-        return Ok(badges);
+        return Ok(new ApiResponse<List<BadgeDto>>
+        {
+            Success = true,
+            Data = badges,
+            Message = "Your badges retrieved successfully."
+        });
     }
 
     [HttpGet("{id:int}/uploads")]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<TorrentDto>>> GetUserUploads(int id)
+    public async Task<ActionResult<ApiResponse<IEnumerable<TorrentDto>>>> GetUserUploads(int id)
     {
         var uploads = await _userService.GetUserUploadsAsync(id);
-        return Ok(uploads);
+        return Ok(new ApiResponse<IEnumerable<TorrentDto>>
+        {
+            Success = true,
+            Data = uploads,
+            Message = "User uploads retrieved successfully."
+        });
     }
 
     [HttpGet("{id:int}/peers")]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<PeerDto>>> GetUserPeers(int id)
+    public async Task<ActionResult<ApiResponse<IEnumerable<PeerDto>>>> GetUserPeers(int id)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId) || (currentUserId != id && !User.IsInRole(nameof(UserRole.Administrator))))
         {
@@ -168,39 +248,65 @@ public class UsersController : ControllerBase
         }
 
         var peers = await _userService.GetUserPeersAsync(id);
-        return Ok(peers);
+        return Ok(new ApiResponse<IEnumerable<PeerDto>>
+        {
+            Success = true,
+            Data = peers,
+            Message = "User peers retrieved successfully."
+        });
     }
 
     // --- 2FA Management ---
 
     [HttpPost("me/2fa/generate-setup")]
     [Authorize]
-    public async Task<IActionResult> GenerateTwoFactorSetup()
+    public async Task<ActionResult<ApiResponse<TwoFactorSetupDto>>> GenerateTwoFactorSetup()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
         {
             var (manualEntryKey, qrCodeImageUrl) = await _userService.GenerateTwoFactorSetupAsync(userId);
-            return Ok(new { manualEntryKey, qrCodeImageUrl });
+            return Ok(new ApiResponse<TwoFactorSetupDto>
+            {
+                Success = true,
+                Data = new TwoFactorSetupDto
+                {
+                    ManualEntryKey = manualEntryKey,
+                    QrCodeImageUrl = qrCodeImageUrl
+                },
+                Message = "2FA setup generated successfully."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate 2FA setup for user {UserId}", userId);
-            return BadRequest(new { message = "Failed to generate 2FA setup." });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Failed to generate 2FA setup."
+            });
         }
     }
 
     [HttpPost("me/2fa/switch-to-app")]
     [Authorize]
-    public async Task<IActionResult> SwitchToAuthenticatorApp([FromBody] TwoFactorVerificationRequestDto request)
+    public async Task<ActionResult<ApiResponse<object>>> SwitchToAuthenticatorApp([FromBody] TwoFactorVerificationRequestDto request)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
@@ -208,24 +314,40 @@ public class UsersController : ControllerBase
             var success = await _userService.SwitchToAuthenticatorAppAsync(userId, request.Code);
             if (!success)
             {
-                return BadRequest(new { message = "Invalid verification code." });
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Invalid verification code."
+                });
             }
-            return Ok(new { message = "Two-factor authentication method switched to Authenticator App." });
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Two-factor authentication method switched to Authenticator App."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to switch to App 2FA for user {UserId}", userId);
-            return BadRequest(new { message = "Failed to switch 2FA method." });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Failed to switch 2FA method."
+            });
         }
     }
 
     [HttpPost("me/2fa/switch-to-email")]
     [Authorize]
-    public async Task<IActionResult> SwitchToEmail([FromBody] TwoFactorVerificationRequestDto request)
+    public async Task<ActionResult<ApiResponse<object>>> SwitchToEmail([FromBody] TwoFactorVerificationRequestDto request)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
@@ -233,56 +355,99 @@ public class UsersController : ControllerBase
             var success = await _userService.SwitchToEmailAsync(userId, request.Code);
             if (!success)
             {
-                return BadRequest(new { message = "Invalid verification code." });
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "Invalid verification code."
+                });
             }
-            return Ok(new { message = "Two-factor authentication method switched to Email." });
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Two-factor authentication method switched to Email."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to switch to Email 2FA for user {UserId}", userId);
-            return BadRequest(new { message = "Failed to switch 2FA method." });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Failed to switch 2FA method."
+            });
         }
     }
 
     [HttpPost("me/equip-badge/{badgeId:int}")]
     [Authorize]
-    public async Task<IActionResult> EquipBadge(int badgeId)
+    public async Task<ActionResult<ApiResponse<object>>> EquipBadge(int badgeId)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
         {
             await _userService.EquipBadgeAsync(userId, badgeId);
-            return Ok(new { message = "Badge equipped successfully." });
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "Badge equipped successfully."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to equip badge {BadgeId} for user {UserId}", badgeId, userId);
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
         }
     }
 
     [HttpPut("me/title")]
     [Authorize]
-    public async Task<IActionResult> UpdateUserTitle([FromBody] UpdateUserTitleRequestDto request)
+    public async Task<ActionResult<ApiResponse<object>>> UpdateUserTitle([FromBody] UpdateUserTitleRequestDto request)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
-            return Unauthorized("Invalid user identifier.");
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Invalid user identifier."
+            });
         }
 
         try
         {
             await _userService.UpdateUserTitleAsync(userId, request.Title);
-            return Ok(new { message = "User title updated successfully." });
+            return Ok(new ApiResponse<object>
+            {
+                Success = true,
+                Message = "User title updated successfully."
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update user title for user {UserId}", userId);
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = ex.Message
+            });
         }
     }
+}
+
+// Helper DTO for 2FA setup response
+public class TwoFactorSetupDto
+{
+    public required string ManualEntryKey { get; set; }
+    public required string QrCodeImageUrl { get; set; }
 }
