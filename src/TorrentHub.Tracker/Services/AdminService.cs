@@ -41,7 +41,12 @@ public class AdminService : IAdminService
         return clients;
     }
 
-    public async Task LogCheatAsync(int userId, string reason, string details)
+    public async Task LogCheatAsync(
+        int userId,
+        string detectionType,
+        string? details = null,
+        int? torrentId = null,
+        string? ipAddress = null)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return;
@@ -51,8 +56,11 @@ public class AdminService : IAdminService
         var log = new CheatLog
         {
             UserId = userId,
-            Reason = reason,
+            DetectionType = detectionType,
+            Reason = detectionType, // 向后兼容
             Details = details,
+            TorrentId = torrentId,
+            IpAddress = ipAddress,
             Timestamp = DateTimeOffset.UtcNow
         };
 
@@ -64,7 +72,7 @@ public class AdminService : IAdminService
     public Task<BannedClient> AddBannedClientAsync(BannedClientDto dto) => throw new NotImplementedException();
     public Task<(bool Success, string Message)> DeleteBannedClientAsync(int id) => throw new NotImplementedException();
     public Task<List<DuplicateIpUserDto>> GetDuplicateIpUsersAsync() => throw new NotImplementedException();
-    public Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50) => throw new NotImplementedException();
+    public Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50, int? userId = null, string? detectionType = null) => throw new NotImplementedException();
     public Task<List<JsonDocument>> SearchSystemLogsAsync(LogSearchDto dto) => throw new NotImplementedException();
     public Task<PaginatedResult<UserAdminProfileDto>> GetUsersAsync(int page, int pageSize) => throw new NotImplementedException();
 }

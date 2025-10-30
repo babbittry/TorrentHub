@@ -168,9 +168,11 @@ public class AnnounceService : IAnnounceService
                 if (recentIps.Count >= 3 && settings.LogMultiLocationCheating)
                 {
                     await _adminService.LogCheatAsync(
-                        user.Id,
-                        "MultiLocation",
-                        $"Torrent: {torrent.Name}, IPs in {settings.MultiLocationDetectionWindowMinutes}min: {string.Join(", ", recentIps)}"
+                        userId: user.Id,
+                        detectionType: "MultiLocation",
+                        details: $"IPs in {settings.MultiLocationDetectionWindowMinutes}min: {string.Join(", ", recentIps)}",
+                        torrentId: torrent.Id,
+                        ipAddress: currentIp
                     );
                 }
             }
@@ -184,7 +186,13 @@ public class AnnounceService : IAnnounceService
                 double uploadSpeedKBps = ((uploaded - peer.Uploaded) / 1024.0) / timeDelta;
                 if (settings.MaxUploadSpeed > 0 && uploadSpeedKBps > settings.MaxUploadSpeed)
                 {
-                    await _adminService.LogCheatAsync(user.Id, "SpeedCheat", $"Upload speed {uploadSpeedKBps:F2} KB/s exceeds limit");
+                    await _adminService.LogCheatAsync(
+                        userId: user.Id,
+                        detectionType: "SpeedCheat",
+                        details: $"Upload speed {uploadSpeedKBps:F2} KB/s exceeds limit",
+                        torrentId: torrent.Id,
+                        ipAddress: ipAddress?.ToString()
+                    );
                     return _localizer.GetError("SpeedTooHigh", user.Language).EncodeAsBytes();
                 }
             }

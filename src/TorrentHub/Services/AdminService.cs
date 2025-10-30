@@ -96,7 +96,12 @@ public class AdminService : IAdminService
         return duplicateIps;
     }
 
-    public async Task LogCheatAsync(int userId, string reason, string details)
+    public async Task LogCheatAsync(
+        int userId,
+        string detectionType,
+        string? details = null,
+        int? torrentId = null,
+        string? ipAddress = null)
     {
         var user = await _context.Users.FindAsync(userId);
         if (user == null) return;
@@ -106,8 +111,11 @@ public class AdminService : IAdminService
         var log = new CheatLog
         {
             UserId = userId,
-            Reason = reason,
+            DetectionType = detectionType,
+            Reason = detectionType, // 向后兼容
             Details = details,
+            TorrentId = torrentId,
+            IpAddress = ipAddress,
             Timestamp = DateTimeOffset.UtcNow
         };
 
@@ -115,12 +123,26 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(int page = 1, int pageSize = 50)
+    public async Task<PaginatedResult<CheatLogDto>> GetCheatLogsAsync(
+        int page = 1,
+        int pageSize = 50,
+        int? userId = null,
+        string? detectionType = null)
     {
         var query = _context.CheatLogs
             .AsNoTracking()
             .Include(l => l.User)
-            .OrderByDescending(l => l.Timestamp);
+            .Include(l => l.Torrent)
+            .AsQueryable();
+
+        // 应用过滤
+        if (userId.HasValue)
+            query = query.Where(l => l.UserId == userId.Value);
+
+        if (!string.IsNullOrEmpty(detectionType))
+            query = query.Where(l => l.DetectionType == detectionType);
+
+        query = query.OrderByDescending(l => l.Timestamp);
 
         var totalItems = await query.CountAsync();
 
@@ -132,6 +154,10 @@ public class AdminService : IAdminService
                 Id = l.Id,
                 UserId = l.UserId,
                 UserName = l.User == null ? null : l.User.UserName,
+                TorrentId = l.TorrentId,
+                TorrentName = l.Torrent == null ? null : l.Torrent.Name,
+                DetectionType = l.DetectionType,
+                IpAddress = l.IpAddress,
                 Timestamp = l.Timestamp,
                 Reason = l.Reason,
                 Details = l.Details
