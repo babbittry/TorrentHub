@@ -9,7 +9,7 @@ using TorrentHub.Services.Interfaces;
 namespace TorrentHub.Controllers;
 
 [ApiController]
-[Route("api/admin")]
+[Route("api/[controller]")]
 [Authorize(Roles = "Administrator")]
 public class AdminController : ControllerBase
 {

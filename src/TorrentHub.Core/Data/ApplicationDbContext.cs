@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Enums;
+using System.Text.Json;
 
 namespace TorrentHub.Core.Data
 {
@@ -187,6 +189,33 @@ namespace TorrentHub.Core.Data
                 entity.HasIndex(e => new { e.UserId, e.TorrentId, e.IsRevoked }).IsUnique().HasFilter("\"IsRevoked\" = false");
             });
             
+            // CheatLog configuration
+            modelBuilder.Entity<CheatLog>(entity =>
+            {
+                // 单列索引 - 用于单一条件查询
+                entity.HasIndex(e => e.UserId)
+                      .HasDatabaseName("IX_CheatLogs_UserId");
+                      
+                entity.HasIndex(e => e.DetectionType)
+                      .HasDatabaseName("IX_CheatLogs_DetectionType");
+                      
+                entity.HasIndex(e => e.TorrentId)
+                      .HasDatabaseName("IX_CheatLogs_TorrentId")
+                      .HasFilter("\"TorrentId\" IS NOT NULL");
+                      
+                entity.HasIndex(e => e.Timestamp)
+                      .HasDatabaseName("IX_CheatLogs_Timestamp")
+                      .IsDescending();
+                
+                entity.HasIndex(e => e.Severity)
+                      .HasDatabaseName("IX_CheatLogs_Severity");
+                
+                // 组合索引 - 覆盖最常见查询模式
+                entity.HasIndex(e => new { e.UserId, e.DetectionType, e.Timestamp })
+                      .HasDatabaseName("IX_CheatLogs_UserId_DetectionType_Timestamp")
+                      .IsDescending(false, false, true);
+            });
+            
             // RssFeedToken configuration
             modelBuilder.Entity<RssFeedToken>(entity =>
             {
@@ -195,12 +224,23 @@ namespace TorrentHub.Core.Data
                 entity.HasIndex(e => e.IsActive).HasFilter("\"IsActive\" = true");
                 entity.HasIndex(e => e.ExpiresAt).HasFilter("\"ExpiresAt\" IS NOT NULL");
                 
-                // Configure CategoryFilter as JSON array
-                entity.Property(e => e.CategoryFilter)
+                // Configure CategoryFilter as JSON array with value comparer
+                var categoryFilterProperty = entity.Property(e => e.CategoryFilter)
                     .HasConversion(
-                        v => v == null ? null : System.Text.Json.JsonSerializer.Serialize(v, (System.Text.Json.JsonSerializerOptions?)null),
-                        v => v == null ? null : System.Text.Json.JsonSerializer.Deserialize<string[]>(v, (System.Text.Json.JsonSerializerOptions?)null))
+                        v => v == null ? null : JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                        v => v == null ? null : JsonSerializer.Deserialize<string[]>(v, (JsonSerializerOptions?)null))
                     .HasColumnType("jsonb");
+                
+                // Set value comparer for change tracking
+                categoryFilterProperty.Metadata.SetValueComparer(
+                    new ValueComparer<string[]?>(
+                        // 相等比较
+                        (c1, c2) => (c1 == null && c2 == null) ||
+                                    (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+                        // 哈希计算
+                        c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                        // 快照克隆
+                        c => c == null ? null : c.ToArray()));
                 
                 entity.HasOne(e => e.User)
                     .WithMany()
