@@ -84,6 +84,7 @@ public class Program
         builder.Services.AddScoped<ITorrentService, TorrentService>();
         builder.Services.AddScoped<ITorrentCommentService, TorrentCommentService>();
         builder.Services.AddScoped<IRequestService, RequestService>();
+        builder.Services.AddScoped<IRequestCommentService, RequestCommentService>();
         builder.Services.AddScoped<IMessageService, MessageService>();
         builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
@@ -129,7 +130,14 @@ public class Program
             {
                 throw new InvalidOperationException("TMDb BaseUrl is not configured or is not a valid absolute URI.");
             }
+            if (string.IsNullOrEmpty(settings.AccessToken))
+            {
+                throw new InvalidOperationException("TMDb AccessToken is not configured. Please set 'TMDbSettings:AccessToken' in your configuration file.");
+            }
+            
             client.BaseAddress = new Uri(settings.BaseUrl);
+            client.DefaultRequestHeaders.Add("Authorization", $"Bearer {settings.AccessToken}");
+            client.DefaultRequestHeaders.Add("accept", "application/json");
         });
 
         builder.Services.AddSingleton(sp =>

@@ -122,6 +122,16 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(TorrentCommentDto.Reactions))]
     public static partial TorrentCommentDto ToTorrentCommentDto(TorrentComment comment);
 
+    [MapProperty(nameof(RequestComment.User), nameof(RequestCommentDto.User))]
+    [MapProperty(nameof(RequestComment.ReplyToUser), nameof(RequestCommentDto.ReplyToUser))]
+    [MapperIgnoreSource(nameof(RequestComment.Request))]
+    [MapperIgnoreSource(nameof(RequestComment.UserId))]
+    [MapperIgnoreSource(nameof(RequestComment.ParentRequestComment))]
+    [MapperIgnoreSource(nameof(RequestComment.Replies))]
+    [MapperIgnoreSource(nameof(RequestComment.ReplyToUserId))]
+    [MapperIgnoreTarget(nameof(RequestCommentDto.Reactions))]
+    public static partial RequestCommentDto ToRequestCommentDto(RequestComment comment);
+
     [MapProperty(nameof(Message.Sender), nameof(MessageDto.Sender))]
     [MapProperty(nameof(Message.Receiver), nameof(MessageDto.Receiver))]
     [MapperIgnoreSource(nameof(Message.SenderId))]

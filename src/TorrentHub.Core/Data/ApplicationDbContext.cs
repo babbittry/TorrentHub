@@ -17,6 +17,7 @@ namespace TorrentHub.Core.Data
         public DbSet<Invite> Invites { get; set; }
         public DbSet<Peers> Peers { get; set; }
         public DbSet<Request> Requests { get; set; }
+        public DbSet<RequestComment> RequestComments { get; set; }
         public DbSet<TorrentComment> TorrentComments { get; set; }
         public DbSet<UserDailyStats> UserDailyStats { get; set; }
         public DbSet<StoreItem> StoreItems { get; set; }
@@ -157,6 +158,26 @@ namespace TorrentHub.Core.Data
                 .IsUnique();
 
             modelBuilder.Entity<TorrentComment>()
+                .HasIndex(c => c.ParentCommentId);
+
+            // RequestComment reply relationships
+            modelBuilder.Entity<RequestComment>()
+                .HasOne(c => c.ParentRequestComment)
+                .WithMany(c => c.Replies)
+                .HasForeignKey(c => c.ParentCommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<RequestComment>()
+                .HasOne(c => c.ReplyToUser)
+                .WithMany()
+                .HasForeignKey(c => c.ReplyToUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<RequestComment>()
+                .HasIndex(c => new { c.RequestId, c.Floor })
+                .IsUnique();
+
+            modelBuilder.Entity<RequestComment>()
                 .HasIndex(c => c.ParentCommentId);
 
             modelBuilder.Entity<SiteSetting>()

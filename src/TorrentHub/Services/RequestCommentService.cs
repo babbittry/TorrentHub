@@ -8,20 +8,20 @@ using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 
-public class TorrentCommentService : ITorrentCommentService
+public class RequestCommentService : IRequestCommentService
 {
     private readonly ApplicationDbContext _context;
     private readonly IUserService _userService;
     private readonly ISettingsService _settingsService;
     private readonly IReactionService _reactionService;
-    private readonly ILogger<TorrentCommentService> _logger;
+    private readonly ILogger<RequestCommentService> _logger;
 
-    public TorrentCommentService(
+    public RequestCommentService(
         ApplicationDbContext context,
         IUserService userService,
         ISettingsService settingsService,
         IReactionService reactionService,
-        ILogger<TorrentCommentService> logger)
+        ILogger<RequestCommentService> logger)
     {
         _context = context;
         _userService = userService;
@@ -30,30 +30,30 @@ public class TorrentCommentService : ITorrentCommentService
         _logger = logger;
     }
 
-    public async Task<(bool Success, string Message, TorrentComment? Comment)> PostCommentAsync(int torrentId, CreateTorrentCommentRequestDto request, int userId)
+    public async Task<(bool Success, string Message, RequestComment? Comment)> PostCommentAsync(int requestId, CreateRequestCommentRequestDto request, int userId)
     {
         var today = DateTime.UtcNow.Date;
 
-        var torrent = await _context.Torrents.FindAsync(torrentId);
-        if (torrent == null)
+        var requestEntity = await _context.Requests.FindAsync(requestId);
+        if (requestEntity == null)
         {
-            return (false, "error.torrent.notFound", null);
+            return (false, "error.request.notFound", null);
         }
 
         // Validate parent comment if provided
-        TorrentComment? parentTorrentComment = null;
+        RequestComment? parentRequestComment = null;
         if (request.ParentCommentId.HasValue)
         {
-            parentTorrentComment = await _context.TorrentComments
-                .FirstOrDefaultAsync(c => c.Id == request.ParentCommentId.Value && c.TorrentId == torrentId);
+            parentRequestComment = await _context.RequestComments
+                .FirstOrDefaultAsync(c => c.Id == request.ParentCommentId.Value && c.RequestId == requestId);
             
-            if (parentTorrentComment == null)
+            if (parentRequestComment == null)
             {
                 return (false, "error.comment.parent.notFound", null);
             }
             
             // Check depth limit (max 10 levels)
-            if (parentTorrentComment.Depth >= 10)
+            if (parentRequestComment.Depth >= 10)
             {
                 return (false, "error.comment.maxDepth", null);
             }
@@ -65,28 +65,28 @@ public class TorrentCommentService : ITorrentCommentService
         {
             try
             {
-                var maxFloor = await _context.TorrentComments
-                    .Where(c => c.TorrentId == torrentId)
+                var maxFloor = await _context.RequestComments
+                    .Where(c => c.RequestId == requestId)
                     .MaxAsync(c => (int?)c.Floor) ?? 0;
 
-                var newTorrentComment = new TorrentComment
+                var newRequestComment = new RequestComment
                 {
-                    TorrentId = torrentId,
+                    RequestId = requestId,
                     UserId = userId,
                     Text = request.Text,
                     Floor = maxFloor + 1,
                     ParentCommentId = request.ParentCommentId,
                     ReplyToUserId = request.ReplyToUserId,
-                    Depth = parentTorrentComment?.Depth + 1 ?? 0,
+                    Depth = parentRequestComment?.Depth + 1 ?? 0,
                     CreatedAt = DateTimeOffset.UtcNow
                 };
 
-                _context.TorrentComments.Add(newTorrentComment);
+                _context.RequestComments.Add(newRequestComment);
 
                 // Update parent comment reply count
-                if (parentTorrentComment != null)
+                if (parentRequestComment != null)
                 {
-                    parentTorrentComment.ReplyCount++;
+                    parentRequestComment.ReplyCount++;
                 }
 
                 var settings = await _settingsService.GetSiteSettingsAsync();
@@ -104,16 +104,16 @@ public class TorrentCommentService : ITorrentCommentService
                 {
                     dailyStats.CommentBonusesGiven++;
                     await _userService.AddCoinsAsync(userId, new UpdateCoinsRequestDto { Amount = settings.CommentBonus });
-                    _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId} and earned {Bonus} Coins. Daily count: {Count}", userId, torrentId, settings.CommentBonus, dailyStats.CommentBonusesGiven);
+                    _logger.LogInformation("User {UserId} posted a comment on request {RequestId} and earned {Bonus} Coins. Daily count: {Count}", userId, requestId, settings.CommentBonus, dailyStats.CommentBonusesGiven);
                 }
                 else
                 {
-                    _logger.LogInformation("User {UserId} posted a comment on torrent {TorrentId}. Daily bonus limit reached.", userId, torrentId);
+                    _logger.LogInformation("User {UserId} posted a comment on request {RequestId}. Daily bonus limit reached.", userId, requestId);
                 }
 
                 await _context.SaveChangesAsync();
 
-                return (true, "comment.post.success", newTorrentComment);
+                return (true, "comment.post.success", newRequestComment);
             }
             catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex) && retry < maxRetries - 1)
             {
@@ -127,16 +127,16 @@ public class TorrentCommentService : ITorrentCommentService
 
     private bool IsUniqueConstraintViolation(DbUpdateException ex)
     {
-        return ex.InnerException?.Message.Contains("IX_TorrentComments_TorrentId_Floor") ?? false;
+        return ex.InnerException?.Message.Contains("IX_RequestComments_RequestId_Floor") ?? false;
     }
 
-    public async Task<TorrentCommentListResponse> GetCommentsLazyAsync(int torrentId, int afterFloor = 0, int limit = 30)
+    public async Task<RequestCommentListResponse> GetCommentsLazyAsync(int requestId, int afterFloor = 0, int limit = 30)
     {
         // Limit to maximum 100 items per request
         limit = Math.Min(limit, 100);
 
-        var comments = await _context.TorrentComments
-            .Where(c => c.TorrentId == torrentId && c.Floor > afterFloor)
+        var comments = await _context.RequestComments
+            .Where(c => c.RequestId == requestId && c.Floor > afterFloor)
             .Include(c => c.User)
             .Include(c => c.ReplyToUser)
             .OrderBy(c => c.Floor)
@@ -144,16 +144,16 @@ public class TorrentCommentService : ITorrentCommentService
             .AsNoTracking()
             .ToListAsync();
 
-        var totalCount = await _context.TorrentComments
-            .CountAsync(c => c.TorrentId == torrentId);
+        var totalCount = await _context.RequestComments
+            .CountAsync(c => c.RequestId == requestId);
 
-        var commentDtos = comments.Select(c => Mappers.Mapper.ToTorrentCommentDto(c)).ToList();
+        var commentDtos = comments.Select(c => Mappers.Mapper.ToRequestCommentDto(c)).ToList();
 
         // Batch load reactions for all comments
         if (commentDtos.Any())
         {
             var commentIds = commentDtos.Select(c => c.Id).ToList();
-            var reactionsDict = await _reactionService.GetReactionsBatchAsync("TorrentComment", commentIds, null);
+            var reactionsDict = await _reactionService.GetReactionsBatchAsync("RequestComment", commentIds, null);
             
             foreach (var comment in commentDtos)
             {
@@ -164,7 +164,7 @@ public class TorrentCommentService : ITorrentCommentService
             }
         }
 
-        return new TorrentCommentListResponse
+        return new RequestCommentListResponse
         {
             Items = commentDtos,
             HasMore = afterFloor + limit < totalCount,
@@ -174,9 +174,9 @@ public class TorrentCommentService : ITorrentCommentService
     }
 
 
-    public async Task<(bool Success, string Message)> UpdateCommentAsync(int commentId, UpdateTorrentCommentRequestDto request, int userId)
+    public async Task<(bool Success, string Message)> UpdateCommentAsync(int commentId, UpdateRequestCommentRequestDto request, int userId)
     {
-        var comment = await _context.TorrentComments.FindAsync(commentId);
+        var comment = await _context.RequestComments.FindAsync(commentId);
         if (comment == null)
         {
             return (false, "Comment not found");
@@ -210,14 +210,14 @@ public class TorrentCommentService : ITorrentCommentService
 
         await _context.SaveChangesAsync();
         _logger.LogInformation(
-            "TorrentComment {CommentId} updated by user {UserId} (Role: {Role}).",
+            "RequestComment {CommentId} updated by user {UserId} (Role: {Role}).",
             commentId, userId, user.Role);
         return (true, "Comment updated successfully");
     }
 
     public async Task<(bool Success, string Message)> DeleteCommentAsync(int commentId, int userId)
     {
-        var comment = await _context.TorrentComments.FindAsync(commentId);
+        var comment = await _context.RequestComments.FindAsync(commentId);
         if (comment == null)
         {
             return (false, "Comment not found");
@@ -249,18 +249,18 @@ public class TorrentCommentService : ITorrentCommentService
         // Update parent comment reply count if exists
         if (comment.ParentCommentId.HasValue)
         {
-            var parent = await _context.TorrentComments.FindAsync(comment.ParentCommentId.Value);
+            var parent = await _context.RequestComments.FindAsync(comment.ParentCommentId.Value);
             if (parent != null)
             {
                 parent.ReplyCount = Math.Max(0, parent.ReplyCount - 1);
             }
         }
 
-        _context.TorrentComments.Remove(comment);
+        _context.RequestComments.Remove(comment);
         await _context.SaveChangesAsync();
         
         _logger.LogInformation(
-            "TorrentComment {CommentId} deleted by user {UserId} (Role: {Role}).",
+            "RequestComment {CommentId} deleted by user {UserId} (Role: {Role}).",
             commentId, userId, user.Role);
         return (true, "Comment deleted successfully");
     }

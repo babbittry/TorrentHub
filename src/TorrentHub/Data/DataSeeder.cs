@@ -197,6 +197,13 @@ namespace TorrentHub.Data
                 logger.LogInformation("Default EnableCredentialAutoCleanup setting seeded successfully.");
             }
 
+            // Content Moderation Settings
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "ContentEditWindowMinutes"))
+            {
+                context.SiteSettings.Add(new SiteSetting { Key = "ContentEditWindowMinutes", Value = "15" });
+                logger.LogInformation("Default ContentEditWindowMinutes setting seeded successfully.");
+            }
+
             await context.SaveChangesAsync();
         }
 
@@ -232,7 +239,10 @@ namespace TorrentHub.Data
             var badges = await context.Badges.ToListAsync();
 
             // Seed Requests
-            await SeedRequestsAsync(context, logger, users, torrents, 20); // Seed 20 requests
+            var requests = await SeedRequestsAsync(context, logger, users, torrents, 20); // Seed 20 requests
+            
+            // Seed Request Comments
+            await SeedRequestCommentsAsync(context, logger, users, requests, 80); // Seed 80 request comments
 
             // Seed Reports
             await SeedReportsAsync(context, logger, users, torrents, 30); // Seed 30 reports
@@ -647,7 +657,7 @@ namespace TorrentHub.Data
             }
         }
 
-        public static async Task SeedRequestsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+        public static async Task<List<Request>> SeedRequestsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
             List<Torrent> torrents, int count)
         {
             if (!await context.Requests.AnyAsync() && users.Any())
@@ -676,10 +686,117 @@ namespace TorrentHub.Data
                 context.Requests.AddRange(requests);
                 await context.SaveChangesAsync();
                 logger.LogInformation("{Count} requests seeded successfully.", count);
+                return requests;
             }
             else
             {
                 logger.LogInformation("Requests already exist or no users, skipping seeding.");
+                return await context.Requests.ToListAsync();
+            }
+        }
+
+        public static async Task SeedRequestCommentsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
+            List<Request> requests, int count)
+        {
+            if (!await context.RequestComments.AnyAsync() && requests.Any() && users.Any())
+            {
+                var faker = new Faker();
+                var totalComments = 0;
+
+                foreach (var request in requests.Take(8)) // 为前8个求种生成评论
+                {
+                    var commentsForRequest = new List<RequestComment>();
+                    var topLevelCount = faker.Random.Int(3, 12); // 每个求种3-12条顶级评论
+                    int currentFloor = 1;
+
+                    // 生成顶级评论
+                    for (int i = 0; i < topLevelCount; i++)
+                    {
+                        var topLevelComment = new RequestComment
+                        {
+                            Text = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
+                            Request = request,
+                            User = faker.PickRandom(users),
+                            CreatedAt = faker.Date.Between(request.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                            Floor = currentFloor++,
+                            ParentCommentId = null,
+                            ReplyToUserId = null,
+                            Depth = 0,
+                            ReplyCount = 0
+                        };
+                        commentsForRequest.Add(topLevelComment);
+                    }
+
+                    // 保存顶级评论以获取ID
+                    context.RequestComments.AddRange(commentsForRequest);
+                    await context.SaveChangesAsync();
+
+                    // 为部分顶级评论生成回复(40%概率)
+                    foreach (var parentComment in commentsForRequest.Where(c => c.Depth == 0).OrderBy(c => c.Floor))
+                    {
+                        if (faker.Random.Bool(0.4f)) // 40%的顶级评论有回复
+                        {
+                            var replyCount = faker.Random.Int(1, 4); // 1-4条回复
+                            var replies = new List<RequestComment>();
+
+                            for (int i = 0; i < replyCount; i++)
+                            {
+                                var replyUser = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList());
+                                var reply = new RequestComment
+                                {
+                                    Text = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
+                                    Request = request,
+                                    User = replyUser,
+                                    CreatedAt = faker.Date.Between(parentComment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                    Floor = currentFloor++,
+                                    ParentCommentId = parentComment.Id,
+                                    ReplyToUserId = parentComment.UserId,
+                                    Depth = 1,
+                                    ReplyCount = 0
+                                };
+                                replies.Add(reply);
+                            }
+
+                            context.RequestComments.AddRange(replies);
+                            parentComment.ReplyCount = replyCount;
+                            
+                            // 先保存二级回复以获取ID
+                            await context.SaveChangesAsync();
+                            
+                            // 为二级回复生成三级回复(15%概率)
+                            foreach (var secondLevelReply in replies)
+                            {
+                                if (faker.Random.Bool(0.15f) && secondLevelReply.Depth < 2)
+                                {
+                                    var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList());
+                                    var thirdLevelReply = new RequestComment
+                                    {
+                                        Text = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
+                                        Request = request,
+                                        User = thirdLevelUser,
+                                        CreatedAt = faker.Date.Between(secondLevelReply.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                        Floor = currentFloor++,
+                                        ParentCommentId = secondLevelReply.Id,
+                                        ReplyToUserId = secondLevelReply.UserId,
+                                        Depth = 2,
+                                        ReplyCount = 0
+                                    };
+                                    context.RequestComments.Add(thirdLevelReply);
+                                    secondLevelReply.ReplyCount++;
+                                }
+                            }
+                        }
+                    }
+
+                    await context.SaveChangesAsync();
+                    totalComments += commentsForRequest.Count;
+                }
+
+                logger.LogInformation("{Count} request comments with replies seeded successfully.", totalComments);
+            }
+            else
+            {
+                logger.LogInformation("Request comments already exist or no requests/users to comment on, skipping seeding.");
             }
         }
 

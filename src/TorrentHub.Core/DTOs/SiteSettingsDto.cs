@@ -171,4 +171,12 @@ public class SiteSettingsDto
 
     [Range(0.0, 10.0)]
     public double SeederFactorMultiplier { get; set; } = 0.2;
+
+    // Content Moderation
+    /// <summary>
+    /// 允许删除/编辑内容的时间窗口（分钟）
+    /// 超过此时间后，即使无回复也无法删除/编辑
+    /// </summary>
+    [Range(1, 1440)]
+    public int ContentEditWindowMinutes { get; set; } = 15;
 }

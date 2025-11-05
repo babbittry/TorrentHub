@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TorrentHub.Services.Interfaces;
+using TorrentHub.Core.Services;
 
 namespace TorrentHub.Services;
 
@@ -18,17 +19,20 @@ public class ForumService : IForumService
     private readonly ILogger<ForumService> _logger;
     private readonly IUserLevelService _userLevelService;
     private readonly IReactionService _reactionService;
+    private readonly ISettingsService _settingsService;
 
     public ForumService(
         ApplicationDbContext context,
         ILogger<ForumService> logger,
         IUserLevelService userLevelService,
-        IReactionService reactionService)
+        IReactionService reactionService,
+        ISettingsService settingsService)
     {
         _context = context;
         _logger = logger;
         _userLevelService = userLevelService;
         _reactionService = reactionService;
+        _settingsService = settingsService;
     }
 
     public async Task<List<ForumCategoryDto>> GetCategoriesAsync()
@@ -348,21 +352,40 @@ public class ForumService : IForumService
             throw new KeyNotFoundException("User not found");
         }
 
-        if (post.AuthorId != userId && user.Role < UserRole.Moderator)
+        var settings = await _settingsService.GetSiteSettingsAsync();
+
+        // 验证编辑权限
+        var (canEdit, errorMessage) = ContentModerationHelper.CanEditContent(
+            authorId: post.AuthorId,
+            currentUserId: userId,
+            userRole: user.Role,
+            replyCount: post.ReplyCount,
+            createdAt: post.CreatedAt,
+            editWindowMinutes: settings.ContentEditWindowMinutes
+        );
+
+        if (!canEdit)
         {
-            throw new UnauthorizedAccessException("You are not authorized to update this post.");
+            throw new UnauthorizedAccessException(errorMessage);
         }
 
         post.Content = updatePostDto.Content;
         post.EditedAt = DateTimeOffset.UtcNow;
         await _context.SaveChangesAsync();
+        
+        _logger.LogInformation(
+            "ForumPost {PostId} updated by user {UserId} (Role: {Role}).",
+            postId, userId, user.Role);
     }
 
     public async Task DeleteTopicAsync(int topicId, int userId)
     {
-        var topic = await _context.ForumTopics.FindAsync(topicId);
+        var topic = await _context.ForumTopics
+            .Include(t => t.Posts)
+            .FirstOrDefaultAsync(t => t.Id == topicId);
+            
         if (topic == null)
-        { 
+        {
             throw new KeyNotFoundException("Topic not found");
         }
 
@@ -372,13 +395,24 @@ public class ForumService : IForumService
             throw new KeyNotFoundException("User not found");
         }
 
+        // 只有版主及以上可以删除主题
         if (topic.AuthorId != userId && user.Role < UserRole.Moderator)
         {
-            throw new UnauthorizedAccessException("You are not authorized to delete this topic.");
+            throw new UnauthorizedAccessException("You are not authorized to delete this topic");
+        }
+
+        // 如果主题有任何帖子，则不能删除
+        if (topic.Posts.Any())
+        {
+            throw new InvalidOperationException("Cannot delete topic with posts. Please delete all posts first or contact an administrator.");
         }
 
         _context.ForumTopics.Remove(topic);
         await _context.SaveChangesAsync();
+        
+        _logger.LogInformation(
+            "ForumTopic {TopicId} deleted by user {UserId} (Role: {Role}).",
+            topicId, userId, user.Role);
     }
 
     public async Task DeletePostAsync(int postId, int userId)
@@ -398,9 +432,25 @@ public class ForumService : IForumService
             throw new KeyNotFoundException("User not found");
         }
 
-        if (post.AuthorId != userId && user.Role < UserRole.Moderator)
+        var settings = await _settingsService.GetSiteSettingsAsync();
+
+        // 检查是否为楼主帖
+        var isFirstPost = post.Floor == 1;
+
+        // 验证删除权限
+        var (canDelete, errorMessage) = ContentModerationHelper.CanDeleteContent(
+            authorId: post.AuthorId,
+            currentUserId: userId,
+            userRole: user.Role,
+            replyCount: post.ReplyCount,
+            createdAt: post.CreatedAt,
+            editWindowMinutes: settings.ContentEditWindowMinutes,
+            isFirstPost: isFirstPost
+        );
+
+        if (!canDelete)
         {
-            throw new UnauthorizedAccessException("You are not authorized to delete this post.");
+            throw new UnauthorizedAccessException(errorMessage);
         }
 
         var topic = post.Topic;
@@ -415,38 +465,25 @@ public class ForumService : IForumService
             var parent = await _context.ForumPosts.FindAsync(post.ParentPostId.Value);
             if (parent != null)
             {
-                parent.ReplyCount = await _context.ForumPosts
-                    .CountAsync(p => p.ParentPostId == post.ParentPostId.Value && p.Id != postId);
+                parent.ReplyCount = Math.Max(0, parent.ReplyCount - 1);
             }
         }
+
+        _context.ForumPosts.Remove(post);
+
+        // 更新主题的最后发帖时间
+        var lastPost = await _context.ForumPosts
+            .Where(p => p.TopicId == topic.Id && p.Id != postId)
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync();
         
-        var firstPostInTopic = await _context.ForumPosts.OrderBy(p => p.CreatedAt).FirstAsync(p => p.TopicId == topic.Id);
-
-        if (firstPostInTopic.Id == post.Id)
-        {
-            if (topic.AuthorId != userId && user.Role < UserRole.Moderator)
-            {
-                throw new UnauthorizedAccessException("You are not authorized to delete this topic.");
-            }
-            _context.ForumTopics.Remove(topic);
-        }
-        else
-        {
-            _context.ForumPosts.Remove(post);
-
-            var wasLastPost = topic.LastPostTime <= post.CreatedAt;
-            if (wasLastPost)
-            {
-                var newLastPost = await _context.ForumPosts
-                    .Where(p => p.TopicId == topic.Id && p.Id != postId)
-                    .OrderByDescending(p => p.CreatedAt)
-                    .FirstOrDefaultAsync();
-                
-                topic.LastPostTime = newLastPost?.CreatedAt ?? topic.CreatedAt;
-            }
-        }
+        topic.LastPostTime = lastPost?.CreatedAt ?? topic.CreatedAt;
 
         await _context.SaveChangesAsync();
+        
+        _logger.LogInformation(
+            "ForumPost {PostId} deleted by user {UserId} (Role: {Role}).",
+            postId, userId, user.Role);
     }
 
     public async Task<PaginatedResult<ForumPostDto>> GetPostsAsync(int topicId, int page = 1, int pageSize = 30)
