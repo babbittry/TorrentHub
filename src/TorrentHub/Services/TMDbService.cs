@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using TorrentHub.Core.DTOs;
+using TorrentHub.Core.Enums;
 using TorrentHub.Services.Configuration;
 using TorrentHub.Services.Interfaces;
 
@@ -16,12 +17,21 @@ public class TMDbService : ITMDbService
     private readonly HttpClient _httpClient;
     private readonly TMDbSettings _tmDbSettings;
     private readonly ILogger<TMDbService> _logger;
+    private readonly MediaInputParser _inputParser;
+    private readonly DoubanService _doubanService;
 
-    public TMDbService(HttpClient httpClient, IOptions<TMDbSettings> tmDbSettings, ILogger<TMDbService> logger)
+    public TMDbService(
+        HttpClient httpClient,
+        IOptions<TMDbSettings> tmDbSettings,
+        MediaInputParser inputParser,
+        DoubanService doubanService,
+        ILogger<TMDbService> logger)
     {
         _httpClient = httpClient;
         _logger = logger;
         _tmDbSettings = tmDbSettings.Value;
+        _inputParser = inputParser;
+        _doubanService = doubanService;
     }
 
     public async Task<TMDbMovieDto?> GetMovieByImdbIdAsync(string imdbId)
@@ -114,5 +124,45 @@ public class TMDbService : ITMDbService
             _logger.LogError(ex, "An error occurred while fetching movie data for TMDb ID {TMDbId}", tmdbId);
             return null;
         }
+    }
+
+    public async Task<TMDbMovieDto?> GetMediaByInputAsync(string input, string language = "zh-CN")
+    {
+        // 1. 解析输入
+        var parsedInput = _inputParser.Parse(input);
+        
+        if (!parsedInput.IsValid)
+        {
+            _logger.LogWarning("Invalid input: {Input}, Error: {Error}",
+                input, parsedInput.ErrorMessage);
+            return null;
+        }
+        
+        string? imdbId = null;
+        
+        // 2. 根据类型获取IMDb ID
+        switch (parsedInput.Source)
+        {
+            case MediaIdSource.DoubanId:
+            case MediaIdSource.DoubanUrl:
+                // 从豆瓣服务获取IMDb ID
+                imdbId = await _doubanService.GetImdbIdFromDoubanAsync(parsedInput.Id!);
+                break;
+                
+            case MediaIdSource.ImdbId:
+            case MediaIdSource.ImdbUrl:
+                // 直接使用IMDb ID
+                imdbId = parsedInput.Id;
+                break;
+        }
+        
+        if (string.IsNullOrEmpty(imdbId))
+        {
+            _logger.LogWarning("Could not obtain IMDb ID from input: {Input}", input);
+            return null;
+        }
+        
+        // 3. 从TMDB获取媒体数据
+        return await GetMovieByImdbIdAsync(imdbId);
     }
 }

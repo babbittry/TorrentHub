@@ -140,6 +140,13 @@ public class Program
             client.DefaultRequestHeaders.Add("accept", "application/json");
         });
 
+        // 配置豆瓣服务
+        builder.Services.Configure<DoubanSettings>(builder.Configuration.GetSection("DoubanSettings"));
+        builder.Services.AddHttpClient<DoubanService>();
+        
+        // 注册输入解析器 (单例即可)
+        builder.Services.AddSingleton<MediaInputParser>();
+
         builder.Services.AddSingleton(sp =>
         {
             var configuration = sp.GetRequiredService<IConfiguration>();
