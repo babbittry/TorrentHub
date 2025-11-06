@@ -15,7 +15,7 @@ public class SettingsService : ISettingsService
     private const string SiteSettingsKey = "SiteSettings";
     private readonly DistributedCacheEntryOptions _cacheOptions = new()
     {
-        AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(1) // Keep settings in cache for a long time
+        AbsoluteExpirationRelativeToNow = TimeSpan.FromDays(7) // Keep settings in cache for 7 days
     };
 
     public SettingsService(ApplicationDbContext context, IDistributedCache cache)

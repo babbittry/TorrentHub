@@ -217,6 +217,11 @@ public class Program
                     {
                         await DataSeeder.SeedMockDataAsync(context, logger, tmdbService, app.Environment);
                     }
+
+                    // Preheat configuration cache
+                    var settingsService = services.GetRequiredService<ISettingsService>();
+                    await settingsService.GetSiteSettingsAsync();
+                    logger.LogInformation("Configuration cache preheated successfully");
                 }
                 catch (Exception ex)
                 {
@@ -237,6 +242,27 @@ public class Program
         app.MapControllers();
 
         app.MapHealthChecks("/health");
+
+        // Preheat configuration cache for production
+        using (var scope = app.Services.CreateScope())
+        {
+            var services = scope.ServiceProvider;
+            try
+            {
+                var logger = services.GetRequiredService<ILogger<Program>>();
+                var settingsService = services.GetRequiredService<ISettingsService>();
+                
+                // Preheat site settings cache
+                await settingsService.GetSiteSettingsAsync();
+                logger.LogInformation("Configuration cache preheated at startup");
+            }
+            catch (Exception ex)
+            {
+                var logger = services.GetRequiredService<ILogger<Program>>();
+                logger.LogWarning(ex, "Failed to preheat configuration cache");
+                // Don't block application startup
+            }
+        }
 
         app.Run();
     }
