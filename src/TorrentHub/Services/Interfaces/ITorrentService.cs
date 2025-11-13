@@ -16,4 +16,5 @@ public interface ITorrentService
     Task<FileStreamResult?> DownloadTorrentAsync(int torrentId, int userId);
     Task<Torrent?> GetTorrentByIdAsync(int torrentId);
     Task<(bool Success, string Message)> DeleteTorrentAsync(int torrentId, int userId);
+    Task<List<TorrentFileDto>?> GetTorrentFileListAsync(string filePath);
 }

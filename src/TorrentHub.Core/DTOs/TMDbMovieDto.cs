@@ -42,6 +42,18 @@ public class TMDbMovieDto
 
     [JsonPropertyName("vote_average")]
     public double? VoteAverage { get; set; }
+
+    [JsonPropertyName("production_countries")]
+    public ProductionCountry[]? ProductionCountries { get; set; }
+}
+
+public class ProductionCountry
+{
+    [JsonPropertyName("iso_3166_1")]
+    public required string Iso3166_1 { get; set; }
+
+    [JsonPropertyName("name")]
+    public required string Name { get; set; }
 }
 
 public class Genre
@@ -63,6 +75,12 @@ public class CastMember
 {
     [JsonPropertyName("name")]
     public required string Name { get; set; }
+    
+    [JsonPropertyName("character")]
+    public string? Character { get; set; }
+    
+    [JsonPropertyName("profile_path")]
+    public string? ProfilePath { get; set; }
     
     [JsonPropertyName("order")]
     public int Order { get; set; }

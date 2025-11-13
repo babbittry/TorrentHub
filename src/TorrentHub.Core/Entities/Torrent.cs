@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 using System.ComponentModel;
 using NpgsqlTypes;
 using TorrentHub.Core.Enums;
+using TorrentHub.Core.DTOs;
 
 namespace TorrentHub.Core.Entities;
 
@@ -149,9 +150,28 @@ public class Torrent
     [StringLength(255)]
     public string? Directors { get; set; }
 
-    [StringLength(1024)]
-    public string? Cast { get; set; }
+    [Column(TypeName = "jsonb")]
+    public List<CastMemberDto>? Cast { get; set; }
 
     public double? Rating { get; set; }
+    
+    // Technical Specs Fields
+    [StringLength(50)]
+    public string? Resolution { get; set; }
+    
+    [StringLength(50)]
+    public string? VideoCodec { get; set; }
+    
+    [StringLength(50)]
+    public string? AudioCodec { get; set; }
+    
+    [StringLength(100)]
+    public string? Subtitles { get; set; }
+    
+    [StringLength(50)]
+    public string? Source { get; set; }
+
+    [StringLength(100)]
+    public string? Country { get; set; }
 }
 

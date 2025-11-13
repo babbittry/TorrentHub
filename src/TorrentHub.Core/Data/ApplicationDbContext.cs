@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TorrentHub.Core.Entities;
 using TorrentHub.Core.Enums;
+using TorrentHub.Core.DTOs;
 using System.Text.Json;
 
 namespace TorrentHub.Core.Data
@@ -268,6 +269,50 @@ namespace TorrentHub.Core.Data
                     .HasForeignKey(e => e.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+            
+            // Configure Torrent.Cast with explicit JSON conversion and value comparer
+            var castProperty = modelBuilder.Entity<Torrent>()
+                .Property(t => t.Cast)
+                .HasConversion(
+                    v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                    v => JsonSerializer.Deserialize<List<CastMemberDto>>(v, (JsonSerializerOptions?)null))
+                .HasColumnType("jsonb");
+            
+            // Set value comparer for change tracking
+            castProperty.Metadata.SetValueComparer(
+                new ValueComparer<List<CastMemberDto>?>(
+                    // Equality comparison
+                    (c1, c2) => (c1 == null && c2 == null) ||
+                                (c1 != null && c2 != null &&
+                                 c1.Count == c2.Count &&
+                                 c1.SequenceEqual(c2, new CastMemberDtoComparer())),
+                    // Hash code calculation
+                    c => c == null ? 0 : c.Aggregate(0, (a, v) => HashCode.Combine(a, v.Name.GetHashCode())),
+                    // Snapshot cloning
+                    c => c == null ? null : c.Select(x => new CastMemberDto
+                    {
+                        Name = x.Name,
+                        Character = x.Character,
+                        ProfilePath = x.ProfilePath
+                    }).ToList()));
+        }
+        
+        // Custom comparer for CastMemberDto
+        private class CastMemberDtoComparer : IEqualityComparer<CastMemberDto>
+        {
+            public bool Equals(CastMemberDto? x, CastMemberDto? y)
+            {
+                if (x == null && y == null) return true;
+                if (x == null || y == null) return false;
+                return x.Name == y.Name &&
+                       x.Character == y.Character &&
+                       x.ProfilePath == y.ProfilePath;
+            }
+
+            public int GetHashCode(CastMemberDto obj)
+            {
+                return HashCode.Combine(obj.Name, obj.Character, obj.ProfilePath);
+            }
         }
     }
 }

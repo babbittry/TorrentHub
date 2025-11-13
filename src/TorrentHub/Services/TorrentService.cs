@@ -23,6 +23,7 @@ public class TorrentService : ITorrentService
     private readonly ILogger<TorrentService> _logger;
     private readonly IMeiliSearchService _meiliSearchService;
     private readonly ITorrentCredentialService _credentialService;
+    private readonly MediaInputParser _mediaInputParser;
     private readonly BencodeParser _bencodeParser = new();
 
     public TorrentService(
@@ -32,7 +33,8 @@ public class TorrentService : ITorrentService
         IMeiliSearchService meiliSearchService,
         ITMDbService tmdbService,
         ISettingsService settingsService,
-        ITorrentCredentialService credentialService)
+        ITorrentCredentialService credentialService,
+        MediaInputParser mediaInputParser)
     {
         _context = context;
         _userService = userService;
@@ -41,6 +43,7 @@ public class TorrentService : ITorrentService
         _tmdbService = tmdbService;
         _settingsService = settingsService;
         _credentialService = credentialService;
+        _mediaInputParser = mediaInputParser;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash, TorrentHub.Core.Entities.Torrent? Torrent)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
@@ -105,6 +108,9 @@ public class TorrentService : ITorrentService
             throw new Exception("User not found");
         }
 
+        // Parse technical specs from filename
+        var techSpecs = _mediaInputParser.ParseTechnicalSpecs(torrent.DisplayName);
+        
         var torrentEntity = new TorrentHub.Core.Entities.Torrent
         {
             Name = torrent.DisplayName,
@@ -120,7 +126,12 @@ public class TorrentService : ITorrentService
             StickyStatus = TorrentStickyStatus.None,
             FilePath = filePath,
             ImdbId = request.ImdbId,
-            Genres = new List<string>()
+            Genres = new List<string>(),
+            Resolution = techSpecs?.Resolution,
+            VideoCodec = techSpecs?.VideoCodec,
+            AudioCodec = techSpecs?.AudioCodec,
+            Subtitles = techSpecs?.Subtitles,
+            Source = techSpecs?.Source
         };
 
         if (!string.IsNullOrWhiteSpace(request.ImdbId))
@@ -145,7 +156,26 @@ public class TorrentService : ITorrentService
                 torrentEntity.Rating = movieData.VoteAverage;
                 torrentEntity.Genres = movieData.Genres?.Select(g => g.Name).ToList() ?? new List<string>();
                 torrentEntity.Directors = movieData.Credits?.Crew != null ? string.Join(", ", movieData.Credits.Crew.Where(c => c.Job == "Director").Select(c => c.Name)) : null;
-                torrentEntity.Cast = movieData.Credits?.Cast != null ? string.Join(", ", movieData.Credits.Cast.OrderBy(c => c.Order).Take(5).Select(c => c.Name)) : null;
+                
+                // Save structured cast data
+                if (movieData.Credits?.Cast != null)
+                {
+                    torrentEntity.Cast = movieData.Credits.Cast
+                        .OrderBy(c => c.Order)
+                        .Take(10)
+                        .Select(c => new CastMemberDto
+                        {
+                            Name = c.Name,
+                            Character = c.Character,
+                            ProfilePath = c.ProfilePath
+                        })
+                        .ToList();
+                }
+
+                if (movieData.ProductionCountries != null && movieData.ProductionCountries.Any())
+                {
+                    torrentEntity.Country = string.Join(", ", movieData.ProductionCountries.Select(c => c.Name));
+                }
             }
             else
             {
@@ -414,6 +444,47 @@ public class TorrentService : ITorrentService
         {
             _logger.LogError(ex, "Error saving torrent file {FileName} to {FilePath}.", file.FileName, filePath);
             throw;
+        }
+    }
+
+    public async Task<List<TorrentFileDto>?> GetTorrentFileListAsync(string filePath)
+    {
+        try
+        {
+            var torrent = await ParseTorrentFileFromPath(filePath);
+            if (torrent == null)
+                return null;
+
+            var fileList = new List<TorrentFileDto>();
+
+            if (torrent.Files != null && torrent.Files.Any())
+            {
+                // Multi-file torrent
+                foreach (var file in torrent.Files)
+                {
+                    fileList.Add(new TorrentFileDto
+                    {
+                        Name = string.Join("/", file.Path),
+                        Size = file.FileSize
+                    });
+                }
+            }
+            else if (torrent.File != null)
+            {
+                // Single-file torrent
+                fileList.Add(new TorrentFileDto
+                {
+                    Name = torrent.File.FileName,
+                    Size = torrent.File.FileSize
+                });
+            }
+
+            return fileList.Any() ? fileList : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting file list from torrent at {FilePath}", filePath);
+            return null;
         }
     }
 }

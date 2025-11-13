@@ -121,10 +121,31 @@ public class TorrentsController : ControllerBase
                 Message = "Torrent not found."
             });
         }
+        
+        var torrentDto = Mapper.ToTorrentDto(torrent);
+        
+        // Populate technical specs from entity fields
+        if (!string.IsNullOrEmpty(torrent.Resolution) || !string.IsNullOrEmpty(torrent.VideoCodec) ||
+            !string.IsNullOrEmpty(torrent.AudioCodec) || !string.IsNullOrEmpty(torrent.Subtitles) ||
+            !string.IsNullOrEmpty(torrent.Source))
+        {
+            torrentDto.TechnicalSpecs = new TechnicalSpecsDto
+            {
+                Resolution = torrent.Resolution,
+                VideoCodec = torrent.VideoCodec,
+                AudioCodec = torrent.AudioCodec,
+                Subtitles = torrent.Subtitles,
+                Source = torrent.Source
+            };
+        }
+        
+        // Populate file list from .torrent file
+        torrentDto.Files = await _torrentService.GetTorrentFileListAsync(torrent.FilePath);
+        
         return Ok(new ApiResponse<TorrentDto>
         {
             Success = true,
-            Data = Mapper.ToTorrentDto(torrent),
+            Data = torrentDto,
             Message = "Torrent retrieved successfully."
         });
     }

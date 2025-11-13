@@ -24,14 +24,19 @@ public class TorrentDto
     public string? ImdbId { get; set; }
     public int? TMDbId { get; set; }
     public string? OriginalTitle { get; set; }
-    public string? Tagline { get; set; }
     public int? Year { get; set; }
     public string? PosterPath { get; set; }
     public string? BackdropPath { get; set; }
     public int? Runtime { get; set; }
     public List<string>? Genres { get; set; }
     public string? Directors { get; set; }
-    public string? Cast { get; set; }
+    public List<CastMemberDto>? Cast { get; set; }
     public double? Rating { get; set; }
+    
+    // New Fields
+    public double? ImdbRating { get; set; }
+    public TechnicalSpecsDto? TechnicalSpecs { get; set; }
+    public List<TorrentFileDto>? Files { get; set; }
+    public string? Country { get; set; }
 }
 

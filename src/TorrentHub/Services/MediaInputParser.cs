@@ -24,6 +24,27 @@ public class MediaInputParser
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
+    // Technical Specs parsing regexes
+    private static readonly Regex ResolutionRegex = new(
+        @"(?:(\d{3,4})p|(\d{3,4}x\d{3,4}))",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex VideoCodecRegex = new(
+        @"(?:x264|x265|H\.264|H\.265|HEVC|AVC|VC-1|MPEG-2)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex AudioCodecRegex = new(
+        @"(?:AAC|AC3|DTS|DTS-HD|TrueHD|FLAC|MP3|Atmos|DTS-X)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex SourceRegex = new(
+        @"(?:BluRay|Blu-ray|WEB-DL|WEBRip|HDTV|DVDRip|BDRip)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
     public ParsedMediaInput Parse(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -70,5 +91,48 @@ public class MediaInputParser
             IsValid = false,
             ErrorMessage = message
         };
+    }
+
+    public TechnicalSpecsDto? ParseTechnicalSpecs(string filename)
+    {
+        if (string.IsNullOrWhiteSpace(filename))
+            return null;
+
+        var specs = new TechnicalSpecsDto();
+        bool hasAnySpec = false;
+
+        // Parse Resolution
+        var resolutionMatch = ResolutionRegex.Match(filename);
+        if (resolutionMatch.Success)
+        {
+            specs.Resolution = resolutionMatch.Value;
+            hasAnySpec = true;
+        }
+
+        // Parse Video Codec
+        var videoCodecMatch = VideoCodecRegex.Match(filename);
+        if (videoCodecMatch.Success)
+        {
+            specs.VideoCodec = videoCodecMatch.Value.ToUpperInvariant();
+            hasAnySpec = true;
+        }
+
+        // Parse Audio Codec
+        var audioCodecMatch = AudioCodecRegex.Match(filename);
+        if (audioCodecMatch.Success)
+        {
+            specs.AudioCodec = audioCodecMatch.Value.ToUpperInvariant();
+            hasAnySpec = true;
+        }
+
+        // Parse Source
+        var sourceMatch = SourceRegex.Match(filename);
+        if (sourceMatch.Success)
+        {
+            specs.Source = sourceMatch.Value;
+            hasAnySpec = true;
+        }
+
+        return hasAnySpec ? specs : null;
     }
 }

@@ -11,6 +11,8 @@ using Bogus;
 using TorrentHub.Services.Interfaces;
 using System.IO; // Added for Path and Directory operations
 using Microsoft.AspNetCore.Hosting; // Added for IWebHostEnvironment
+using TorrentHub.Core.DTOs;
+using TorrentHub.Services;
 
 namespace TorrentHub.Data
 {
@@ -223,7 +225,7 @@ namespace TorrentHub.Data
             await SeedInvitesAsync(context, logger, users, 20); // Seed 20 invites
 
             // Seed Torrents
-            List<Torrent> torrents = await SeedTorrentsAsync(context, logger, users, tmdbService);
+            List<Torrent> torrents = await SeedTorrentsAsync(context, logger, users, tmdbService, env);
 
             // Seed Comments
             await SeedCommentsAsync(context, logger, users, torrents, 100); // Seed 100 comments
@@ -398,7 +400,7 @@ namespace TorrentHub.Data
         }
 
         public static async Task<List<Torrent>> SeedTorrentsAsync(ApplicationDbContext context, ILogger logger,
-            List<User> users, ITMDbService tmdbService)
+            List<User> users, ITMDbService tmdbService, IWebHostEnvironment env)
         {
             if (await context.Torrents.AnyAsync())
             {
@@ -422,6 +424,7 @@ namespace TorrentHub.Data
 
             var torrents = new List<Torrent>();
             var faker = new Faker();
+            var mediaInputParser = new MediaInputParser();
 
             foreach (var movieId in movieIds)
             {
@@ -430,12 +433,21 @@ namespace TorrentHub.Data
                     var movie = await tmdbService.GetMovieByTmdbIdAsync(movieId, "zh-CN");
                     if (movie != null)
                     {
+                        var year = !string.IsNullOrEmpty(movie.ReleaseDate) && DateTime.TryParse(movie.ReleaseDate, out var releaseDate) ? releaseDate.Year.ToString() : "2022";
+                        var resolution = faker.PickRandom("1080p", "2160p", "720p");
+                        var source = faker.PickRandom("BluRay", "WEB-DL", "HDTV");
+                        var videoCodec = faker.PickRandom("x264", "x265");
+                        var audioCodec = faker.PickRandom("DTS-HD.MA.5.1", "TrueHD.7.1.Atmos", "AAC");
+
+                        var realisticName = $"{movie.Title?.Replace(":", "")} {year} {resolution} {source} {videoCodec} {audioCodec}-PTer";
+                        var techSpecs = mediaInputParser.ParseTechnicalSpecs(realisticName);
+
                         var infoHashBytes = faker.Random.Bytes(20);
                         var torrent = new Torrent
                         {
-                            Name = movie.Title ?? "unknown",
+                            Name = realisticName,
                             InfoHash = infoHashBytes,
-                            FilePath = $"/torrents/{BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant()}.torrent",
+                            FilePath = Path.Combine(env.WebRootPath ?? "wwwroot", "torrents", $"{BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant()}.torrent"),
                             Description = movie.Overview,
                             UploadedByUser = faker.PickRandom(users),
                             Category = TorrentCategory.Movie,
@@ -452,14 +464,25 @@ namespace TorrentHub.Data
                             OriginalTitle = movie.OriginalTitle,
                             Tagline = movie.Tagline,
                             Year = !string.IsNullOrEmpty(movie.ReleaseDate) &&
-                                   DateTime.TryParse(movie.ReleaseDate, out var releaseDate)
-                                ? releaseDate.Year
+                                   DateTime.TryParse(movie.ReleaseDate, out var parsedReleaseDate)
+                                ? parsedReleaseDate.Year
                                 : null,
                             PosterPath = movie.PosterPath,
                             BackdropPath = movie.BackdropPath,
                             Runtime = movie.Runtime,
                             Genres = movie.Genres.Select(g => g.Name).ToList(),
-                            Rating = movie.VoteAverage
+                            Rating = movie.VoteAverage,
+                            Country = movie.ProductionCountries?.FirstOrDefault()?.Name,
+                            Cast = movie.Credits.Cast.Select(c => new CastMemberDto
+                            {
+                                Name = c.Name,
+                                Character = c.Character,
+                                ProfilePath = c.ProfilePath
+                            }).ToList(),
+                            Resolution = techSpecs?.Resolution,
+                            VideoCodec = techSpecs?.VideoCodec,
+                            AudioCodec = techSpecs?.AudioCodec,
+                            Source = techSpecs?.Source
                         };
 
                         if (torrent.IsFree)
@@ -483,6 +506,20 @@ namespace TorrentHub.Data
                 context.Torrents.AddRange(torrents);
                 await context.SaveChangesAsync();
                 logger.LogInformation("{Count} torrents seeded successfully from TMDb.", torrents.Count);
+
+                // Create dummy .torrent files
+                foreach (var torrent in torrents)
+                {
+                    if (!File.Exists(torrent.FilePath))
+                    {
+                        var directory = Path.GetDirectoryName(torrent.FilePath);
+                        if (directory != null && !Directory.Exists(directory))
+                        {
+                            Directory.CreateDirectory(directory);
+                        }
+                        File.WriteAllText(torrent.FilePath, "d8:announce0:e");
+                    }
+                }
             }
 
             return torrents;

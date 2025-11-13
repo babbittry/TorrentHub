@@ -100,9 +100,19 @@ public static partial class Mapper
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
 
     [MapProperty(nameof(Torrent.UploadedByUser), nameof(TorrentDto.Uploader))]
+    [MapProperty(nameof(Torrent.Rating), nameof(TorrentDto.ImdbRating))]
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
+    [MapperIgnoreSource(nameof(Torrent.Tagline))]
+    [MapperIgnoreSource(nameof(Torrent.Resolution))]
+    [MapperIgnoreSource(nameof(Torrent.VideoCodec))]
+    [MapperIgnoreSource(nameof(Torrent.AudioCodec))]
+    [MapperIgnoreSource(nameof(Torrent.Subtitles))]
+    [MapperIgnoreSource(nameof(Torrent.Source))]
+    [MapperIgnoreTarget(nameof(TorrentDto.TechnicalSpecs))]
+    [MapperIgnoreTarget(nameof(TorrentDto.Files))]
+    [MapProperty(nameof(Torrent.Country), nameof(TorrentDto.Country))]
     public static partial TorrentDto ToTorrentDto(Torrent torrent);
 
     [MapProperty(nameof(Request.RequestedByUser), nameof(RequestDto.RequestedByUser))]
@@ -193,6 +203,12 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.PosterPath))]
     [MapperIgnoreSource(nameof(Torrent.BackdropPath))]
     [MapperIgnoreSource(nameof(Torrent.Rating))]
+    [MapperIgnoreSource(nameof(Torrent.Resolution))]
+    [MapperIgnoreSource(nameof(Torrent.VideoCodec))]
+    [MapperIgnoreSource(nameof(Torrent.AudioCodec))]
+    [MapperIgnoreSource(nameof(Torrent.Subtitles))]
+    [MapperIgnoreSource(nameof(Torrent.Source))]
+    [MapperIgnoreSource(nameof(Torrent.Country))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
 
     [MapProperty(nameof(User.UserTitle), nameof(UserDisplayDto.UserTitle))]
