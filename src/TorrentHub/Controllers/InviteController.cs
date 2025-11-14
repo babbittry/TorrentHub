@@ -23,7 +23,7 @@ public class InvitesController : ControllerBase
     }
 
     [HttpGet("me")]
-    public async Task<ActionResult<IEnumerable<InviteDto>>> GetMyInvites()
+    public async Task<ActionResult<ApiResponse<List<InviteDto>>>> GetMyInvites()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
@@ -31,7 +31,7 @@ public class InvitesController : ControllerBase
         }
 
         var invites = await _userService.GetUserInvitesAsync(userId);
-        return Ok(invites.Select(Mapper.ToInviteDto));
+        return Ok(ApiResponse<List<InviteDto>>.SuccessResult(invites.Select(Mapper.ToInviteDto).ToList()));
     }
 
     [HttpPost]

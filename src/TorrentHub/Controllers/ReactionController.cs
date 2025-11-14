@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Enums;
 using TorrentHub.Services.Interfaces;
@@ -8,102 +8,81 @@ using TorrentHub.Services.Interfaces;
 namespace TorrentHub.Controllers;
 
 [ApiController]
-[Route("api")]
+[Route("api/reactions")]
 [Authorize]
 public class ReactionController : ControllerBase
 {
     private readonly IReactionService _reactionService;
-    private readonly ILogger<ReactionController> _logger;
 
-    public ReactionController(IReactionService reactionService, ILogger<ReactionController> logger)
+    public ReactionController(IReactionService reactionService)
     {
         _reactionService = reactionService;
-        _logger = logger;
+    }
+
+    private int GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.Parse(userIdClaim!);
     }
 
     /// <summary>
-    /// Add a reaction to a comment
+    /// 获取评论的表情回应列表
     /// </summary>
-    [HttpPost("{commentType}/{commentId:int}/reactions")]
-    public async Task<IActionResult> AddReaction(
-        string commentType,
+    [HttpGet("comment/{commentId}")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<CommentReactionsDto>>> GetCommentReactions(int commentId)
+    {
+        var reactions = await _reactionService.GetReactionsAsync("Comment", commentId, GetCurrentUserId());
+        return Ok(ApiResponse<CommentReactionsDto>.SuccessResult(reactions));
+    }
+
+    /// <summary>
+    /// 添加表情回应
+    /// </summary>
+    [HttpPost("comment/{commentId}")]
+    public async Task<ActionResult<ApiResponse<object>>> AddCommentReaction(
         int commentId,
         [FromBody] AddReactionRequestDto request)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var (success, message) = await _reactionService.AddReactionAsync(
-            commentType, 
-            commentId, 
-            request.Type, 
-            userId);
+        var userId = GetCurrentUserId();
+        var result = await _reactionService.AddReactionAsync("Comment", commentId, request.Type, userId);
 
-        if (!success)
+        if (!result.Success)
         {
-            _logger.LogWarning("Failed to add reaction: {Message}", message);
-            return BadRequest(new { message });
+            return BadRequest(ApiResponse<object>.ErrorResult(result.Message));
         }
 
-        return Ok(new { message });
+        return Ok(ApiResponse.SuccessResult("Reaction added successfully"));
     }
 
     /// <summary>
-    /// Remove a reaction from a comment
+    /// 移除表情回应
     /// </summary>
-    [HttpDelete("{commentType}/{commentId:int}/reactions/{type}")]
-    public async Task<IActionResult> RemoveReaction(
-        string commentType,
+    [HttpDelete("comment/{commentId}/{type}")]
+    public async Task<ActionResult<ApiResponse<object>>> RemoveCommentReaction(
         int commentId,
         ReactionType type)
     {
-        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-        var (success, message) = await _reactionService.RemoveReactionAsync(
-            commentType, 
-            commentId, 
-            type, 
-            userId);
+        var userId = GetCurrentUserId();
+        var result = await _reactionService.RemoveReactionAsync("Comment", commentId, type, userId);
 
-        if (!success)
+        if (!result.Success)
         {
-            _logger.LogWarning("Failed to remove reaction: {Message}", message);
-            return BadRequest(new { message });
+            return BadRequest(ApiResponse<object>.ErrorResult(result.Message));
         }
 
-        return Ok(new { message });
+        return Ok(ApiResponse.SuccessResult("Reaction removed successfully"));
     }
 
     /// <summary>
-    /// Get all reactions for a comment
+    /// 批量获取表情回应
     /// </summary>
-    [HttpGet("{commentType}/{commentId:int}/reactions")]
-    public async Task<ActionResult<CommentReactionsDto>> GetReactions(
-        string commentType,
-        int commentId)
-    {
-        var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) 
-            ? (int?)id 
-            : null;
-
-        var reactions = await _reactionService.GetReactionsAsync(commentType, commentId, userId);
-        return Ok(reactions);
-    }
-
-    /// <summary>
-    /// Get reactions for multiple comments in batch
-    /// </summary>
-    [HttpPost("{commentType}/reactions/batch")]
-    public async Task<ActionResult<Dictionary<int, CommentReactionsDto>>> GetReactionsBatch(
-        string commentType,
+    [HttpPost("batch")]
+    public async Task<ActionResult<ApiResponse<Dictionary<int, CommentReactionsDto>>>> GetReactionsBatch(
         [FromBody] GetReactionsBatchRequestDto request)
     {
-        var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) 
-            ? (int?)id 
-            : null;
-
-        var reactions = await _reactionService.GetReactionsBatchAsync(
-            commentType, 
-            request.CommentIds, 
-            userId);
-
-        return Ok(reactions);
+        var userId = GetCurrentUserId();
+        var reactions = await _reactionService.GetReactionsBatchAsync("Comment", request.CommentIds, userId);
+        return Ok(ApiResponse<Dictionary<int, CommentReactionsDto>>.SuccessResult(reactions));
     }
 }

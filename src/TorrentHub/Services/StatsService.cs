@@ -5,6 +5,7 @@ using TorrentHub.Core.Data;
 using TorrentHub.Core.DTOs;
 using TorrentHub.Core.Enums;
 using TorrentHub.Services.Interfaces;
+using TorrentHub.Core.Entities;
 
 namespace TorrentHub.Services;
 
@@ -119,7 +120,8 @@ public class StatsService : IStatsService
             .FirstOrDefaultAsync();
 
         var totalForumTopics = await _context.ForumTopics.LongCountAsync();
-        var totalForumPosts = await _context.ForumPosts.LongCountAsync();
+        var totalForumPosts = await _context.Comments
+            .LongCountAsync(c => c.CommentableType == CommentableType.ForumTopic);
 
         var peerStats = await _context.Torrents
             .GroupBy(t => 1)

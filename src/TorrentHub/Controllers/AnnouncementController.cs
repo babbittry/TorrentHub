@@ -38,10 +38,10 @@ public class AnnouncementsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<List<AnnouncementDto>>> GetAnnouncements()
+    public async Task<ActionResult<ApiResponse<List<AnnouncementDto>>>> GetAnnouncements()
     {
         var announcements = await _announcementService.GetAnnouncementsAsync();
-        return Ok(announcements.Select(a => Mapper.ToAnnouncementDto(a)).ToList());
+        return Ok(ApiResponse<List<AnnouncementDto>>.SuccessResult(announcements.Select(a => Mapper.ToAnnouncementDto(a)).ToList()));
     }
 
     [HttpPut("{id:int}")]

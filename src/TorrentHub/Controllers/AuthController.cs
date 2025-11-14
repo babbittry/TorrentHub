@@ -38,6 +38,9 @@ public class AuthController : ControllerBase
 
     [HttpPost("register")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Register([FromBody] UserForRegistrationDto registrationDto)
     {
         if (!ModelState.IsValid)
@@ -80,6 +83,10 @@ public class AuthController : ControllerBase
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<LoginResponseDto>> Login(UserForLoginDto userForLoginDto)
     {
         _logger.LogInformation("Login request received for user: {UserNameOrEmail}", userForLoginDto.UserNameOrEmail);
@@ -118,6 +125,9 @@ public class AuthController : ControllerBase
 
     [HttpPost("login-2fa")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(LoginResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<LoginResponseDto>> Login2fa([FromBody] UserForLogin2faDto login2faDto)
     {
         try
@@ -140,6 +150,8 @@ public class AuthController : ControllerBase
 
     [HttpPost("send-email-code")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> SendEmailVerificationCode([FromBody] SendEmailCodeRequestDto request)
     {
         try
@@ -156,6 +168,7 @@ public class AuthController : ControllerBase
 
     [HttpPost("logout")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout()
     {
         var refreshToken = Request.Cookies["refreshToken"];
@@ -169,6 +182,8 @@ public class AuthController : ControllerBase
 
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [ProducesResponseType(typeof(RefreshTokenResponseDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<RefreshTokenResponseDto>> RefreshToken()
     {
         var refreshToken = Request.Cookies["refreshToken"];
@@ -192,6 +207,8 @@ public class AuthController : ControllerBase
 
     [HttpPost("resend-verification")]
     [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ResendVerificationEmail([FromBody] ResendVerificationRequestDto request)
     {
         var result = await _userService.ResendVerificationEmailAsync(request.UserNameOrEmail);

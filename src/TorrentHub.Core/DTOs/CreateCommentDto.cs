@@ -2,13 +2,16 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TorrentHub.Core.DTOs;
 
-public class CreateRequestCommentRequestDto
+/// <summary>
+/// 创建评论请求DTO
+/// </summary>
+public class CreateCommentDto
 {
     [Required]
-    [StringLength(500)]
-    public required string Text { get; set; }
-
-    // Reply functionality fields
+    [StringLength(1000)]
+    public required string Content { get; set; }
+    
     public int? ParentCommentId { get; set; }
+    
     public int? ReplyToUserId { get; set; }
 }

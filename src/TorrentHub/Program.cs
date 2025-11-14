@@ -15,8 +15,8 @@ using TorrentHub.Services.Interfaces;
 using TorrentHub.Services.Background;
 using TorrentHub.Services.Configuration;
 using TorrentHub.Core.Services;
-using TorrentHub.Data;
 using TorrentHub.Core.Enums;
+using TorrentHub.Data;
 
 namespace TorrentHub;
 
@@ -46,7 +46,17 @@ public class Program
                     new System.Text.Json.Serialization.JsonStringEnumConverter());
             });
 
-        builder.Services.AddOpenApi();
+        builder.Services.AddOpenApi(options =>
+        {
+            options.AddDocumentTransformer((document, context, cancellationToken) =>
+            {
+                // Configure enums to show as strings with descriptions in OpenAPI
+                document.Components ??= new();
+                document.Components.Schemas ??= new Dictionary<string, Microsoft.OpenApi.Models.OpenApiSchema>();
+                
+                return Task.CompletedTask;
+            });
+        });
 
         builder.Services.AddCors(options =>
         {
@@ -73,6 +83,7 @@ public class Program
                 npgsqlOptions.MapEnum<TorrentStickyStatus>();
                 npgsqlOptions.MapEnum<BanStatus>();
                 npgsqlOptions.MapEnum<ReactionType>();
+                npgsqlOptions.MapEnum<CommentableType>(); // Add new enum mapping
             }));
 
         // Add custom services
@@ -82,9 +93,8 @@ public class Program
         
         builder.Services.AddScoped<IStoreService, StoreService>();
         builder.Services.AddScoped<ITorrentService, TorrentService>();
-        builder.Services.AddScoped<ITorrentCommentService, TorrentCommentService>();
+        builder.Services.AddScoped<ICommentService, CommentService>(); // New unified comment service
         builder.Services.AddScoped<IRequestService, RequestService>();
-        builder.Services.AddScoped<IRequestCommentService, RequestCommentService>();
         builder.Services.AddScoped<IMessageService, MessageService>();
         builder.Services.AddScoped<IReportService, ReportService>();
         builder.Services.AddScoped<IAnnouncementService, AnnouncementService>();
@@ -94,7 +104,7 @@ public class Program
         builder.Services.AddScoped<IMeiliSearchService, MeiliSearchService>();
         builder.Services.AddScoped<IStatsService, StatsService>();
         builder.Services.AddScoped<ISettingsService, SettingsService>();
-        builder.Services.AddScoped<IForumService, ForumService>();
+        builder.Services.AddScoped<IForumTopicService, ForumTopicService>(); // New forum topic management service
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IPollService, PollService>();
         builder.Services.AddScoped<IAdminService, AdminService>();

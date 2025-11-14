@@ -25,16 +25,14 @@ public class ReactionService : IReactionService
         ReactionType type, 
         int userId)
     {
-        // Validate comment type
-        if (commentType != "TorrentComment" && commentType != "ForumPost")
+        // Validate comment type - now unified to "Comment"
+        if (commentType != "Comment")
         {
             return (false, "error.reaction.invalidCommentType");
         }
 
         // Verify comment exists
-        var commentExists = commentType == "TorrentComment"
-            ? await _context.TorrentComments.AnyAsync(c => c.Id == commentId)
-            : await _context.ForumPosts.AnyAsync(p => p.Id == commentId);
+        var commentExists = await _context.Comments.AnyAsync(c => c.Id == commentId);
 
         if (!commentExists)
         {
@@ -80,8 +78,8 @@ public class ReactionService : IReactionService
         ReactionType type, 
         int userId)
     {
-        // Validate comment type
-        if (commentType != "TorrentComment" && commentType != "ForumPost")
+        // Validate comment type - now unified to "Comment"
+        if (commentType != "Comment")
         {
             return (false, "error.reaction.invalidCommentType");
         }

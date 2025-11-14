@@ -35,6 +35,4 @@ public class ForumTopic
 
     [Required]
     public bool IsLocked { get; set; } = false;
-    
-    public ICollection<ForumPost> Posts { get; set; } = new List<ForumPost>();
 }

@@ -227,7 +227,7 @@ namespace TorrentHub.Data
             // Seed Torrents
             List<Torrent> torrents = await SeedTorrentsAsync(context, logger, users, tmdbService, env);
 
-            // Seed Comments
+            // Seed Comments (using unified Comment system)
             await SeedCommentsAsync(context, logger, users, torrents, 100); // Seed 100 comments
 
             // Seed Messages
@@ -243,7 +243,7 @@ namespace TorrentHub.Data
             // Seed Requests
             var requests = await SeedRequestsAsync(context, logger, users, torrents, 20); // Seed 20 requests
             
-            // Seed Request Comments
+            // Seed Request Comments (using unified Comment system)
             await SeedRequestCommentsAsync(context, logger, users, requests, 80); // Seed 80 request comments
 
             // Seed Reports
@@ -261,13 +261,13 @@ namespace TorrentHub.Data
             // Seed UserDailyStats
             await SeedUserDailyStatsAsync(context, logger, users, 50); // Seed 50 daily stats entries
 
-            // Seed Forum Data
+            // Seed Forum Data (using unified Comment system)
             await SeedForumDataAsync(context, logger, users);
 
             // Seed Polls
             await SeedPollsAsync(context, logger, users);
 
-            // Seed Comment Reactions
+            // Seed Comment Reactions (using unified Comment system)
             await SeedCommentReactionsAsync(context, logger, users);
 
             logger.LogInformation("All mock data seeding completed.");
@@ -529,25 +529,26 @@ namespace TorrentHub.Data
         public static async Task SeedCommentsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
             List<Torrent> torrents, int count)
         {
-            if (!await context.TorrentComments.AnyAsync() && torrents.Any() && users.Any())
+            if (!await context.Comments.AnyAsync(c => c.CommentableType == CommentableType.Torrent) && torrents.Any() && users.Any())
             {
                 var faker = new Faker();
                 var totalComments = 0;
 
                 foreach (var torrent in torrents.Take(5)) // 为前5个种子生成评论
                 {
-                    var commentsForTorrent = new List<TorrentComment>();
+                    var commentsForTorrent = new List<Comment>();
                     var topLevelCount = faker.Random.Int(5, 15); // 每个种子5-15条顶级评论
                     int currentFloor = 1;
 
                     // 生成顶级评论
                     for (int i = 0; i < topLevelCount; i++)
                     {
-                        var topLevelComment = new TorrentComment
+                        var topLevelComment = new Comment
                         {
-                            Text = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
-                            Torrent = torrent,
-                            User = faker.PickRandom(users),
+                            Content = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
+                            CommentableType = CommentableType.Torrent,
+                            CommentableId = torrent.Id,
+                            UserId = faker.PickRandom(users).Id,
                             CreatedAt = faker.Date.Past(1).ToUniversalTime(),
                             Floor = currentFloor++,
                             ParentCommentId = null,
@@ -559,7 +560,7 @@ namespace TorrentHub.Data
                     }
 
                     // 保存顶级评论以获取ID
-                    context.TorrentComments.AddRange(commentsForTorrent);
+                    context.Comments.AddRange(commentsForTorrent);
                     await context.SaveChangesAsync();
 
                     // 为部分顶级评论生成回复(30%概率)
@@ -568,16 +569,17 @@ namespace TorrentHub.Data
                         if (faker.Random.Bool(0.3f)) // 30%的顶级评论有回复
                         {
                             var replyCount = faker.Random.Int(1, 3); // 1-3条回复
-                            var replies = new List<TorrentComment>();
+                            var replies = new List<Comment>();
 
                             for (int i = 0; i < replyCount; i++)
                             {
-                                var replyUser = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList());
-                                var reply = new TorrentComment
+                                var replyUserId = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList()).Id;
+                                var reply = new Comment
                                 {
-                                    Text = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
-                                    Torrent = torrent,
-                                    User = replyUser,
+                                    Content = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
+                                    CommentableType = CommentableType.Torrent,
+                                    CommentableId = torrent.Id,
+                                    UserId = replyUserId,
                                     CreatedAt = faker.Date.Between(parentComment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
                                     Floor = currentFloor++,
                                     ParentCommentId = parentComment.Id,
@@ -588,7 +590,7 @@ namespace TorrentHub.Data
                                 replies.Add(reply);
                             }
 
-                            context.TorrentComments.AddRange(replies);
+                            context.Comments.AddRange(replies);
                             parentComment.ReplyCount = replyCount;
                             
                             // 先保存二级回复以获取ID
@@ -599,12 +601,13 @@ namespace TorrentHub.Data
                             {
                                 if (faker.Random.Bool(0.1f) && secondLevelReply.Depth < 2)
                                 {
-                                    var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList());
-                                    var thirdLevelReply = new TorrentComment
+                                    var thirdLevelUserId = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList()).Id;
+                                    var thirdLevelReply = new Comment
                                     {
-                                        Text = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
-                                        Torrent = torrent,
-                                        User = thirdLevelUser,
+                                        Content = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
+                                        CommentableType = CommentableType.Torrent,
+                                        CommentableId = torrent.Id,
+                                        UserId = thirdLevelUserId,
                                         CreatedAt = faker.Date.Between(secondLevelReply.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
                                         Floor = currentFloor++,
                                         ParentCommentId = secondLevelReply.Id,
@@ -612,7 +615,7 @@ namespace TorrentHub.Data
                                         Depth = 2,
                                         ReplyCount = 0
                                     };
-                                    context.TorrentComments.Add(thirdLevelReply);
+                                    context.Comments.Add(thirdLevelReply);
                                     secondLevelReply.ReplyCount++;
                                 }
                             }
@@ -623,11 +626,11 @@ namespace TorrentHub.Data
                     totalComments += commentsForTorrent.Count;
                 }
 
-                logger.LogInformation("{Count} comments with replies seeded successfully.", totalComments);
+                logger.LogInformation("{Count} torrent comments with replies seeded successfully.", totalComments);
             }
             else
             {
-                logger.LogInformation("Comments already exist or no torrents/users to comment on, skipping seeding.");
+                logger.LogInformation("Torrent comments already exist or no torrents/users to comment on, skipping seeding.");
             }
         }
 
@@ -735,25 +738,26 @@ namespace TorrentHub.Data
         public static async Task SeedRequestCommentsAsync(ApplicationDbContext context, ILogger logger, List<User> users,
             List<Request> requests, int count)
         {
-            if (!await context.RequestComments.AnyAsync() && requests.Any() && users.Any())
+            if (!await context.Comments.AnyAsync(c => c.CommentableType == CommentableType.Request) && requests.Any() && users.Any())
             {
                 var faker = new Faker();
                 var totalComments = 0;
 
                 foreach (var request in requests.Take(8)) // 为前8个求种生成评论
                 {
-                    var commentsForRequest = new List<RequestComment>();
+                    var commentsForRequest = new List<Comment>();
                     var topLevelCount = faker.Random.Int(3, 12); // 每个求种3-12条顶级评论
                     int currentFloor = 1;
 
                     // 生成顶级评论
                     for (int i = 0; i < topLevelCount; i++)
                     {
-                        var topLevelComment = new RequestComment
+                        var topLevelComment = new Comment
                         {
-                            Text = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
-                            Request = request,
-                            User = faker.PickRandom(users),
+                            Content = faker.Lorem.Sentence(faker.Random.Int(5, 15)),
+                            CommentableType = CommentableType.Request,
+                            CommentableId = request.Id,
+                            UserId = faker.PickRandom(users).Id,
                             CreatedAt = faker.Date.Between(request.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
                             Floor = currentFloor++,
                             ParentCommentId = null,
@@ -765,7 +769,7 @@ namespace TorrentHub.Data
                     }
 
                     // 保存顶级评论以获取ID
-                    context.RequestComments.AddRange(commentsForRequest);
+                    context.Comments.AddRange(commentsForRequest);
                     await context.SaveChangesAsync();
 
                     // 为部分顶级评论生成回复(40%概率)
@@ -774,16 +778,17 @@ namespace TorrentHub.Data
                         if (faker.Random.Bool(0.4f)) // 40%的顶级评论有回复
                         {
                             var replyCount = faker.Random.Int(1, 4); // 1-4条回复
-                            var replies = new List<RequestComment>();
+                            var replies = new List<Comment>();
 
                             for (int i = 0; i < replyCount; i++)
                             {
-                                var replyUser = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList());
-                                var reply = new RequestComment
+                                var replyUserId = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList()).Id;
+                                var reply = new Comment
                                 {
-                                    Text = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
-                                    Request = request,
-                                    User = replyUser,
+                                    Content = $"@{parentComment.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 10))}",
+                                    CommentableType = CommentableType.Request,
+                                    CommentableId = request.Id,
+                                    UserId = replyUserId,
                                     CreatedAt = faker.Date.Between(parentComment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
                                     Floor = currentFloor++,
                                     ParentCommentId = parentComment.Id,
@@ -794,7 +799,7 @@ namespace TorrentHub.Data
                                 replies.Add(reply);
                             }
 
-                            context.RequestComments.AddRange(replies);
+                            context.Comments.AddRange(replies);
                             parentComment.ReplyCount = replyCount;
                             
                             // 先保存二级回复以获取ID
@@ -805,12 +810,13 @@ namespace TorrentHub.Data
                             {
                                 if (faker.Random.Bool(0.15f) && secondLevelReply.Depth < 2)
                                 {
-                                    var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList());
-                                    var thirdLevelReply = new RequestComment
+                                    var thirdLevelUserId = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList()).Id;
+                                    var thirdLevelReply = new Comment
                                     {
-                                        Text = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
-                                        Request = request,
-                                        User = thirdLevelUser,
+                                        Content = $"@{secondLevelReply.User?.UserName ?? "User"} {faker.Lorem.Sentence(faker.Random.Int(3, 8))}",
+                                        CommentableType = CommentableType.Request,
+                                        CommentableId = request.Id,
+                                        UserId = thirdLevelUserId,
                                         CreatedAt = faker.Date.Between(secondLevelReply.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
                                         Floor = currentFloor++,
                                         ParentCommentId = secondLevelReply.Id,
@@ -818,7 +824,7 @@ namespace TorrentHub.Data
                                         Depth = 2,
                                         ReplyCount = 0
                                     };
-                                    context.RequestComments.Add(thirdLevelReply);
+                                    context.Comments.Add(thirdLevelReply);
                                     secondLevelReply.ReplyCount++;
                                 }
                             }
@@ -1068,77 +1074,87 @@ namespace TorrentHub.Data
 
             var forumCategories = await context.ForumCategories.ToListAsync();
 
-            // 2. Seed Forum Topics and Posts
+            // 2. Seed Forum Topics and Posts (using unified Comment system)
             if (!await context.ForumTopics.AnyAsync() && users.Any() && forumCategories.Any())
             {
                 var faker = new Faker();
                 var topicFaker = new Faker<ForumTopic>()
                     .RuleFor(t => t.Title, f => f.Lorem.Sentence(5))
                     .RuleFor(t => t.Author, f => f.PickRandom(users))
+                    .RuleFor(t => t.AuthorId, (f, t) => t.Author!.Id) // 确保AuthorId被正确设置
                     .RuleFor(t => t.Category, f => f.PickRandom(forumCategories))
+                    .RuleFor(t => t.CategoryId, (f, t) => t.Category!.Id) // 确保CategoryId被正确设置
                     .RuleFor(t => t.CreatedAt, f => f.Date.Past(1).ToUniversalTime())
                     .RuleFor(t => t.IsSticky, f => f.Random.Bool(0.1f))
                     .RuleFor(t => t.IsLocked, f => f.Random.Bool(0.05f));
 
                 var topics = topicFaker.Generate(25); // Create 25 topics
+                
+                // 先保存所有主题以获取ID
+                context.ForumTopics.AddRange(topics);
+                await context.SaveChangesAsync();
+                
+                // 全局楼层计数器，确保所有评论的楼层号都是唯一的
+                int globalFloorCounter = 1;
 
                 foreach (var topic in topics)
                 {
-                    var postsForTopic = new List<ForumPost>();
+                    var commentsForTopic = new List<Comment>();
                     var topLevelCount = faker.Random.Int(3, 12);
-                    int currentFloor = 1;
 
                     // 生成顶级帖子
                     for (int i = 0; i < topLevelCount; i++)
                     {
                         var content = string.Join("\n", faker.Lorem.Paragraphs(faker.Random.Int(1, 4)));
-                        var topLevelPost = new ForumPost
+                        var topLevelComment = new Comment
                         {
                             Content = content.Substring(0, Math.Min(content.Length, 1000)),
-                            Topic = topic,
-                            Author = i == 0 ? topic.Author : faker.PickRandom(users),
+                            CommentableType = CommentableType.ForumTopic,
+                            CommentableId = topic.Id,
+                            UserId = i == 0 ? topic.AuthorId : faker.PickRandom(users).Id,
                             CreatedAt = i == 0 ? topic.CreatedAt : faker.Date.Between(topic.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
-                            Floor = currentFloor++,
-                            ParentPostId = null,
+                            Floor = globalFloorCounter++,
+                            ParentCommentId = null,
                             ReplyToUserId = null,
                             Depth = 0,
                             ReplyCount = 0
                         };
-                        postsForTopic.Add(topLevelPost);
+                        commentsForTopic.Add(topLevelComment);
                     }
 
-                    context.ForumPosts.AddRange(postsForTopic);
+                    context.Comments.AddRange(commentsForTopic);
                     await context.SaveChangesAsync();
 
                     // 为部分顶级帖子生成回复
-                    foreach (var parentPost in postsForTopic.Where(p => p.Depth == 0).OrderBy(p => p.Floor))
+                    foreach (var parentComment in commentsForTopic.Where(c => c.Depth == 0).OrderBy(c => c.Floor))
                     {
                         if (faker.Random.Bool(0.4f))
                         {
                             var replyCount = faker.Random.Int(1, 4);
-                            var replies = new List<ForumPost>();
+                            var replies = new List<Comment>();
 
                             for (int i = 0; i < replyCount; i++)
                             {
-                                var replyUser = faker.PickRandom(users.Where(u => u.Id != parentPost.AuthorId).ToList());
+                                var replyUserId = faker.PickRandom(users.Where(u => u.Id != parentComment.UserId).ToList()).Id;
                                 var replyContent = string.Join("\n", faker.Lorem.Paragraphs(faker.Random.Int(1, 2)));
-                                var reply = new ForumPost
+                                var reply = new Comment
                                 {
-                                    Content = $"@{parentPost.Author?.UserName ?? "User"}\n{replyContent.Substring(0, Math.Min(replyContent.Length, 800))}",
-                                    Topic = topic,
-                                    Author = replyUser,
-                                    CreatedAt = faker.Date.Between(parentPost.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
-                                    Floor = currentFloor++,
-                                    ParentPostId = parentPost.Id,
-                                    ReplyToUserId = parentPost.AuthorId,
+                                    Content = $"@{parentComment.User?.UserName ?? "User"}\n{replyContent.Substring(0, Math.Min(replyContent.Length, 800))}",
+                                    CommentableType = CommentableType.ForumTopic,
+                                    CommentableId = topic.Id,
+                                    UserId = replyUserId,
+                                    CreatedAt = faker.Date.Between(parentComment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
+                                    Floor = globalFloorCounter++,
+                                    ParentCommentId = parentComment.Id,
+                                    ReplyToUserId = parentComment.UserId,
                                     Depth = 1,
                                     ReplyCount = 0
                                 };
                                 replies.Add(reply);
                             }
 
-                            context.ForumPosts.AddRange(replies);
-                            parentPost.ReplyCount = replyCount;
+                            context.Comments.AddRange(replies);
+                            parentComment.ReplyCount = replyCount;
 
                             // 先保存二级回复以获取ID
                             await context.SaveChangesAsync();
@@ -1147,21 +1163,22 @@ namespace TorrentHub.Data
                             {
                                 if (faker.Random.Bool(0.15f) && secondLevelReply.Depth < 2)
                                 {
-                                    var thirdLevelUser = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.AuthorId).ToList());
+                                    var thirdLevelUserId = faker.PickRandom(users.Where(u => u.Id != secondLevelReply.UserId).ToList()).Id;
                                     var thirdContent = faker.Lorem.Sentence(faker.Random.Int(3, 8));
-                                    var thirdLevelReply = new ForumPost
+                                    var thirdLevelReply = new Comment
                                     {
-                                        Content = $"@{secondLevelReply.Author?.UserName ?? "User"} {thirdContent}",
-                                        Topic = topic,
-                                        Author = thirdLevelUser,
+                                        Content = $"@{secondLevelReply.User?.UserName ?? "User"} {thirdContent}",
+                                        CommentableType = CommentableType.ForumTopic,
+                                        CommentableId = topic.Id,
+                                        UserId = thirdLevelUserId,
                                         CreatedAt = faker.Date.Between(secondLevelReply.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime(),
-                                        Floor = currentFloor++,
-                                        ParentPostId = secondLevelReply.Id,
-                                        ReplyToUserId = secondLevelReply.AuthorId,
+                                        Floor = globalFloorCounter++,
+                                        ParentCommentId = secondLevelReply.Id,
+                                        ReplyToUserId = secondLevelReply.UserId,
                                         Depth = 2,
                                         ReplyCount = 0
                                     };
-                                    context.ForumPosts.Add(thirdLevelReply);
+                                    context.Comments.Add(thirdLevelReply);
                                     secondLevelReply.ReplyCount++;
                                 }
                             }
@@ -1169,9 +1186,9 @@ namespace TorrentHub.Data
                     }
 
                     await context.SaveChangesAsync();
-                    var maxCreatedAt = await context.ForumPosts
-                        .Where(p => p.TopicId == topic.Id)
-                        .MaxAsync(p => (DateTimeOffset?)p.CreatedAt);
+                    var maxCreatedAt = await context.Comments
+                        .Where(c => c.CommentableType == CommentableType.ForumTopic && c.CommentableId == topic.Id)
+                        .MaxAsync(c => (DateTimeOffset?)c.CreatedAt);
                     topic.LastPostTime = (maxCreatedAt ?? topic.CreatedAt).UtcDateTime;
                 }
 
@@ -1219,8 +1236,8 @@ namespace TorrentHub.Data
                 var reactions = new List<CommentReaction>();
 
                 // 为种子评论添加反应
-                var torrentComments = await context.TorrentComments
-                    .Where(c => c.Depth == 0) // 只为顶级评论添加反应
+                var torrentComments = await context.Comments
+                    .Where(c => c.CommentableType == CommentableType.Torrent && c.Depth == 0) // 只为顶级评论添加反应
                     .Take(20) // 取前20条评论
                     .ToListAsync();
 
@@ -1237,8 +1254,7 @@ namespace TorrentHub.Data
                         var reactionType = faker.PickRandom<ReactionType>();
                         
                         // 确保唯一性：同一用户对同一评论只能有一种反应类型
-                        if (!reactions.Any(r => r.CommentType == "TorrentComment" &&
-                                               r.CommentId == comment.Id &&
+                        if (!reactions.Any(r => r.CommentId == comment.Id &&
                                                r.UserId == user.Id &&
                                                r.Type == reactionType))
                         {
@@ -1255,34 +1271,66 @@ namespace TorrentHub.Data
                 }
 
                 // 为论坛帖子添加反应
-                var forumPosts = await context.ForumPosts
-                    .Where(p => p.Depth == 0) // 只为顶级帖子添加反应
+                var forumComments = await context.Comments
+                    .Where(c => c.CommentableType == CommentableType.ForumTopic && c.Depth == 0) // 只为顶级帖子添加反应
                     .Take(30) // 取前30条帖子
                     .ToListAsync();
 
-                foreach (var post in forumPosts)
+                foreach (var comment in forumComments)
                 {
                     // 每条帖子随机添加5-12个反应（但不超过用户数量）
                     var reactionCount = faker.Random.Int(5, Math.Min(12, users.Count));
-                    var postUsers = faker.PickRandom(users, reactionCount).ToList();
+                    var commentUsers = faker.PickRandom(users, reactionCount).ToList();
 
-                    foreach (var user in postUsers)
+                    foreach (var user in commentUsers)
                     {
                         var reactionType = faker.PickRandom<ReactionType>();
                         
                         // 确保唯一性
-                        if (!reactions.Any(r => r.CommentType == "ForumPost" &&
-                                               r.CommentId == post.Id &&
+                        if (!reactions.Any(r => r.CommentId == comment.Id &&
                                                r.UserId == user.Id &&
                                                r.Type == reactionType))
                         {
                             reactions.Add(new CommentReaction
                             {
                                 CommentType = "ForumPost",
-                                CommentId = post.Id,
+                                CommentId = comment.Id,
                                 UserId = user.Id,
                                 Type = reactionType,
-                                CreatedAt = faker.Date.Between(post.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
+                                CreatedAt = faker.Date.Between(comment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
+                            });
+                        }
+                    }
+                }
+
+                // 为求种评论添加反应
+                var requestComments = await context.Comments
+                    .Where(c => c.CommentableType == CommentableType.Request && c.Depth == 0) // 只为顶级评论添加反应
+                    .Take(25) // 取前25条评论
+                    .ToListAsync();
+
+                foreach (var comment in requestComments)
+                {
+                    // 每条评论随机添加4-10个反应（但不超过用户数量）
+                    var reactionCount = faker.Random.Int(4, Math.Min(10, users.Count));
+                    var commentUsers = faker.PickRandom(users, reactionCount).ToList();
+
+                    foreach (var user in commentUsers)
+                    {
+                        var reactionType = faker.PickRandom<ReactionType>();
+                        
+                        // 确保唯一性
+                        if (!reactions.Any(r => r.CommentId == comment.Id &&
+                                               r.UserId == user.Id &&
+                                               r.Type == reactionType))
+                        {
+                            reactions.Add(new CommentReaction
+                            {
+                                CommentType = "RequestComment",
+                                CommentId = comment.Id,
+                                UserId = user.Id,
+                                Type = reactionType,
+                                CreatedAt = faker.Date.Between(comment.CreatedAt.UtcDateTime, DateTimeOffset.UtcNow.UtcDateTime).ToUniversalTime()
                             });
                         }
                     }
@@ -1292,10 +1340,11 @@ namespace TorrentHub.Data
                 {
                     context.CommentReactions.AddRange(reactions);
                     await context.SaveChangesAsync();
-                    logger.LogInformation("{Count} comment reactions seeded successfully (TorrentComments: {TorrentCount}, ForumPosts: {ForumCount}).",
+                    logger.LogInformation("{Count} comment reactions seeded successfully (TorrentComments: {TorrentCount}, ForumComments: {ForumCount}, RequestComments: {RequestCount}).",
                         reactions.Count,
                         reactions.Count(r => r.CommentType == "TorrentComment"),
-                        reactions.Count(r => r.CommentType == "ForumPost"));
+                        reactions.Count(r => r.CommentType == "ForumPost"),
+                        reactions.Count(r => r.CommentType == "RequestComment"));
                 }
             }
             else
@@ -1313,4 +1362,3 @@ namespace TorrentHub.Data
         }
     }
 }
-

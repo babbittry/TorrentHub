@@ -13,7 +13,7 @@ public class CommentReaction
     public int Id { get; set; }
 
     /// <summary>
-    /// 评论类型：TorrentComment 或 ForumPost
+    /// 评论类型：TorrentComment、ForumPost 或 RequestComment
     /// </summary>
     [Required]
     [StringLength(50)]

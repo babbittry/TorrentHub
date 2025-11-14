@@ -122,25 +122,15 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Request.FilledWithTorrent))]
     public static partial RequestDto ToRequestDto(Request request);
 
-    [MapProperty(nameof(TorrentComment.User), nameof(TorrentCommentDto.User))]
-    [MapProperty(nameof(TorrentComment.ReplyToUser), nameof(TorrentCommentDto.ReplyToUser))]
-    [MapperIgnoreSource(nameof(TorrentComment.Torrent))]
-    [MapperIgnoreSource(nameof(TorrentComment.UserId))]
-    [MapperIgnoreSource(nameof(TorrentComment.ParentTorrentComment))]
-    [MapperIgnoreSource(nameof(TorrentComment.Replies))]
-    [MapperIgnoreSource(nameof(TorrentComment.ReplyToUserId))]
-    [MapperIgnoreTarget(nameof(TorrentCommentDto.Reactions))]
-    public static partial TorrentCommentDto ToTorrentCommentDto(TorrentComment comment);
-
-    [MapProperty(nameof(RequestComment.User), nameof(RequestCommentDto.User))]
-    [MapProperty(nameof(RequestComment.ReplyToUser), nameof(RequestCommentDto.ReplyToUser))]
-    [MapperIgnoreSource(nameof(RequestComment.Request))]
-    [MapperIgnoreSource(nameof(RequestComment.UserId))]
-    [MapperIgnoreSource(nameof(RequestComment.ParentRequestComment))]
-    [MapperIgnoreSource(nameof(RequestComment.Replies))]
-    [MapperIgnoreSource(nameof(RequestComment.ReplyToUserId))]
-    [MapperIgnoreTarget(nameof(RequestCommentDto.Reactions))]
-    public static partial RequestCommentDto ToRequestCommentDto(RequestComment comment);
+    // Unified Comment mapping
+    [MapProperty(nameof(Comment.User), nameof(CommentDto.User))]
+    [MapProperty(nameof(Comment.ReplyToUser), nameof(CommentDto.ReplyToUser))]
+    [MapperIgnoreSource(nameof(Comment.UserId))]
+    [MapperIgnoreSource(nameof(Comment.ParentComment))]
+    [MapperIgnoreSource(nameof(Comment.Replies))]
+    [MapperIgnoreSource(nameof(Comment.ReplyToUserId))]
+    [MapperIgnoreTarget(nameof(CommentDto.Reactions))]
+    public static partial CommentDto ToCommentDto(Comment comment);
 
     [MapProperty(nameof(Message.Sender), nameof(MessageDto.Sender))]
     [MapProperty(nameof(Message.Receiver), nameof(MessageDto.Receiver))]
@@ -176,20 +166,10 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Invite.GeneratorUserId))]
     public static partial InviteDto ToInviteDto(Invite invite);
 
-    [MapProperty(nameof(ForumPost.Author), nameof(ForumPostDto.Author))]
-    [MapProperty(nameof(ForumPost.ReplyToUser), nameof(ForumPostDto.ReplyToUser))]
-    [MapperIgnoreSource(nameof(ForumPost.Topic))]
-    [MapperIgnoreSource(nameof(ForumPost.AuthorId))]
-    [MapperIgnoreSource(nameof(ForumPost.ParentPost))]
-    [MapperIgnoreSource(nameof(ForumPost.Replies))]
-    [MapperIgnoreSource(nameof(ForumPost.ReplyToUserId))]
-    [MapperIgnoreTarget(nameof(ForumPostDto.Reactions))]
-    public static partial ForumPostDto ToForumPostDto(ForumPost post);
-
     [MapProperty(nameof(ForumTopic.Author), nameof(ForumTopicDto.Author))]
-    [MapProperty(nameof(ForumTopic.Posts.Count), nameof(ForumTopicDto.PostCount))]
     [MapperIgnoreSource(nameof(ForumTopic.Category))]
     [MapperIgnoreSource(nameof(ForumTopic.AuthorId))]
+    [MapperIgnoreTarget(nameof(ForumTopicDto.PostCount))]
     public static partial ForumTopicDto ToForumTopicDto(ForumTopic topic);
     
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]

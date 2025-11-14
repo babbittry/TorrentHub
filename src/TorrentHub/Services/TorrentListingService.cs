@@ -34,12 +34,12 @@ public class TorrentListingService : ITorrentListingService
         if (!string.IsNullOrEmpty(filter.SearchTerm))
         {
             // TODO: MeiliSearchService does not currently return total count, so pagination is incomplete.
-            var searchResults = await _meiliSearchService.SearchAsync<Torrent>("torrents", filter.SearchTerm, filter.PageNumber, filter.PageSize);
+            var searchResults = await _meiliSearchService.SearchAsync<Torrent>("torrents", filter.SearchTerm, filter.Page, filter.PageSize);
             var items = searchResults.Select(t => Mapper.ToTorrentDto(t)).ToList();
             return new PaginatedResult<TorrentDto>
             {
                 Items = items,
-                Page = filter.PageNumber,
+                Page = filter.Page,
                 PageSize = filter.PageSize,
                 TotalItems = items.Count, // This is incorrect, but we don't have the total count.
                 TotalPages = items.Any() ? 1 : 0 // Also incorrect.
@@ -57,13 +57,13 @@ public class TorrentListingService : ITorrentListingService
             
             totalItems = await redisDb.SortedSetLengthAsync(sortKey);
 
-            long start = (filter.PageNumber - 1) * filter.PageSize;
+            long start = (filter.Page - 1) * filter.PageSize;
             long stop = start + filter.PageSize - 1;
 
             var redisResult = await redisDb.SortedSetRangeByRankAsync(sortKey, start, stop, Order.Descending);
             if (redisResult.Length == 0)
             {
-                return new PaginatedResult<TorrentDto> { Items = new List<TorrentDto>(), Page = filter.PageNumber, PageSize = filter.PageSize, TotalItems = 0, TotalPages = 0 };
+                return new PaginatedResult<TorrentDto> { Items = new List<TorrentDto>(), Page = filter.Page, PageSize = filter.PageSize, TotalItems = 0, TotalPages = 0 };
             }
 
             var sortedIds = redisResult.Select(v => (long)v).ToArray();
@@ -98,14 +98,14 @@ public class TorrentListingService : ITorrentListingService
             };
 
             torrents = await query
-                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Skip((filter.Page - 1) * filter.PageSize)
                 .Take(filter.PageSize)
                 .ToListAsync();
         }
 
         if (!torrents.Any())
         {
-            return new PaginatedResult<TorrentDto> { Items = new List<TorrentDto>(), Page = filter.PageNumber, PageSize = filter.PageSize, TotalItems = 0, TotalPages = 0 };
+            return new PaginatedResult<TorrentDto> { Items = new List<TorrentDto>(), Page = filter.Page, PageSize = filter.PageSize, TotalItems = 0, TotalPages = 0 };
         }
 
         var torrentDtos = torrents.Select(Mapper.ToTorrentDto).ToList();
@@ -142,7 +142,7 @@ public class TorrentListingService : ITorrentListingService
         return new PaginatedResult<TorrentDto>
         {
             Items = torrentDtos,
-            Page = filter.PageNumber,
+            Page = filter.Page,
             PageSize = filter.PageSize,
             TotalItems = (int)totalItems,
             TotalPages = (int)Math.Ceiling(totalItems / (double)filter.PageSize)

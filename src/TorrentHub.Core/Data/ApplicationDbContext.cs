@@ -18,8 +18,6 @@ namespace TorrentHub.Core.Data
         public DbSet<Invite> Invites { get; set; }
         public DbSet<Peers> Peers { get; set; }
         public DbSet<Request> Requests { get; set; }
-        public DbSet<RequestComment> RequestComments { get; set; }
-        public DbSet<TorrentComment> TorrentComments { get; set; }
         public DbSet<UserDailyStats> UserDailyStats { get; set; }
         public DbSet<StoreItem> StoreItems { get; set; }
         public DbSet<Badge> Badges { get; set; }
@@ -30,7 +28,6 @@ namespace TorrentHub.Core.Data
 
         public DbSet<ForumCategory> ForumCategories { get; set; }
         public DbSet<ForumTopic> ForumTopics { get; set; }
-        public DbSet<ForumPost> ForumPosts { get; set; }
         public DbSet<SiteSetting> SiteSettings { get; set; }
 
         public DbSet<Poll> Polls { get; set; }
@@ -42,6 +39,7 @@ namespace TorrentHub.Core.Data
         public DbSet<CommentReaction> CommentReactions { get; set; }
         public DbSet<TorrentCredential> TorrentCredentials { get; set; }
         public DbSet<RssFeedToken> RssFeedTokens { get; set; }
+        public DbSet<Comment> Comments { get; set; }
  
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -56,6 +54,7 @@ namespace TorrentHub.Core.Data
             modelBuilder.HasPostgresEnum<TorrentStickyStatus>();
             modelBuilder.HasPostgresEnum<BanStatus>();
             modelBuilder.HasPostgresEnum<ReactionType>();
+            modelBuilder.HasPostgresEnum<CommentableType>();
 
             modelBuilder.Entity<User>(entity =>
             {
@@ -108,78 +107,6 @@ namespace TorrentHub.Core.Data
                 .WithMany(c => c.Topics)
                 .HasForeignKey(t => t.CategoryId)
                 .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<ForumPost>()
-                .HasOne(p => p.Author)
-                .WithMany()
-                .HasForeignKey(p => p.AuthorId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            modelBuilder.Entity<ForumPost>()
-                .HasOne(p => p.Topic)
-                .WithMany(t => t.Posts)
-                .HasForeignKey(p => p.TopicId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            // ForumPost reply relationships
-            modelBuilder.Entity<ForumPost>()
-                .HasOne(p => p.ParentPost)
-                .WithMany(p => p.Replies)
-                .HasForeignKey(p => p.ParentPostId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<ForumPost>()
-                .HasOne(p => p.ReplyToUser)
-                .WithMany()
-                .HasForeignKey(p => p.ReplyToUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<ForumPost>()
-                .HasIndex(p => new { p.TopicId, p.Floor })
-                .IsUnique();
-
-            modelBuilder.Entity<ForumPost>()
-                .HasIndex(p => p.ParentPostId);
-
-            // TorrentComment reply relationships
-            modelBuilder.Entity<TorrentComment>()
-                .HasOne(c => c.ParentTorrentComment)
-                .WithMany(c => c.Replies)
-                .HasForeignKey(c => c.ParentCommentId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<TorrentComment>()
-                .HasOne(c => c.ReplyToUser)
-                .WithMany()
-                .HasForeignKey(c => c.ReplyToUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<TorrentComment>()
-                .HasIndex(c => new { c.TorrentId, c.Floor })
-                .IsUnique();
-
-            modelBuilder.Entity<TorrentComment>()
-                .HasIndex(c => c.ParentCommentId);
-
-            // RequestComment reply relationships
-            modelBuilder.Entity<RequestComment>()
-                .HasOne(c => c.ParentRequestComment)
-                .WithMany(c => c.Replies)
-                .HasForeignKey(c => c.ParentCommentId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            modelBuilder.Entity<RequestComment>()
-                .HasOne(c => c.ReplyToUser)
-                .WithMany()
-                .HasForeignKey(c => c.ReplyToUserId)
-                .OnDelete(DeleteBehavior.SetNull);
-
-            modelBuilder.Entity<RequestComment>()
-                .HasIndex(c => new { c.RequestId, c.Floor })
-                .IsUnique();
-
-            modelBuilder.Entity<RequestComment>()
-                .HasIndex(c => c.ParentCommentId);
 
             modelBuilder.Entity<SiteSetting>()
                 .Property(s => s.Value)
@@ -295,6 +222,67 @@ namespace TorrentHub.Core.Data
                         Character = x.Character,
                         ProfilePath = x.ProfilePath
                     }).ToList()));
+
+            // Comment configuration with PostgreSQL optimization
+            modelBuilder.Entity<Comment>(entity =>
+            {
+                // Configure enum to use PostgreSQL native enum type
+                entity.Property(e => e.CommentableType)
+                    .HasColumnType("commentable_type");
+
+                // Configure self-referencing relationship
+                entity.HasOne(c => c.ParentComment)
+                    .WithMany(c => c.Replies)
+                    .HasForeignKey(c => c.ParentCommentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(c => c.ReplyToUser)
+                    .WithMany()
+                    .HasForeignKey(c => c.ReplyToUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(c => c.User)
+                    .WithMany()
+                    .HasForeignKey(c => c.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                // Unique constraint for floor number per commentable
+                entity.HasIndex(c => new { c.CommentableType, c.CommentableId, c.Floor })
+                    .IsUnique()
+                    .HasDatabaseName("IX_Comments_Unique_Floor");
+
+                // Composite index for querying comments by type and id with time ordering
+                entity.HasIndex(c => new { c.CommentableType, c.CommentableId, c.CreatedAt })
+                    .HasDatabaseName("IX_Comments_Commentable_Time")
+                    .IsDescending(false, false, true)
+                    .IncludeProperties(c => new { c.UserId, c.Content, c.Floor, c.Depth });
+
+                // Partial indexes for each commentable type (PostgreSQL specific optimization)
+                // These will be created in migration with raw SQL
+
+                // Index for user comments with time ordering
+                entity.HasIndex(c => new { c.UserId, c.CreatedAt })
+                    .HasDatabaseName("IX_Comments_User_Time")
+                    .IsDescending(false, true)
+                    .IncludeProperties(c => new { c.CommentableType, c.CommentableId, c.Content, c.Floor });
+
+                // Index for parent comment lookups
+                entity.HasIndex(c => c.ParentCommentId)
+                    .HasDatabaseName("IX_Comments_Parent")
+                    .HasFilter("\"ParentCommentId\" IS NOT NULL");
+
+                // Index for time-based queries (using BRIN for large datasets)
+                entity.HasIndex(c => c.CreatedAt)
+                    .HasDatabaseName("IX_Comments_CreatedAt")
+                    .HasMethod("brin");
+
+                // Configure table with check constraints
+                entity.ToTable(t =>
+                {
+                    t.HasCheckConstraint("CK_Comments_Depth", "\"Depth\" >= 0 AND \"Depth\" <= 10");
+                    t.HasCheckConstraint("CK_Comments_Content_Length", "LENGTH(\"Content\") <= 1000");
+                });
+            });
         }
         
         // Custom comparer for CastMemberDto
