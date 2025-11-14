@@ -1260,7 +1260,6 @@ namespace TorrentHub.Data
                         {
                             reactions.Add(new CommentReaction
                             {
-                                CommentType = "TorrentComment",
                                 CommentId = comment.Id,
                                 UserId = user.Id,
                                 Type = reactionType,
@@ -1293,7 +1292,6 @@ namespace TorrentHub.Data
                         {
                             reactions.Add(new CommentReaction
                             {
-                                CommentType = "ForumPost",
                                 CommentId = comment.Id,
                                 UserId = user.Id,
                                 Type = reactionType,
@@ -1326,7 +1324,6 @@ namespace TorrentHub.Data
                         {
                             reactions.Add(new CommentReaction
                             {
-                                CommentType = "RequestComment",
                                 CommentId = comment.Id,
                                 UserId = user.Id,
                                 Type = reactionType,
@@ -1340,11 +1337,8 @@ namespace TorrentHub.Data
                 {
                     context.CommentReactions.AddRange(reactions);
                     await context.SaveChangesAsync();
-                    logger.LogInformation("{Count} comment reactions seeded successfully (TorrentComments: {TorrentCount}, ForumComments: {ForumCount}, RequestComments: {RequestCount}).",
-                        reactions.Count,
-                        reactions.Count(r => r.CommentType == "TorrentComment"),
-                        reactions.Count(r => r.CommentType == "ForumPost"),
-                        reactions.Count(r => r.CommentType == "RequestComment"));
+                    logger.LogInformation("{Count} comment reactions seeded successfully.",
+                        reactions.Count);
                 }
             }
             else

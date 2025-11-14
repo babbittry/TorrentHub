@@ -18,11 +18,6 @@ public class CommentReactionDto
     public int CommentId { get; set; }
 
     /// <summary>
-    /// 评论类型
-    /// </summary>
-    public string CommentType { get; set; } = "Comment";
-
-    /// <summary>
     /// 表情类型
     /// </summary>
     public ReactionType Type { get; set; }

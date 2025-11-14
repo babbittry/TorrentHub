@@ -114,11 +114,11 @@ namespace TorrentHub.Core.Data
 
             // CommentReaction configuration
             modelBuilder.Entity<CommentReaction>()
-                .HasIndex(r => new { r.CommentType, r.CommentId })
+                .HasIndex(r => r.CommentId)
                 .HasDatabaseName("IX_CommentReactions_Comment");
 
             modelBuilder.Entity<CommentReaction>()
-                .HasIndex(r => new { r.CommentType, r.CommentId, r.UserId, r.Type })
+                .HasIndex(r => new { r.CommentId, r.UserId, r.Type })
                 .IsUnique()
                 .HasDatabaseName("IX_CommentReactions_Unique");
 

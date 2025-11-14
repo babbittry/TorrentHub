@@ -39,12 +39,7 @@ public class Program
 
         builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
 
-        builder.Services.AddControllers()
-            .AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.Converters.Add(
-                    new System.Text.Json.Serialization.JsonStringEnumConverter());
-            });
+        builder.Services.AddControllers();
 
         builder.Services.AddOpenApi(options =>
         {

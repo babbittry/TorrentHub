@@ -312,7 +312,7 @@ public class CommentService : ICommentService
         if (commentDtos.Any())
         {
             var commentIds = commentDtos.Select(c => c.Id).ToList();
-            var reactionsDict = await _reactionService.GetReactionsBatchAsync("Comment", commentIds, null);
+            var reactionsDict = await _reactionService.GetReactionsBatchAsync(commentIds, null);
             
             foreach (var comment in commentDtos)
             {
@@ -348,7 +348,7 @@ public class CommentService : ICommentService
         var commentDto = Mappers.Mapper.ToCommentDto(comment);
 
         // Load reactions
-        var reactions = await _reactionService.GetReactionsAsync("Comment", commentId, null);
+        var reactions = await _reactionService.GetReactionsAsync(commentId, null);
         commentDto.Reactions = reactions;
 
         return commentDto;

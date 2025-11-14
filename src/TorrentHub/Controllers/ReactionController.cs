@@ -32,7 +32,7 @@ public class ReactionController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<ApiResponse<CommentReactionsDto>>> GetCommentReactions(int commentId)
     {
-        var reactions = await _reactionService.GetReactionsAsync("Comment", commentId, GetCurrentUserId());
+        var reactions = await _reactionService.GetReactionsAsync(commentId, GetCurrentUserId());
         return Ok(ApiResponse<CommentReactionsDto>.SuccessResult(reactions));
     }
 
@@ -45,7 +45,7 @@ public class ReactionController : ControllerBase
         [FromBody] AddReactionRequestDto request)
     {
         var userId = GetCurrentUserId();
-        var result = await _reactionService.AddReactionAsync("Comment", commentId, request.Type, userId);
+        var result = await _reactionService.AddReactionAsync(commentId, request.Type, userId);
 
         if (!result.Success)
         {
@@ -64,7 +64,7 @@ public class ReactionController : ControllerBase
         ReactionType type)
     {
         var userId = GetCurrentUserId();
-        var result = await _reactionService.RemoveReactionAsync("Comment", commentId, type, userId);
+        var result = await _reactionService.RemoveReactionAsync(commentId, type, userId);
 
         if (!result.Success)
         {
@@ -82,7 +82,7 @@ public class ReactionController : ControllerBase
         [FromBody] GetReactionsBatchRequestDto request)
     {
         var userId = GetCurrentUserId();
-        var reactions = await _reactionService.GetReactionsBatchAsync("Comment", request.CommentIds, userId);
+        var reactions = await _reactionService.GetReactionsBatchAsync(request.CommentIds, userId);
         return Ok(ApiResponse<Dictionary<int, CommentReactionsDto>>.SuccessResult(reactions));
     }
 }

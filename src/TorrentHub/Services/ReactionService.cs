@@ -20,17 +20,10 @@ public class ReactionService : IReactionService
     }
 
     public async Task<(bool Success, string Message)> AddReactionAsync(
-        string commentType, 
-        int commentId, 
-        ReactionType type, 
+        int commentId,
+        ReactionType type,
         int userId)
     {
-        // Validate comment type - now unified to "Comment"
-        if (commentType != "Comment")
-        {
-            return (false, "error.reaction.invalidCommentType");
-        }
-
         // Verify comment exists
         var commentExists = await _context.Comments.AnyAsync(c => c.Id == commentId);
 
@@ -41,10 +34,9 @@ public class ReactionService : IReactionService
 
         // Check if reaction already exists (idempotent)
         var existingReaction = await _context.CommentReactions
-            .FirstOrDefaultAsync(r => 
-                r.CommentType == commentType && 
-                r.CommentId == commentId && 
-                r.UserId == userId && 
+            .FirstOrDefaultAsync(r =>
+                r.CommentId == commentId &&
+                r.UserId == userId &&
                 r.Type == type);
 
         if (existingReaction != null)
@@ -56,7 +48,6 @@ public class ReactionService : IReactionService
         // Add new reaction
         var reaction = new CommentReaction
         {
-            CommentType = commentType,
             CommentId = commentId,
             UserId = userId,
             Type = type,
@@ -66,29 +57,21 @@ public class ReactionService : IReactionService
         _context.CommentReactions.Add(reaction);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} added reaction {Type} to {CommentType} {CommentId}", 
-            userId, type, commentType, commentId);
+        _logger.LogInformation("User {UserId} added reaction {Type} to comment {CommentId}",
+            userId, type, commentId);
 
         return (true, "reaction.added");
     }
 
     public async Task<(bool Success, string Message)> RemoveReactionAsync(
-        string commentType, 
-        int commentId, 
-        ReactionType type, 
+        int commentId,
+        ReactionType type,
         int userId)
     {
-        // Validate comment type - now unified to "Comment"
-        if (commentType != "Comment")
-        {
-            return (false, "error.reaction.invalidCommentType");
-        }
-
         var reaction = await _context.CommentReactions
-            .FirstOrDefaultAsync(r => 
-                r.CommentType == commentType && 
-                r.CommentId == commentId && 
-                r.UserId == userId && 
+            .FirstOrDefaultAsync(r =>
+                r.CommentId == commentId &&
+                r.UserId == userId &&
                 r.Type == type);
 
         if (reaction == null)
@@ -100,19 +83,18 @@ public class ReactionService : IReactionService
         _context.CommentReactions.Remove(reaction);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("User {UserId} removed reaction {Type} from {CommentType} {CommentId}", 
-            userId, type, commentType, commentId);
+        _logger.LogInformation("User {UserId} removed reaction {Type} from comment {CommentId}",
+            userId, type, commentId);
 
         return (true, "reaction.removed");
     }
 
     public async Task<CommentReactionsDto> GetReactionsAsync(
-        string commentType, 
-        int commentId, 
+        int commentId,
         int? viewerUserId = null)
     {
         var reactions = await _context.CommentReactions
-            .Where(r => r.CommentType == commentType && r.CommentId == commentId)
+            .Where(r => r.CommentId == commentId)
             .Include(r => r.User)
             .AsNoTracking()
             .ToListAsync();
@@ -142,8 +124,7 @@ public class ReactionService : IReactionService
     }
 
     public async Task<Dictionary<int, CommentReactionsDto>> GetReactionsBatchAsync(
-        string commentType, 
-        List<int> commentIds, 
+        List<int> commentIds,
         int? viewerUserId = null)
     {
         if (commentIds == null || commentIds.Count == 0)
@@ -155,7 +136,7 @@ public class ReactionService : IReactionService
         commentIds = commentIds.Take(100).ToList();
 
         var reactions = await _context.CommentReactions
-            .Where(r => r.CommentType == commentType && commentIds.Contains(r.CommentId))
+            .Where(r => commentIds.Contains(r.CommentId))
             .Include(r => r.User)
             .AsNoTracking()
             .ToListAsync();
