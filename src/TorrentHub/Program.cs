@@ -149,6 +149,9 @@ public class Program
         builder.Services.Configure<DoubanSettings>(builder.Configuration.GetSection("DoubanSettings"));
         builder.Services.AddHttpClient<DoubanService>();
         
+        // 配置凭证清理服务
+        builder.Services.Configure<CredentialSettings>(builder.Configuration.GetSection("CredentialSettings"));
+        
         // 注册输入解析器 (单例即可)
         builder.Services.AddSingleton<MediaInputParser>();
 

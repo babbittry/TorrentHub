@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using TorrentHub.Core.Services;
+using TorrentHub.Services.Configuration;
 
 namespace TorrentHub.Services.Background;
 
@@ -12,15 +14,16 @@ public class CredentialCleanupService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<CredentialCleanupService> _logger;
-    private readonly TimeSpan _cleanupInterval = TimeSpan.FromDays(1); // 每天运行一次
-    private readonly int _inactiveDays = 90; // 90天未使用视为inactive
+    private readonly TimeSpan _cleanupInterval;
 
     public CredentialCleanupService(
         IServiceProvider serviceProvider,
+        IOptions<CredentialSettings> credentialSettings,
         ILogger<CredentialCleanupService> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
+        _cleanupInterval = TimeSpan.FromDays(credentialSettings.Value.CleanupIntervalDays);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -62,12 +65,23 @@ public class CredentialCleanupService : BackgroundService
         {
             using var scope = _serviceProvider.CreateScope();
             var credentialService = scope.ServiceProvider.GetRequiredService<ITorrentCredentialService>();
+            var settingsService = scope.ServiceProvider.GetRequiredService<ISettingsService>();
 
-            var count = await credentialService.CleanupInactiveCredentialsAsync(_inactiveDays);
+            // 从数据库读取业务规则配置
+            var siteSettings = await settingsService.GetSiteSettingsAsync();
+            
+            if (!siteSettings.EnableCredentialAutoCleanup)
+            {
+                _logger.LogInformation("Credential auto-cleanup is disabled in site settings");
+                return;
+            }
+
+            var inactiveDays = siteSettings.CredentialCleanupDays;
+            var count = await credentialService.CleanupInactiveCredentialsAsync(inactiveDays);
 
             if (count > 0)
             {
-                _logger.LogInformation("Cleaned up {Count} inactive credentials (inactive for {Days} days)", count, _inactiveDays);
+                _logger.LogInformation("Cleaned up {Count} inactive credentials (inactive for {Days} days)", count, inactiveDays);
             }
             else
             {
