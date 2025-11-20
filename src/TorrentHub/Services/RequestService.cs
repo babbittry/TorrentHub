@@ -37,13 +37,9 @@ public class RequestService : IRequestService
 
     public async Task<(bool Success, string Message, Request? Request)> CreateRequestAsync(CreateRequestDto createRequestDto, int userId)
     {
+        await EnsureRequestSystemEnabledAsync();
         var user = await _context.Users.FindAsync(userId);
         var settings = await _settingsService.GetSiteSettingsAsync();
-
-        if (!settings.IsRequestSystemEnabled)
-        {
-            return (false, "error.request.disabled", null);
-        }
 
         if (user == null)
         {
@@ -81,6 +77,7 @@ public class RequestService : IRequestService
 
     public async Task<(bool Success, string Message)> AddBountyAsync(int requestId, AddBountyRequestDto addBountyRequestDto, int userId)
     {
+        await EnsureRequestSystemEnabledAsync();
         var user = await _context.Users.FindAsync(userId);
 
         if (user == null)
@@ -146,6 +143,7 @@ public class RequestService : IRequestService
 
     public async Task<(bool Success, string Message)> FillRequestAsync(int requestId, FillRequestDto fillRequestDto, int fillerUserId)
     {
+        await EnsureRequestSystemEnabledAsync();
         var request = await _context.Requests
             .Include(r => r.RequestedByUser)
             .Include(r => r.FilledWithTorrent)
@@ -192,6 +190,7 @@ public class RequestService : IRequestService
 
     public async Task<(bool Success, string Message)> ConfirmFulfillmentAsync(int requestId, int userId)
     {
+        await EnsureRequestSystemEnabledAsync();
         var request = await _context.Requests
             .Include(r => r.FilledByUser)
             .FirstOrDefaultAsync(r => r.Id == requestId);
@@ -220,6 +219,7 @@ public class RequestService : IRequestService
 
     public async Task<(bool Success, string Message)> RejectFulfillmentAsync(int requestId, RejectFulfillmentDto rejectDto, int userId)
     {
+        await EnsureRequestSystemEnabledAsync();
         var request = await _context.Requests
             .Include(r => r.FilledByUser)
             .FirstOrDefaultAsync(r => r.Id == requestId);
@@ -296,5 +296,13 @@ public class RequestService : IRequestService
             .Include(r => r.FilledByUser)
             .FirstOrDefaultAsync(r => r.Id == requestId);
     }
+    
+    private async Task EnsureRequestSystemEnabledAsync()
+    {
+        var settings = await _settingsService.GetSiteSettingsAsync();
+        if (!settings.IsRequestSystemEnabled)
+        {
+            throw new InvalidOperationException("Request system is currently disabled.");
+        }
+    }
 }
-

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -96,114 +97,17 @@ namespace TorrentHub.Data
                 logger.LogInformation("Seeded default store items.");
             }
             
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "IsRegistrationOpen"))
+            // Seed unified SiteSettings as JSONB
+            if (!await context.SiteSettings.AnyAsync(s => s.Key == "SiteSettings"))
             {
-                context.SiteSettings.Add(new SiteSetting { Key = "IsRegistrationOpen", Value = "false" });
-                logger.LogInformation("Default site settings seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "CreateRequestCost"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "CreateRequestCost", Value = "1000" });
-                logger.LogInformation("Default CreateRequestCost setting seeded successfully.");
-            }
-            
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "TipTaxRate"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "TipTaxRate", Value = "0.10" });
-                logger.LogInformation("Default TipTaxRate setting seeded successfully.");
-            }
-            
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "TransferTaxRate"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "TransferTaxRate", Value = "0.05" });
-                logger.LogInformation("Default TransferTaxRate setting seeded successfully.");
-            }
-
-            // Tracker Anti-Cheat Settings
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MinAnnounceIntervalSeconds"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "MinAnnounceIntervalSeconds", Value = "900" });
-                logger.LogInformation("Default MinAnnounceIntervalSeconds setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnforcedMinAnnounceIntervalSeconds"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "EnforcedMinAnnounceIntervalSeconds", Value = "180" });
-                logger.LogInformation("Default EnforcedMinAnnounceIntervalSeconds setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnableMultiLocationDetection"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "EnableMultiLocationDetection", Value = "true" });
-                logger.LogInformation("Default EnableMultiLocationDetection setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MultiLocationDetectionWindowMinutes"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "MultiLocationDetectionWindowMinutes", Value = "5" });
-                logger.LogInformation("Default MultiLocationDetectionWindowMinutes setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "LogMultiLocationCheating"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "LogMultiLocationCheating", Value = "true" });
-                logger.LogInformation("Default LogMultiLocationCheating setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "AllowIpChange"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "AllowIpChange", Value = "true" });
-                logger.LogInformation("Default AllowIpChange setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MinIpChangeIntervalMinutes"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "MinIpChangeIntervalMinutes", Value = "10" });
-                logger.LogInformation("Default MinIpChangeIntervalMinutes setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "MinSpeedCheckIntervalSeconds"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "MinSpeedCheckIntervalSeconds", Value = "5" });
-                logger.LogInformation("Default MinSpeedCheckIntervalSeconds setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnableDownloadSpeedCheck"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "EnableDownloadSpeedCheck", Value = "true" });
-                logger.LogInformation("Default EnableDownloadSpeedCheck setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "CheatWarningAnnounceThreshold"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "CheatWarningAnnounceThreshold", Value = "20" });
-                logger.LogInformation("Default CheatWarningAnnounceThreshold setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "AutoBanAfterCheatWarnings"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "AutoBanAfterCheatWarnings", Value = "10" });
-                logger.LogInformation("Default AutoBanAfterCheatWarnings setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "CredentialCleanupDays"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "CredentialCleanupDays", Value = "90" });
-                logger.LogInformation("Default CredentialCleanupDays setting seeded successfully.");
-            }
-
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "EnableCredentialAutoCleanup"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "EnableCredentialAutoCleanup", Value = "true" });
-                logger.LogInformation("Default EnableCredentialAutoCleanup setting seeded successfully.");
-            }
-
-            // Content Moderation Settings
-            if (!await context.SiteSettings.AnyAsync(s => s.Key == "ContentEditWindowMinutes"))
-            {
-                context.SiteSettings.Add(new SiteSetting { Key = "ContentEditWindowMinutes", Value = "15" });
-                logger.LogInformation("Default ContentEditWindowMinutes setting seeded successfully.");
+                var defaultSettings = new SiteSettingsDto(); // Uses all default values from the DTO
+                var settingsJson = JsonSerializer.Serialize(defaultSettings);
+                context.SiteSettings.Add(new SiteSetting
+                {
+                    Key = "SiteSettings",
+                    Value = settingsJson
+                });
+                logger.LogInformation("Default SiteSettings JSONB seeded successfully.");
             }
 
             await context.SaveChangesAsync();

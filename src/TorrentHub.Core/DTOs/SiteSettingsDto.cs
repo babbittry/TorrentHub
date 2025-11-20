@@ -142,9 +142,6 @@ public class SiteSettingsDto
     public int MaxDailyCommentBonuses { get; set; } = 10;
 
     [Range(0, 1.0)]
-    public double TransactionTaxRate { get; set; } = 0.05;
-
-    [Range(0, 1.0)]
     public double TipTaxRate { get; set; } = 0.10; // Tax rate for user-to-user tips
 
     [Range(0, 1.0)]

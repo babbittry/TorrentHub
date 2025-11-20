@@ -13,21 +13,35 @@ public class ForumTopicService : IForumTopicService
     private readonly ILogger<ForumTopicService> _logger;
     private readonly IUserLevelService _userLevelService;
     private readonly ICommentService _commentService;
+    private readonly ISettingsService _settingsService;
 
     public ForumTopicService(
         ApplicationDbContext context,
         ILogger<ForumTopicService> logger,
         IUserLevelService userLevelService,
-        ICommentService commentService)
+        ICommentService commentService,
+        ISettingsService settingsService)
     {
         _context = context;
         _logger = logger;
         _userLevelService = userLevelService;
         _commentService = commentService;
+        _settingsService = settingsService;
+    }
+
+    private async Task EnsureForumEnabledAsync()
+    {
+        var settings = await _settingsService.GetSiteSettingsAsync();
+        if (!settings.IsForumEnabled)
+        {
+            throw new InvalidOperationException("Forum is currently disabled.");
+        }
     }
 
     public async Task<List<ForumCategoryDto>> GetCategoriesAsync()
     {
+        await EnsureForumEnabledAsync();
+        
         var categories = await _context.ForumCategories
             .OrderBy(c => c.DisplayOrder)
             .ToListAsync();
@@ -66,6 +80,8 @@ public class ForumTopicService : IForumTopicService
 
     public async Task<PaginatedResult<ForumTopicDto>> GetTopicsAsync(int categoryId, int page, int pageSize)
     {
+        await EnsureForumEnabledAsync();
+        
         var query = _context.ForumTopics
             .Include(t => t.Author)
             .Where(t => t.CategoryId == categoryId)
@@ -101,6 +117,8 @@ public class ForumTopicService : IForumTopicService
 
     public async Task<ForumTopicDetailDto> GetTopicByIdAsync(int topicId, int page, int pageSize)
     {
+        await EnsureForumEnabledAsync();
+        
         var topicEntity = await _context.ForumTopics
             .Include(t => t.Author)
             .Include(t => t.Category)
@@ -163,6 +181,8 @@ public class ForumTopicService : IForumTopicService
 
     public async Task<ForumTopicDetailDto> CreateTopicAsync(CreateForumTopicDto createTopicDto, int authorId)
     {
+        await EnsureForumEnabledAsync();
+        
         var user = await _context.Users.FindAsync(authorId);
         if (user == null)
         {
@@ -255,6 +275,8 @@ public class ForumTopicService : IForumTopicService
 
     public async Task UpdateTopicAsync(int topicId, UpdateForumTopicDto updateTopicDto, int userId)
     {
+        await EnsureForumEnabledAsync();
+        
         var topic = await _context.ForumTopics.FindAsync(topicId);
         if (topic == null)
         {
@@ -282,6 +304,8 @@ public class ForumTopicService : IForumTopicService
 
     public async Task DeleteTopicAsync(int topicId, int userId)
     {
+        await EnsureForumEnabledAsync();
+        
         var topic = await _context.ForumTopics.FindAsync(topicId);
         if (topic == null)
         {
