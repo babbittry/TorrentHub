@@ -9,22 +9,34 @@ namespace TorrentHub.Controllers;
 [Route("api/settings")]
 public class SettingsController : ControllerBase
 {
-    private readonly ISettingsService _settingsService;
+    private readonly IPublicSettingsService _publicSettingsService;
 
-    public SettingsController(ISettingsService settingsService)
+    public SettingsController(IPublicSettingsService publicSettingsService)
     {
-        _settingsService = settingsService;
+        _publicSettingsService = publicSettingsService;
     }
 
     /// <summary>
-    /// Gets a collection of public site settings.
-    /// This endpoint is available to all authenticated users.
+    /// 获取匿名用户可访问的公开配置
+    /// 无需认证，供注册页、登录页、页面布局等使用
+    /// </summary>
+    [HttpGet("public/anonymous")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<AnonymousPublicSettingsDto>>> GetAnonymousPublicSettings()
+    {
+        var settings = await _publicSettingsService.GetAnonymousPublicSettingsAsync();
+        return Ok(ApiResponse<AnonymousPublicSettingsDto>.SuccessResult(settings));
+    }
+
+    /// <summary>
+    /// 获取认证用户可访问的完整公开配置
+    /// 需要认证，包含金币系统等更多配置
     /// </summary>
     [HttpGet("public")]
     [Authorize]
-    public async Task<ActionResult<PublicSiteSettingsDto>> GetPublicSettings()
+    public async Task<ActionResult<ApiResponse<PublicSiteSettingsDto>>> GetPublicSettings()
     {
-        var settings = await _settingsService.GetPublicSiteSettingsAsync();
-        return Ok(settings);
+        var settings = await _publicSettingsService.GetPublicSiteSettingsAsync();
+        return Ok(ApiResponse<PublicSiteSettingsDto>.SuccessResult(settings));
     }
 }

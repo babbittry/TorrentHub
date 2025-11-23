@@ -209,7 +209,21 @@ public class UserService : IUserService
             await SendLoginVerificationEmailAsync(user.UserName);
         }
 
-        return (new LoginResponseDto { Result = LoginResultType.RequiresTwoFactor }, null);
+        // 返回精简的用户信息用于 2FA 验证，只包含必要字段
+        var pending2faUser = new UserPending2faDto
+        {
+            UserName = user.UserName,
+            Email = MaskEmail(user.Email),
+            TwoFactorMethod = user.TwoFactorType.ToString()
+        };
+        
+        _logger.LogInformation("User {UserId} requires 2FA with method {TwoFactorMethod}", user.Id, user.TwoFactorType);
+
+        return (new LoginResponseDto
+        {
+            Result = LoginResultType.RequiresTwoFactor,
+            Pending2faUser = pending2faUser
+        }, null);
     }
 
     public async Task<(string AccessToken, string RefreshToken, User User)> Login2faAsync(UserForLogin2faDto login2faDto)
@@ -746,5 +760,28 @@ public class UserService : IUserService
 
         _logger.LogInformation("Resent email verification for user {UserId}", user.Id);
         return true;
+    }
+
+    /// <summary>
+    /// 对邮箱地址进行脱敏处理
+    /// </summary>
+    /// <param name="email">原始邮箱地址</param>
+    /// <returns>脱敏后的邮箱地址</returns>
+    private static string MaskEmail(string email)
+    {
+        if (string.IsNullOrEmpty(email)) return email;
+        
+        var parts = email.Split('@');
+        if (parts.Length != 2) return email;
+        
+        var localPart = parts[0];
+        var domain = parts[1];
+        
+        if (localPart.Length <= 2)
+        {
+            return $"{localPart[0]}***@{domain}";
+        }
+        
+        return $"{localPart[0]}***{localPart[^1]}@{domain}";
     }
 }

@@ -24,6 +24,7 @@ public class TorrentService : ITorrentService
     private readonly IMeiliSearchService _meiliSearchService;
     private readonly ITorrentCredentialService _credentialService;
     private readonly MediaInputParser _mediaInputParser;
+    private readonly ITorrentWashingService _washingService;
     private readonly BencodeParser _bencodeParser = new();
 
     public TorrentService(
@@ -34,7 +35,8 @@ public class TorrentService : ITorrentService
         ITMDbService tmdbService,
         ISettingsService settingsService,
         ITorrentCredentialService credentialService,
-        MediaInputParser mediaInputParser)
+        MediaInputParser mediaInputParser,
+        ITorrentWashingService washingService)
     {
         _context = context;
         _userService = userService;
@@ -44,6 +46,7 @@ public class TorrentService : ITorrentService
         _settingsService = settingsService;
         _credentialService = credentialService;
         _mediaInputParser = mediaInputParser;
+        _washingService = washingService;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash, TorrentHub.Core.Entities.Torrent? Torrent)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
@@ -76,20 +79,66 @@ public class TorrentService : ITorrentService
 
         try
         {
-            var filePath = await SaveTorrentFile(torrentFile, infoHash, settings.TorrentStoragePath);
-            var torrentEntity = await CreateTorrentEntity(torrent, request, filePath, userId, infoHashBytes);
+            // 保存原始种子文件到临时位置
+            var originalFilePath = await SaveTorrentFile(torrentFile, infoHash, settings.TorrentStoragePath);
+            
+            // 清洗种子文件
+            byte[] washedTorrentBytes;
+            string washedInfoHash;
+            
+            try
+            {
+                // 读取原始种子文件
+                var originalBytes = await System.IO.File.ReadAllBytesAsync(originalFilePath);
+                
+                // 创建临时种子实体以获取 ID（用于生成 comment）
+                var tempTorrentEntity = await CreateTorrentEntity(torrent, request, originalFilePath, userId, infoHashBytes);
+                _context.Torrents.Add(tempTorrentEntity);
+                await _context.SaveChangesAsync();
+                
+                var torrentId = tempTorrentEntity.Id;
+                
+                // 执行清洗
+                washedTorrentBytes = _washingService.WashTorrent(originalBytes, torrentId, settings.TrackerUrl);
+                washedInfoHash = _washingService.CalculateInfoHash(washedTorrentBytes);
+                
+                // 解析清洗后的种子以获取新的 InfoHash
+                using var washedStream = new MemoryStream(washedTorrentBytes);
+                var washedTorrent = await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(washedStream);
+                var washedInfoHashBytes = washedTorrent.GetInfoHashBytes();
+                
+                // 更新实体的 InfoHash
+                tempTorrentEntity.InfoHash = washedInfoHashBytes;
+                
+                // 保存清洗后的种子文件（覆盖原文件）
+                await System.IO.File.WriteAllBytesAsync(originalFilePath, washedTorrentBytes);
+                
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("种子清洗成功 - 原InfoHash: {OriginalHash}, 新InfoHash: {WashedHash}",
+                    infoHash, washedInfoHash);
+                
+                var torrentEntity = tempTorrentEntity;
 
-            _context.Torrents.Add(torrentEntity);
-            await _context.SaveChangesAsync();
+                // Grant Coins to the uploader
+                await _userService.AddCoinsAsync(torrentEntity.UploadedByUserId, new UpdateCoinsRequestDto { Amount = settings.UploadTorrentBonus });
 
-            // Grant Coins to the uploader
-            await _userService.AddCoinsAsync(torrentEntity.UploadedByUserId, new UpdateCoinsRequestDto { Amount = settings.UploadTorrentBonus });
+                var torrentSearchDto = Mapper.ToTorrentSearchDto(torrentEntity);
+                await _meiliSearchService.IndexTorrentAsync(torrentSearchDto);
 
-            var torrentSearchDto = Mapper.ToTorrentSearchDto(torrentEntity);
-            await _meiliSearchService.IndexTorrentAsync(torrentSearchDto);
-
-            _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, infoHash, userId);
-            return (true, "torrent.upload.success", infoHash, torrentEntity);
+                _logger.LogInformation("Torrent {TorrentName} (InfoHash: {InfoHash}) uploaded successfully by user {UserId}.", torrent.DisplayName, washedInfoHash, userId);
+                return (true, "torrent.upload.success", washedInfoHash, torrentEntity);
+            }
+            catch (Exception washEx)
+            {
+                _logger.LogError(washEx, "种子清洗失败，TorrentId: {TorrentId}", infoHash);
+                // 清理已保存的文件
+                if (System.IO.File.Exists(originalFilePath))
+                {
+                    System.IO.File.Delete(originalFilePath);
+                }
+                return (false, "error.torrent.washingFailed", null, null);
+            }
         }
         catch (Exception ex)
         {

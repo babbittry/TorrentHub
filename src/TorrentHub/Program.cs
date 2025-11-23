@@ -88,6 +88,7 @@ public class Program
         
         builder.Services.AddScoped<IStoreService, StoreService>();
         builder.Services.AddScoped<ITorrentService, TorrentService>();
+        builder.Services.AddScoped<ITorrentWashingService, TorrentWashingService>();
         builder.Services.AddScoped<ICommentService, CommentService>(); // New unified comment service
         builder.Services.AddScoped<IRequestService, RequestService>();
         builder.Services.AddScoped<IMessageService, MessageService>();
@@ -98,7 +99,11 @@ public class Program
         builder.Services.AddScoped<ITorrentListingService, TorrentListingService>();
         builder.Services.AddScoped<IMeiliSearchService, MeiliSearchService>();
         builder.Services.AddScoped<IStatsService, StatsService>();
-        builder.Services.AddScoped<ISettingsService, SettingsService>();
+        // 配置服务注册 (读写分离架构)
+        builder.Services.AddScoped<ISettingsService, SettingsService>(); // 完整配置服务(读+写)
+        builder.Services.AddScoped<ISettingsReader, SettingsService>(); // 配置读取服务
+        builder.Services.AddScoped<ISettingsWriter, SettingsService>(); // 配置写入服务
+        builder.Services.AddScoped<IPublicSettingsService, SettingsService>(); // 公开配置API服务
         builder.Services.AddScoped<IForumTopicService, ForumTopicService>(); // New forum topic management service
         builder.Services.AddScoped<INotificationService, NotificationService>();
         builder.Services.AddScoped<IPollService, PollService>();

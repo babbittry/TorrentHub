@@ -7,9 +7,10 @@ using TorrentHub.Core.Services;
 namespace TorrentHub.Tracker.Services;
 
 /// <summary>
-/// A lightweight settings service for the Tracker that reads settings directly from the database/cache.
+/// Tracker配置服务 - 只读实现
+/// 仅从数据库/缓存读取配置，不提供写入功能
 /// </summary>
-public class SettingsService : ISettingsService
+public class SettingsService : ISettingsReader
 {
     private readonly ApplicationDbContext _context;
     private readonly IDistributedCache _cache;
@@ -45,27 +46,4 @@ public class SettingsService : ISettingsService
         return new SiteSettingsDto();
     }
 
-    public Task UpdateSiteSettingsAsync(SiteSettingsDto dto)
-    {
-        // This is a read-only implementation for the tracker.
-        // The Web project is responsible for writing settings.
-        throw new NotImplementedException("Tracker service cannot update site settings.");
-    }
-
-    public async Task<PublicSiteSettingsDto> GetPublicSiteSettingsAsync()
-    {
-        var fullSettings = await GetSiteSettingsAsync();
-
-        // Map the full settings to the public DTO
-        return new PublicSiteSettingsDto
-        {
-            SiteName = fullSettings.SiteName,
-            IsRequestSystemEnabled = fullSettings.IsRequestSystemEnabled,
-            CreateRequestCost = fullSettings.CreateRequestCost,
-            FillRequestBonus = fullSettings.FillRequestBonus,
-            TipTaxRate = fullSettings.TipTaxRate,
-            TransferTaxRate = fullSettings.TransferTaxRate,
-            InvitePrice = fullSettings.InvitePrice
-        };
-    }
 }

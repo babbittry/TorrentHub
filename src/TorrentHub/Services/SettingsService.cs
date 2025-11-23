@@ -8,7 +8,7 @@ using TorrentHub.Services.Interfaces;
 
 namespace TorrentHub.Services;
 
-public class SettingsService : ISettingsService
+public class SettingsService : ISettingsService, IPublicSettingsService
 {
     private readonly ApplicationDbContext _context;
     private readonly IDistributedCache _cache;
@@ -64,20 +64,43 @@ public class SettingsService : ISettingsService
         await _cache.RemoveAsync(SiteSettingsKey);
     }
 
+    public async Task<AnonymousPublicSettingsDto> GetAnonymousPublicSettingsAsync()
+    {
+        var fullSettings = await GetSiteSettingsAsync();
+
+        return new AnonymousPublicSettingsDto
+        {
+            SiteName = fullSettings.SiteName,
+            LogoUrl = fullSettings.LogoUrl,
+            ContactEmail = fullSettings.ContactEmail,
+            IsRegistrationOpen = fullSettings.IsRegistrationOpen,
+            IsForumEnabled = fullSettings.IsForumEnabled
+        };
+    }
+
     public async Task<PublicSiteSettingsDto> GetPublicSiteSettingsAsync()
     {
         var fullSettings = await GetSiteSettingsAsync();
 
-        // Map the full settings to the public DTO
         return new PublicSiteSettingsDto
         {
+            // 匿名字段
             SiteName = fullSettings.SiteName,
+            LogoUrl = fullSettings.LogoUrl,
+            ContactEmail = fullSettings.ContactEmail,
+            IsRegistrationOpen = fullSettings.IsRegistrationOpen,
+            IsForumEnabled = fullSettings.IsForumEnabled,
+            
+            // 认证用户字段
             IsRequestSystemEnabled = fullSettings.IsRequestSystemEnabled,
             CreateRequestCost = fullSettings.CreateRequestCost,
             FillRequestBonus = fullSettings.FillRequestBonus,
             TipTaxRate = fullSettings.TipTaxRate,
             TransferTaxRate = fullSettings.TransferTaxRate,
-            InvitePrice = fullSettings.InvitePrice
+            InvitePrice = fullSettings.InvitePrice,
+            CommentBonus = fullSettings.CommentBonus,
+            UploadTorrentBonus = fullSettings.UploadTorrentBonus,
+            MaxDailyCommentBonuses = fullSettings.MaxDailyCommentBonuses
         };
     }
 }

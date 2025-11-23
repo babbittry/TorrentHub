@@ -13,7 +13,7 @@ public class AnnounceService : IAnnounceService
 {
     private readonly ApplicationDbContext _context;
     private readonly ILogger<AnnounceService> _logger;
-    private readonly ISettingsService _settingsService;
+    private readonly ISettingsReader _settingsReader;
     private readonly IAdminService _adminService;
     private readonly ITrackerLocalizer _localizer;
     private readonly ITorrentCredentialService _credentialService;
@@ -21,14 +21,14 @@ public class AnnounceService : IAnnounceService
     public AnnounceService(
         ApplicationDbContext context,
         ILogger<AnnounceService> logger,
-        ISettingsService settingsService,
+        ISettingsReader settingsReader,
         IAdminService adminService,
         ITrackerLocalizer localizer,
         ITorrentCredentialService credentialService)
     {
         _context = context;
         _logger = logger;
-        _settingsService = settingsService;
+        _settingsReader = settingsReader;
         _adminService = adminService;
         _localizer = localizer;
         _credentialService = credentialService;
@@ -64,7 +64,7 @@ public class AnnounceService : IAnnounceService
         var numWant = int.TryParse(numWantStr, out var nw) ? nw : 50;
         var ipAddress = context.Connection.RemoteIpAddress;
 
-        var settings = await _settingsService.GetSiteSettingsAsync();
+        var settings = await _settingsReader.GetSiteSettingsAsync();
 
         // --- 1. Credential Validation ---
         var (isValid, userId, torrentId) = await _credentialService.ValidateCredentialAsync(credential);

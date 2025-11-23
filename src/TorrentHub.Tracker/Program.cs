@@ -43,7 +43,7 @@ else
 
 // --- Service Registration ---
 // Register the lightweight, tracker-specific implementations
-builder.Services.AddScoped<ISettingsService, SettingsService>();
+builder.Services.AddScoped<ISettingsReader, SettingsService>(); // Tracker只需要读取配置
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ITorrentCredentialService, TorrentHub.Services.TorrentCredentialService>();
 // Register the main announce service
