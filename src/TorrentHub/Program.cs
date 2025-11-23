@@ -41,17 +41,7 @@ public class Program
 
         builder.Services.AddControllers();
 
-        builder.Services.AddOpenApi(options =>
-        {
-            options.AddDocumentTransformer((document, context, cancellationToken) =>
-            {
-                // Configure enums to show as strings with descriptions in OpenAPI
-                document.Components ??= new();
-                document.Components.Schemas ??= new Dictionary<string, Microsoft.OpenApi.Models.OpenApiSchema>();
-                
-                return Task.CompletedTask;
-            });
-        });
+        builder.Services.AddOpenApi();
 
         builder.Services.AddCors(options =>
         {
