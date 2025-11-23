@@ -98,10 +98,19 @@ public class ForumTopicService : IForumTopicService
         var authorIds = topics.Select(t => t.AuthorId).Distinct().ToList();
         var authors = await GetUsersDisplayInfoAsync(authorIds);
 
+        // 获取每个主题的帖子数量
+        var topicIds = topics.Select(t => t.Id).ToList();
+        var postCounts = await _context.Comments
+            .Where(c => c.CommentableType == CommentableType.ForumTopic && topicIds.Contains(c.CommentableId))
+            .GroupBy(c => c.CommentableId)
+            .Select(g => new { TopicId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.TopicId, x => x.Count);
+
         var topicDtos = topics.Select(t =>
         {
             var dto = Mappers.Mapper.ToForumTopicDto(t);
             dto.Author = authors.GetValueOrDefault(t.AuthorId);
+            dto.PostCount = postCounts.GetValueOrDefault(t.Id, 0);
             return dto;
         }).ToList();
 
