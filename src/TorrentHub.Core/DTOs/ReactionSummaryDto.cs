@@ -18,7 +18,7 @@ public class ReactionSummaryDto
 /// </summary>
 public class CommentReactionsDto
 {
-    public int TotalCount { get; set; }
+    public int TotalItems { get; set; }
     public List<ReactionSummaryDto> Reactions { get; set; } = new();
 }
 

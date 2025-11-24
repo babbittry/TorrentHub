@@ -123,14 +123,14 @@ public class RequestService : IRequestService
 
         query = sortBy.ToLower() switch
         {
-            "bountyamount" => isAscending 
-                ? query.OrderBy(r => r.BountyAmount) 
+            "bountyamount" => isAscending
+                ? query.OrderBy(r => r.BountyAmount)
                 : query.OrderByDescending(r => r.BountyAmount),
-            "createdat" => isAscending 
-                ? query.OrderBy(r => r.CreatedAt) 
+            "createdat" => isAscending
+                ? query.OrderBy(r => r.CreatedAt)
                 : query.OrderByDescending(r => r.CreatedAt),
-            "status" => isAscending 
-                ? query.OrderBy(r => r.Status) 
+            "status" => isAscending
+                ? query.OrderBy(r => r.Status)
                 : query.OrderByDescending(r => r.Status),
             _ => query.OrderByDescending(r => r.CreatedAt)
         };
@@ -139,6 +139,45 @@ public class RequestService : IRequestService
             .Include(r => r.RequestedByUser)
             .Include(r => r.FilledByUser)
             .ToListAsync();
+    }
+
+    public async Task<(List<Request> Requests, int TotalCount)> GetRequestsPagedAsync(int page, int pageSize, RequestStatus? status, string sortBy, string sortOrder)
+    {
+        var query = _context.Requests.AsQueryable();
+
+        if (status.HasValue)
+        {
+            query = query.Where(r => r.Status == status.Value);
+        }
+
+        // 获取总数
+        var totalCount = await query.CountAsync();
+
+        // 排序
+        var isAscending = sortOrder.Equals("asc", StringComparison.OrdinalIgnoreCase);
+
+        query = sortBy.ToLower() switch
+        {
+            "bountyamount" => isAscending
+                ? query.OrderBy(r => r.BountyAmount)
+                : query.OrderByDescending(r => r.BountyAmount),
+            "createdat" => isAscending
+                ? query.OrderBy(r => r.CreatedAt)
+                : query.OrderByDescending(r => r.CreatedAt),
+            "status" => isAscending
+                ? query.OrderBy(r => r.Status)
+                : query.OrderByDescending(r => r.Status),
+            _ => query.OrderByDescending(r => r.CreatedAt)
+        };
+
+        // 分页 - 只加载列表需要的用户信息
+        var requests = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Include(r => r.RequestedByUser)
+            .ToListAsync();
+
+        return (requests, totalCount);
     }
 
     public async Task<(bool Success, string Message)> FillRequestAsync(int requestId, FillRequestDto fillRequestDto, int fillerUserId)

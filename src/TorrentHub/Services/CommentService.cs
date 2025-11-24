@@ -327,7 +327,7 @@ public class CommentService : ICommentService
         {
             Items = commentDtos,
             HasMore = afterFloor + limit < totalCount,
-            TotalCount = totalCount,
+            TotalItems = totalCount,
             LoadedCount = afterFloor + comments.Count
         };
     }
@@ -377,7 +377,7 @@ public class CommentService : ICommentService
         {
             Items = commentDtos,
             HasMore = skip + pageSize < totalCount,
-            TotalCount = totalCount,
+            TotalItems = totalCount,
             LoadedCount = skip + comments.Count
         };
     }

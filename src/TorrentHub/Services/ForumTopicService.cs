@@ -181,8 +181,8 @@ public class ForumTopicService : IForumTopicService
             Items = postDtos,
             Page = page,
             PageSize = pageSize,
-            TotalItems = comments.TotalCount,
-            TotalPages = (int)Math.Ceiling(comments.TotalCount / (double)pageSize)
+            TotalItems = comments.TotalItems,
+            TotalPages = (int)Math.Ceiling(comments.TotalItems / (double)pageSize)
         };
 
         return topicDetailDto;

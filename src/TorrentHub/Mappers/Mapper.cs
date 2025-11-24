@@ -122,6 +122,18 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Request.FilledWithTorrent))]
     public static partial RequestDto ToRequestDto(Request request);
 
+    [MapProperty(nameof(Request.RequestedByUser), nameof(RequestSummaryDto.RequestedByUser))]
+    [MapperIgnoreSource(nameof(Request.RequestedByUserId))]
+    [MapperIgnoreSource(nameof(Request.Description))]
+    [MapperIgnoreSource(nameof(Request.FilledByUserId))]
+    [MapperIgnoreSource(nameof(Request.FilledByUser))]
+    [MapperIgnoreSource(nameof(Request.FilledWithTorrentId))]
+    [MapperIgnoreSource(nameof(Request.FilledWithTorrent))]
+    [MapperIgnoreSource(nameof(Request.FilledAt))]
+    [MapperIgnoreSource(nameof(Request.ConfirmationDeadline))]
+    [MapperIgnoreSource(nameof(Request.RejectionReason))]
+    public static partial RequestSummaryDto ToRequestSummaryDto(Request request);
+
     // Unified Comment mapping
     [MapProperty(nameof(Comment.User), nameof(CommentDto.User))]
     [MapProperty(nameof(Comment.ReplyToUser), nameof(CommentDto.ReplyToUser))]

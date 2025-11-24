@@ -118,7 +118,7 @@ public class ReactionService : IReactionService
 
         return new CommentReactionsDto
         {
-            TotalCount = reactions.Count,
+            TotalItems = reactions.Count,
             Reactions = groupedReactions
         };
     }
@@ -161,7 +161,7 @@ public class ReactionService : IReactionService
 
             result[commentId] = new CommentReactionsDto
             {
-                TotalCount = commentReactions.Count,
+                TotalItems = commentReactions.Count,
                 Reactions = groupedReactions
             };
         }

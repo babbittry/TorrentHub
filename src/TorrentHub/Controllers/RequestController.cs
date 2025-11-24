@@ -82,19 +82,30 @@ public class RequestsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets a list of requests, filterable by status.
+    /// Gets a paginated list of requests with summary information, filterable by status.
+    /// Returns lightweight RequestSummaryDto for better performance.
     /// </summary>
     [HttpGet]
-    public async Task<ActionResult<ApiResponse<List<RequestDto>>>> GetRequests(
-        [FromQuery] RequestStatus? status, 
-        [FromQuery] string sortBy = "createdAt", 
+    public async Task<ActionResult<ApiResponse<PaginatedResult<RequestSummaryDto>>>> GetRequests(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] RequestStatus? status = null,
+        [FromQuery] string sortBy = "createdAt",
         [FromQuery] string sortOrder = "desc")
     {
-        var requests = await _requestService.GetRequestsAsync(status, sortBy, sortOrder);
-        return Ok(new ApiResponse<List<RequestDto>>
+        var (requests, totalCount) = await _requestService.GetRequestsPagedAsync(page, pageSize, status, sortBy, sortOrder);
+        
+        return Ok(new ApiResponse<PaginatedResult<RequestSummaryDto>>
         {
             Success = true,
-            Data = requests.Select(r => Mapper.ToRequestDto(r)).ToList(),
+            Data = new PaginatedResult<RequestSummaryDto>
+            {
+                Items = requests.Select(r => Mapper.ToRequestSummaryDto(r)).ToList(),
+                TotalItems = totalCount,
+                Page = page,
+                PageSize = pageSize,
+                TotalPages = (int)Math.Ceiling(totalCount / (double)pageSize)
+            },
             Message = "Requests retrieved successfully."
         });
     }

@@ -7,6 +7,6 @@ public class CommentListResponse
 {
     public List<CommentDto> Items { get; set; } = new();
     public bool HasMore { get; set; }
-    public int TotalCount { get; set; }
+    public int TotalItems { get; set; }
     public int LoadedCount { get; set; }
 }
