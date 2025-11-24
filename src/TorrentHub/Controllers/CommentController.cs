@@ -46,7 +46,9 @@ public class CommentController : ControllerBase
 
         if (pageSize > 100) pageSize = 100;
 
-        var result = await _commentService.GetCommentsLazyAsync(commentableType, id, page, pageSize);
+        // 将 page 转换为 afterFloor（懒加载参数）
+        var afterFloor = (page - 1) * pageSize;
+        var result = await _commentService.GetCommentsLazyAsync(commentableType, id, afterFloor, pageSize);
         return Ok(ApiResponse<CommentListResponse>.SuccessResult(result));
     }
 

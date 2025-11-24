@@ -38,5 +38,10 @@ public class TorrentDto
     public TechnicalSpecsDto? TechnicalSpecs { get; set; }
     public List<TorrentFileDto>? Files { get; set; }
     public string? Country { get; set; }
+    
+    /// <summary>
+    /// 截图 URL 列表
+    /// </summary>
+    public List<string> Screenshots { get; set; } = new();
 }
 

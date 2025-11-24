@@ -11,6 +11,7 @@
 
     <ItemGroup>
         <PackageReference Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
+        <PackageReference Include="AWSSDK.S3" Version="4.0.13.1" />
         <PackageReference Include="BencodeNET" Version="5.0.0" />
         <PackageReference Include="Bogus" Version="35.6.5" />
         <PackageReference Include="GoogleAuthenticator" Version="3.2.0" />

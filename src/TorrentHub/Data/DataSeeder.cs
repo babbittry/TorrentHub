@@ -347,11 +347,13 @@ namespace TorrentHub.Data
                         var techSpecs = mediaInputParser.ParseTechnicalSpecs(realisticName);
 
                         var infoHashBytes = faker.Random.Bytes(20);
+                        var infoHashString = BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant();
+                        
                         var torrent = new Torrent
                         {
                             Name = realisticName,
                             InfoHash = infoHashBytes,
-                            FilePath = Path.Combine(env.WebRootPath ?? "wwwroot", "torrents", $"{BitConverter.ToString(infoHashBytes).Replace("-", "").ToLowerInvariant()}.torrent"),
+                            FilePath = $"{infoHashString}.torrent", // 只存储文件名,不包含完整路径
                             Description = movie.Overview,
                             UploadedByUser = faker.PickRandom(users),
                             Category = TorrentCategory.Movie,
@@ -411,19 +413,21 @@ namespace TorrentHub.Data
                 await context.SaveChangesAsync();
                 logger.LogInformation("{Count} torrents seeded successfully from TMDb.", torrents.Count);
 
-                // Create dummy .torrent files
+                // 为每个种子生成 3 个假截图 URL
                 foreach (var torrent in torrents)
                 {
-                    if (!File.Exists(torrent.FilePath))
+                    var screenshotUrls = new List<string>();
+                    for (int i = 0; i < 3; i++)
                     {
-                        var directory = Path.GetDirectoryName(torrent.FilePath);
-                        if (directory != null && !Directory.Exists(directory))
-                        {
-                            Directory.CreateDirectory(directory);
-                        }
-                        File.WriteAllText(torrent.FilePath, "d8:announce0:e");
+                        var screenshotFileName = $"{Guid.NewGuid():N}.webp";
+                        // 使用 Lorem Picsum 生成随机图片 URL
+                        screenshotUrls.Add($"https://picsum.photos/seed/{screenshotFileName}/1920/1080.webp");
                     }
+                    torrent.Screenshots = screenshotUrls;
                 }
+                
+                await context.SaveChangesAsync();
+                logger.LogInformation("Screenshot URLs seeded successfully for {Count} torrents.", torrents.Count);
             }
 
             return torrents;

@@ -173,5 +173,11 @@ public class Torrent
 
     [StringLength(100)]
     public string? Country { get; set; }
+
+    /// <summary>
+    /// 种子截图 URL 列表（存储为 JSONB）
+    /// </summary>
+    [Column(TypeName = "jsonb")]
+    public List<string> Screenshots { get; set; } = new();
 }
 

@@ -1,4 +1,6 @@
 using System.Text;
+using Amazon.S3;
+using Amazon.Runtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -146,6 +148,22 @@ public class Program
         
         // 配置凭证清理服务
         builder.Services.Configure<CredentialSettings>(builder.Configuration.GetSection("CredentialSettings"));
+        
+        // 配置 S3 兼容对象存储 (Cloudflare R2, MinIO, AWS S3 等)
+        builder.Services.Configure<StorageSettings>(builder.Configuration.GetSection("StorageSettings"));
+        builder.Services.AddSingleton<IAmazonS3>(sp =>
+        {
+            var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<StorageSettings>>().Value;
+            var config = new AmazonS3Config
+            {
+                ServiceURL = settings.ServiceUrl,
+                ForcePathStyle = settings.ForcePathStyle
+            };
+
+            var credentials = new BasicAWSCredentials(settings.AccessKey, settings.SecretKey);
+            return new AmazonS3Client(credentials, config);
+        });
+        builder.Services.AddScoped<IFileStorageService, S3StorageService>();
         
         // 注册输入解析器 (单例即可)
         builder.Services.AddSingleton<MediaInputParser>();

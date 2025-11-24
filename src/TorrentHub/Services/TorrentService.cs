@@ -25,6 +25,7 @@ public class TorrentService : ITorrentService
     private readonly ITorrentCredentialService _credentialService;
     private readonly MediaInputParser _mediaInputParser;
     private readonly ITorrentWashingService _washingService;
+    private readonly IFileStorageService _fileStorageService;
     private readonly BencodeParser _bencodeParser = new();
 
     public TorrentService(
@@ -36,7 +37,8 @@ public class TorrentService : ITorrentService
         ISettingsService settingsService,
         ITorrentCredentialService credentialService,
         MediaInputParser mediaInputParser,
-        ITorrentWashingService washingService)
+        ITorrentWashingService washingService,
+        IFileStorageService fileStorageService)
     {
         _context = context;
         _userService = userService;
@@ -47,6 +49,7 @@ public class TorrentService : ITorrentService
         _credentialService = credentialService;
         _mediaInputParser = mediaInputParser;
         _washingService = washingService;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<(bool Success, string Message, string? InfoHash, TorrentHub.Core.Entities.Torrent? Torrent)> UploadTorrentAsync(IFormFile torrentFile, UploadTorrentRequestDto request, int userId)
@@ -64,6 +67,29 @@ public class TorrentService : ITorrentService
             return (false, "error.torrent.tooLarge", null, null);
         }
 
+        // 验证截图（如果提供）
+        if (request.Screenshots != null && request.Screenshots.Any())
+        {
+            if (request.Screenshots.Count != 3)
+            {
+                return (false, "error.torrent.screenshotCountInvalid", null, null);
+            }
+
+            foreach (var screenshot in request.Screenshots)
+            {
+                if (screenshot.Length == 0)
+                {
+                    return (false, "error.torrent.screenshotEmpty", null, null);
+                }
+
+                // 验证是否为图片格式
+                if (!screenshot.ContentType.StartsWith("image/"))
+                {
+                    return (false, "error.torrent.screenshotInvalidFormat", null, null);
+                }
+            }
+        }
+
         var torrent = await ParseTorrentFile(torrentFile);
         if (torrent == null)
         {
@@ -79,44 +105,80 @@ public class TorrentService : ITorrentService
 
         try
         {
-            // 保存原始种子文件到临时位置
-            var originalFilePath = await SaveTorrentFile(torrentFile, infoHash, settings.TorrentStoragePath);
+            // 读取上传的种子文件到内存
+            byte[] originalBytes;
+            await using (var memStream = new MemoryStream())
+            {
+                await torrentFile.OpenReadStream().CopyToAsync(memStream);
+                originalBytes = memStream.ToArray();
+            }
             
-            // 清洗种子文件
-            byte[] washedTorrentBytes;
-            string washedInfoHash;
+            // 创建临时种子实体以获取 ID（用于生成 comment）
+            var tempTorrentEntity = await CreateTorrentEntity(torrent, request, "", userId, infoHashBytes);
+            _context.Torrents.Add(tempTorrentEntity);
+            await _context.SaveChangesAsync();
+            
+            var torrentId = tempTorrentEntity.Id;
             
             try
             {
-                // 读取原始种子文件
-                var originalBytes = await System.IO.File.ReadAllBytesAsync(originalFilePath);
-                
-                // 创建临时种子实体以获取 ID（用于生成 comment）
-                var tempTorrentEntity = await CreateTorrentEntity(torrent, request, originalFilePath, userId, infoHashBytes);
-                _context.Torrents.Add(tempTorrentEntity);
-                await _context.SaveChangesAsync();
-                
-                var torrentId = tempTorrentEntity.Id;
-                
                 // 执行清洗
-                washedTorrentBytes = _washingService.WashTorrent(originalBytes, torrentId, settings.TrackerUrl);
-                washedInfoHash = _washingService.CalculateInfoHash(washedTorrentBytes);
+                var washedTorrentBytes = _washingService.WashTorrent(originalBytes, torrentId, settings.TrackerUrl);
+                var washedInfoHash = _washingService.CalculateInfoHash(washedTorrentBytes);
                 
                 // 解析清洗后的种子以获取新的 InfoHash
                 using var washedStream = new MemoryStream(washedTorrentBytes);
                 var washedTorrent = await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(washedStream);
                 var washedInfoHashBytes = washedTorrent.GetInfoHashBytes();
                 
-                // 更新实体的 InfoHash
-                tempTorrentEntity.InfoHash = washedInfoHashBytes;
+                // 上传清洗后的种子文件到 R2（使用 washedInfoHash 作为文件名）
+                var torrentFileName = $"{washedInfoHash}.torrent";
+                using var uploadStream = new MemoryStream(washedTorrentBytes);
+                var fileUrl = await _fileStorageService.UploadAsync(
+                    uploadStream,
+                    torrentFileName,
+                    "application/x-bittorrent",
+                    useOriginalName: true);
                 
-                // 保存清洗后的种子文件（覆盖原文件）
-                await System.IO.File.WriteAllBytesAsync(originalFilePath, washedTorrentBytes);
+                // 更新实体
+                tempTorrentEntity.InfoHash = washedInfoHashBytes;
+                tempTorrentEntity.FilePath = torrentFileName; // 存储文件名而不是完整路径
+                
+                // 处理截图上传
+                if (request.Screenshots != null && request.Screenshots.Any())
+                {
+                    _logger.LogInformation("开始上传 {Count} 张截图，种子ID: {TorrentId}", request.Screenshots.Count, torrentId);
+                    
+                    var screenshotUrls = new List<string>();
+                    for (int i = 0; i < request.Screenshots.Count; i++)
+                    {
+                        var screenshot = request.Screenshots[i];
+                        try
+                        {
+                            await using var screenshotStream = screenshot.OpenReadStream();
+                            var screenshotUrl = await _fileStorageService.UploadAsync(
+                                screenshotStream,
+                                screenshot.FileName,
+                                screenshot.ContentType);
+                            
+                            screenshotUrls.Add(screenshotUrl);
+                            _logger.LogInformation("截图 {Index} 上传成功: {Url}", i + 1, screenshotUrl);
+                        }
+                        catch (Exception screenshotEx)
+                        {
+                            _logger.LogError(screenshotEx, "截图 {Index} 上传失败", i + 1);
+                            // 继续处理其他截图，不中断整个流程
+                        }
+                    }
+                    
+                    // 将截图 URL 保存到种子实体
+                    tempTorrentEntity.Screenshots = screenshotUrls;
+                }
                 
                 await _context.SaveChangesAsync();
                 
-                _logger.LogInformation("种子清洗成功 - 原InfoHash: {OriginalHash}, 新InfoHash: {WashedHash}",
-                    infoHash, washedInfoHash);
+                _logger.LogInformation("种子清洗并上传成功 - 原InfoHash: {OriginalHash}, 新InfoHash: {WashedHash}, URL: {Url}",
+                    infoHash, washedInfoHash, fileUrl);
                 
                 var torrentEntity = tempTorrentEntity;
 
@@ -131,12 +193,10 @@ public class TorrentService : ITorrentService
             }
             catch (Exception washEx)
             {
-                _logger.LogError(washEx, "种子清洗失败，TorrentId: {TorrentId}", infoHash);
-                // 清理已保存的文件
-                if (System.IO.File.Exists(originalFilePath))
-                {
-                    System.IO.File.Delete(originalFilePath);
-                }
+                _logger.LogError(washEx, "种子清洗或上传失败，TorrentId: {TorrentId}", torrentId);
+                // 删除数据库中的记录
+                _context.Torrents.Remove(tempTorrentEntity);
+                await _context.SaveChangesAsync();
                 return (false, "error.torrent.washingFailed", null, null);
             }
         }
@@ -245,6 +305,7 @@ public class TorrentService : ITorrentService
     public async Task<(bool Success, string Message)> DeleteTorrentAsync(int torrentId, int userId)
     {
         var torrent = await _context.Torrents.FindAsync(torrentId);
+            
         if (torrent == null)
         {
             return (false, "error.torrent.notFound");
@@ -261,13 +322,72 @@ public class TorrentService : ITorrentService
             return (false, "error.unauthorized");
         }
 
-        _context.Torrents.Remove(torrent);
-        await _context.SaveChangesAsync();
+        try
+        {
+            // 删除截图文件（从 URL 列表中提取文件名）
+            if (torrent.Screenshots != null && torrent.Screenshots.Any())
+            {
+                _logger.LogInformation("开始删除种子 {TorrentId} 的 {Count} 个截图", torrentId, torrent.Screenshots.Count);
+                
+                foreach (var screenshotUrl in torrent.Screenshots)
+                {
+                    try
+                    {
+                        // 从 URL 中提取文件名
+                        var fileName = Path.GetFileName(new Uri(screenshotUrl).LocalPath);
+                        var deleteSuccess = await _fileStorageService.DeleteAsync(fileName);
+                        if (deleteSuccess)
+                        {
+                            _logger.LogInformation("截图文件删除成功: {FileName}", fileName);
+                        }
+                        else
+                        {
+                            _logger.LogWarning("截图文件删除失败: {FileName}", fileName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "删除截图文件时出错: {Url}", screenshotUrl);
+                    }
+                }
+            }
 
-        await _meiliSearchService.DeleteTorrentAsync(torrentId);
+            // 删除种子文件
+            if (!string.IsNullOrEmpty(torrent.FilePath))
+            {
+                try
+                {
+                    var deleteTorrentSuccess = await _fileStorageService.DeleteAsync(torrent.FilePath);
+                    if (deleteTorrentSuccess)
+                    {
+                        _logger.LogInformation("种子文件删除成功: {FileName}", torrent.FilePath);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("种子文件删除失败: {FileName}", torrent.FilePath);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "删除种子文件时出错: {FileName}", torrent.FilePath);
+                }
+            }
 
-        _logger.LogInformation("Torrent {TorrentId} deleted by user {UserId}.", torrentId, userId);
-        return (true, "torrent.delete.success");
+            // 删除数据库记录
+            _context.Torrents.Remove(torrent);
+            await _context.SaveChangesAsync();
+
+            // 从搜索索引中删除
+            await _meiliSearchService.DeleteTorrentAsync(torrentId);
+
+            _logger.LogInformation("种子 {TorrentId} 及其关联文件已被用户 {UserId} 删除", torrentId, userId);
+            return (true, "torrent.delete.success");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "删除种子 {TorrentId} 时发生错误", torrentId);
+            return (false, "error.torrent.deleteFailed");
+        }
     }
 
     public async Task<(bool Success, string Message)> SetFreeAsync(int torrentId, DateTime freeUntil)
@@ -392,12 +512,7 @@ public class TorrentService : ITorrentService
             return null;
         }
 
-        var filePath = torrent.FilePath;
-        if (!System.IO.File.Exists(filePath))
-        {
-            _logger.LogError("Download failed: Torrent file not found on server for torrent {TorrentId} at path {FilePath}.", torrentId, filePath);
-            return null;
-        }
+        var fileName = torrent.FilePath; // FilePath 现在存储的是文件名
 
         try
         {
@@ -405,11 +520,35 @@ public class TorrentService : ITorrentService
             var credential = await _credentialService.GetOrCreateCredentialAsync(userId, torrentId);
             _logger.LogInformation("Generated credential {Credential} for user {UserId} and torrent {TorrentId}.", credential, userId, torrentId);
 
-            // Parse the original torrent file
-            var originalTorrent = await ParseTorrentFileFromPath(filePath);
+            // 从 R2 下载种子文件
+            Stream torrentStream;
+            try
+            {
+                torrentStream = await _fileStorageService.DownloadAsync(fileName);
+            }
+            catch (FileNotFoundException)
+            {
+                _logger.LogError("Download failed: Torrent file not found in storage for torrent {TorrentId}, fileName: {FileName}.", torrentId, fileName);
+                return null;
+            }
+
+            // Parse the torrent file
+            BencodeNET.Torrents.Torrent? originalTorrent;
+            try
+            {
+                originalTorrent = await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(torrentStream);
+                torrentStream.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to parse torrent file from storage: {FileName}", fileName);
+                torrentStream.Dispose();
+                return null;
+            }
+
             if (originalTorrent == null)
             {
-                _logger.LogError("Failed to parse torrent file at {FilePath}.", filePath);
+                _logger.LogError("Failed to parse torrent file from storage: {FileName}", fileName);
                 return null;
             }
 
@@ -473,34 +612,25 @@ public class TorrentService : ITorrentService
         }
     }
 
-    private async Task<string> SaveTorrentFile(IFormFile file, string infoHash, string torrentStoragePath)
-    {
-        if (!Directory.Exists(torrentStoragePath))
-        {
-            _logger.LogInformation("Creating torrents directory: {Directory}", torrentStoragePath);
-            Directory.CreateDirectory(torrentStoragePath);
-        }
-
-        var filePath = Path.Combine(torrentStoragePath, $"{infoHash}.torrent");
-        try
-        {
-            _logger.LogDebug("Saving torrent file to: {FilePath}", filePath);
-            await using var stream = new FileStream(filePath, FileMode.Create);
-            await file.CopyToAsync(stream);
-            return filePath;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error saving torrent file {FileName} to {FilePath}.", file.FileName, filePath);
-            throw;
-        }
-    }
-
-    public async Task<List<TorrentFileDto>?> GetTorrentFileListAsync(string filePath)
+    public async Task<List<TorrentFileDto>?> GetTorrentFileListAsync(string fileName)
     {
         try
         {
-            var torrent = await ParseTorrentFileFromPath(filePath);
+            // 从 R2 下载种子文件
+            Stream torrentStream;
+            try
+            {
+                torrentStream = await _fileStorageService.DownloadAsync(fileName);
+            }
+            catch (FileNotFoundException)
+            {
+                _logger.LogError("Torrent file not found in storage: {FileName}", fileName);
+                return null;
+            }
+
+            var torrent = await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(torrentStream);
+            torrentStream.Dispose();
+            
             if (torrent == null)
                 return null;
 
@@ -532,7 +662,7 @@ public class TorrentService : ITorrentService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error extracting file list from torrent at {FilePath}", filePath);
+            _logger.LogError(ex, "Error extracting file list from torrent: {FileName}", fileName);
             return null;
         }
     }
