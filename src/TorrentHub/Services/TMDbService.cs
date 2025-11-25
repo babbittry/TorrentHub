@@ -34,7 +34,7 @@ public class TMDbService : ITMDbService
         _doubanService = doubanService;
     }
 
-    public async Task<TMDbMovieDto?> GetMovieByImdbIdAsync(string imdbId)
+    public async Task<TMDbMovieDto?> GetMovieByImdbIdAsync(string imdbId, string language = "zh-CN")
     {
         if (string.IsNullOrWhiteSpace(imdbId))
         {
@@ -66,7 +66,7 @@ public class TMDbService : ITMDbService
             var tmdbId = movieResult.Id;
 
             // Step 2: Get the full movie details using the TMDb ID
-            var movieUrl = $"movie/{tmdbId}?append_to_response=credits,images&language=en-US";
+            var movieUrl = $"movie/{tmdbId}?append_to_response=credits,images&language={language}";
             var movieResponse = await _httpClient.GetAsync(movieUrl);
 
             if (!movieResponse.IsSuccessStatusCode)
@@ -163,6 +163,6 @@ public class TMDbService : ITMDbService
         }
         
         // 3. 从TMDB获取媒体数据
-        return await GetMovieByImdbIdAsync(imdbId);
+        return await GetMovieByImdbIdAsync(imdbId, language);
     }
 }

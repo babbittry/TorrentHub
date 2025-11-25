@@ -83,16 +83,10 @@ public class TorrentsController : ControllerBase
         // 返回 201 Created 和新创建的种子数据
         if (torrent != null)
         {
-            var responseDto = new UploadTorrentResponseDto
-            {
-                Id = torrent.Id,
-                Name = torrent.Name,
-                Category = torrent.Category.ToString(),
-                Size = torrent.Size,
-                CreatedAt = torrent.CreatedAt
-            };
+            // 使用 Mapper 转换并补充 TechnicalSpecs
+            var responseDto = Mapper.ToUploadTorrentResponseDto(torrent).WithTechnicalSpecs(torrent);
             
-            return CreatedAtAction(nameof(GetTorrent), new { id = torrent.Id }, 
+            return CreatedAtAction(nameof(GetTorrent), new { id = torrent.Id },
                 new ApiResponse<UploadTorrentResponseDto>
                 {
                     Success = true,

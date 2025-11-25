@@ -5,7 +5,7 @@ namespace TorrentHub.Services.Interfaces;
 
 public interface ITMDbService
 {
-    Task<TMDbMovieDto?> GetMovieByImdbIdAsync(string imdbId);
+    Task<TMDbMovieDto?> GetMovieByImdbIdAsync(string imdbId, string language = "zh-CN");
     Task<TMDbMovieDto?> GetMovieByTmdbIdAsync(string tmdbId, string language);
     
     /// <summary>

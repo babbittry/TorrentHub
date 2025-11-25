@@ -104,7 +104,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
-    [MapperIgnoreSource(nameof(Torrent.Tagline))]
     [MapperIgnoreSource(nameof(Torrent.Resolution))]
     [MapperIgnoreSource(nameof(Torrent.VideoCodec))]
     [MapperIgnoreSource(nameof(Torrent.AudioCodec))]
@@ -202,7 +201,25 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.Subtitles))]
     [MapperIgnoreSource(nameof(Torrent.Source))]
     [MapperIgnoreSource(nameof(Torrent.Country))]
+    [MapperIgnoreSource(nameof(Torrent.Plot))]
+    [MapperIgnoreSource(nameof(Torrent.IsAnonymous))]
+    [MapperIgnoreSource(nameof(Torrent.MediaInfo))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
+
+    [MapProperty(nameof(Torrent.UploadedByUser), nameof(UploadTorrentResponseDto.Uploader))]
+    [MapperIgnoreSource(nameof(Torrent.InfoHash))]
+    [MapperIgnoreSource(nameof(Torrent.FilePath))]
+    [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
+    [MapperIgnoreSource(nameof(Torrent.FreeUntil))]
+    [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
+    [MapperIgnoreSource(nameof(Torrent.DeleteReason))]
+    [MapperIgnoreSource(nameof(Torrent.Resolution))]
+    [MapperIgnoreSource(nameof(Torrent.VideoCodec))]
+    [MapperIgnoreSource(nameof(Torrent.AudioCodec))]
+    [MapperIgnoreSource(nameof(Torrent.Subtitles))]
+    [MapperIgnoreSource(nameof(Torrent.Source))]
+    [MapperIgnoreTarget(nameof(UploadTorrentResponseDto.TechnicalSpecs))]
+    public static partial UploadTorrentResponseDto ToUploadTorrentResponseDto(Torrent torrent);
 
     [MapProperty(nameof(User.UserTitle), nameof(UserDisplayDto.UserTitle))]
     [MapProperty(nameof(User.UserName), nameof(UserDisplayDto.Username))]
@@ -269,5 +286,19 @@ public static partial class Mapper
             LastIpAddress = credential.LastIpAddress,
             LastUserAgent = credential.LastUserAgent
         };
+    }
+    
+    // Extension method to populate TechnicalSpecs for UploadTorrentResponseDto
+    public static UploadTorrentResponseDto WithTechnicalSpecs(this UploadTorrentResponseDto dto, Torrent torrent)
+    {
+        dto.TechnicalSpecs = new TechnicalSpecsDto
+        {
+            Resolution = torrent.Resolution,
+            VideoCodec = torrent.VideoCodec,
+            AudioCodec = torrent.AudioCodec,
+            Subtitles = torrent.Subtitles,
+            Source = torrent.Source
+        };
+        return dto;
     }
 }

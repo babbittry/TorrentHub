@@ -217,14 +217,17 @@ public class TorrentService : ITorrentService
             throw new Exception("User not found");
         }
 
-        // Parse technical specs from filename
-        var techSpecs = _mediaInputParser.ParseTechnicalSpecs(torrent.DisplayName);
+        // Use Title from request or fallback to torrent file name
+        var torrentName = !string.IsNullOrWhiteSpace(request.Title) ? request.Title : torrent.DisplayName;
         
         var torrentEntity = new TorrentHub.Core.Entities.Torrent
         {
-            Name = torrent.DisplayName,
+            Name = torrentName,
             InfoHash = infoHashBytes,
-            Description = request.Description,
+            Description = request.Description, // User-provided description
+            Subtitle = request.Subtitle,
+            IsAnonymous = request.IsAnonymous,
+            MediaInfo = request.MediaInfo,
             Size = torrent.TotalSize,
             UploadedByUserId = user.Id,
             UploadedByUser = user,
@@ -236,60 +239,80 @@ public class TorrentService : ITorrentService
             FilePath = filePath,
             ImdbId = request.ImdbId,
             Genres = new List<string>(),
-            Resolution = techSpecs?.Resolution,
-            VideoCodec = techSpecs?.VideoCodec,
-            AudioCodec = techSpecs?.AudioCodec,
-            Subtitles = techSpecs?.Subtitles,
-            Source = techSpecs?.Source
+            // Use TechnicalSpecs from frontend (no more parsing)
+            Resolution = request.TechnicalSpecs.Resolution,
+            VideoCodec = request.TechnicalSpecs.VideoCodec,
+            AudioCodec = request.TechnicalSpecs.AudioCodec,
+            Subtitles = request.TechnicalSpecs.Subtitles,
+            Source = request.TechnicalSpecs.Source
         };
 
-        if (!string.IsNullOrWhiteSpace(request.ImdbId))
+        // Fetch TMDb data if TMDbId or ImdbId is provided
+        TMDbMovieDto? movieData = null;
+        
+        if (request.TMDbId.HasValue)
         {
+            // Optimize: Use TMDbId directly if provided (saves one API call)
+            _logger.LogInformation("Fetching movie data from TMDb using TMDb ID: {TMDbId}", request.TMDbId.Value);
+            movieData = await _tmdbService.GetMovieByTmdbIdAsync(request.TMDbId.Value.ToString(), "zh-CN");
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ImdbId))
+        {
+            // Fallback to IMDb ID (requires two API calls: find + movie)
             _logger.LogInformation("Fetching movie data from TMDb for IMDb ID: {ImdbId}", request.ImdbId);
-            var movieData = await _tmdbService.GetMovieByImdbIdAsync(request.ImdbId);
-            if (movieData != null)
-            {
-                _logger.LogInformation("Successfully fetched data for movie: {MovieTitle}", movieData.Title);
-                torrentEntity.Name = movieData.Title ?? torrentEntity.Name;
-                torrentEntity.Description = movieData.Overview;
-                torrentEntity.TMDbId = movieData.Id;
-                torrentEntity.OriginalTitle = movieData.OriginalTitle;
-                torrentEntity.Tagline = movieData.Tagline;
-                if (int.TryParse(movieData.ReleaseDate?.Split('-').FirstOrDefault(), out var year))
-                {
-                    torrentEntity.Year = year;
-                }
-                torrentEntity.PosterPath = movieData.PosterPath;
-                torrentEntity.BackdropPath = movieData.BackdropPath;
-                torrentEntity.Runtime = movieData.Runtime;
-                torrentEntity.Rating = movieData.VoteAverage;
-                torrentEntity.Genres = movieData.Genres?.Select(g => g.Name).ToList() ?? new List<string>();
-                torrentEntity.Directors = movieData.Credits?.Crew != null ? string.Join(", ", movieData.Credits.Crew.Where(c => c.Job == "Director").Select(c => c.Name)) : null;
-                
-                // Save structured cast data
-                if (movieData.Credits?.Cast != null)
-                {
-                    torrentEntity.Cast = movieData.Credits.Cast
-                        .OrderBy(c => c.Order)
-                        .Take(10)
-                        .Select(c => new CastMemberDto
-                        {
-                            Name = c.Name,
-                            Character = c.Character,
-                            ProfilePath = c.ProfilePath
-                        })
-                        .ToList();
-                }
+            movieData = await _tmdbService.GetMovieByImdbIdAsync(request.ImdbId);
+        }
 
-                if (movieData.ProductionCountries != null && movieData.ProductionCountries.Any())
-                {
-                    torrentEntity.Country = string.Join(", ", movieData.ProductionCountries.Select(c => c.Name));
-                }
-            }
-            else
+        if (movieData != null)
+        {
+            _logger.LogInformation("Successfully fetched data for movie: {MovieTitle}", movieData.Title);
+            
+            // Override Name with TMDb title if user didn't provide a custom title
+            if (string.IsNullOrWhiteSpace(request.Title))
             {
-                _logger.LogWarning("Could not fetch movie data for IMDb ID: {ImdbId}", request.ImdbId);
+                torrentEntity.Name = movieData.Title ?? torrentEntity.Name;
             }
+            
+            // Store movie plot separately (not user description)
+            torrentEntity.Plot = movieData.Overview;
+            torrentEntity.TMDbId = movieData.Id;
+            torrentEntity.OriginalTitle = movieData.OriginalTitle;
+            
+            if (int.TryParse(movieData.ReleaseDate?.Split('-').FirstOrDefault(), out var year))
+            {
+                torrentEntity.Year = year;
+            }
+            
+            torrentEntity.PosterPath = movieData.PosterPath;
+            torrentEntity.BackdropPath = movieData.BackdropPath;
+            torrentEntity.Runtime = movieData.Runtime;
+            torrentEntity.Rating = movieData.VoteAverage;
+            torrentEntity.Genres = movieData.Genres?.Select(g => g.Name).ToList() ?? new List<string>();
+            torrentEntity.Directors = movieData.Credits?.Crew != null ? string.Join(", ", movieData.Credits.Crew.Where(c => c.Job == "Director").Select(c => c.Name)) : null;
+            
+            // Save structured cast data
+            if (movieData.Credits?.Cast != null)
+            {
+                torrentEntity.Cast = movieData.Credits.Cast
+                    .OrderBy(c => c.Order)
+                    .Take(10)
+                    .Select(c => new CastMemberDto
+                    {
+                        Name = c.Name,
+                        Character = c.Character,
+                        ProfilePath = c.ProfilePath
+                    })
+                    .ToList();
+            }
+
+            if (movieData.ProductionCountries != null && movieData.ProductionCountries.Any())
+            {
+                torrentEntity.Country = string.Join(", ", movieData.ProductionCountries.Select(c => c.Name));
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(request.ImdbId) || request.TMDbId.HasValue)
+        {
+            _logger.LogWarning("Could not fetch movie data for IMDb ID: {ImdbId} or TMDb ID: {TMDbId}", request.ImdbId, request.TMDbId);
         }
 
         return torrentEntity;

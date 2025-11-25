@@ -7,6 +7,10 @@ public class TorrentDto
     public int Id { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
+    public string? Plot { get; set; }
+    public string? Subtitle { get; set; }
+    public bool IsAnonymous { get; set; }
+    public string? MediaInfo { get; set; }
     public long Size { get; set; }
     public UserDisplayDto? Uploader { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

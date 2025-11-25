@@ -368,7 +368,6 @@ namespace TorrentHub.Data
                             ImdbId = movie.ImdbId,
                             TMDbId = movie.Id,
                             OriginalTitle = movie.OriginalTitle,
-                            Tagline = movie.Tagline,
                             Year = !string.IsNullOrEmpty(movie.ReleaseDate) &&
                                    DateTime.TryParse(movie.ReleaseDate, out var parsedReleaseDate)
                                 ? parsedReleaseDate.Year

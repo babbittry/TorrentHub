@@ -7,6 +7,7 @@ public class TorrentSearchDto
     public int Id { get; set; }
     public required string Name { get; set; }
     public string? Description { get; set; }
+    public string? Subtitle { get; set; }
     public TorrentCategory Category { get; set; }
     public long Size { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -19,7 +20,6 @@ public class TorrentSearchDto
     public string? ImdbId { get; set; }
     public int? TMDbId { get; set; }
     public string? OriginalTitle { get; set; }
-    public string? Tagline { get; set; }
     public int? Year { get; set; }
     public int? Runtime { get; set; }
     public List<string>? Genres { get; set; }

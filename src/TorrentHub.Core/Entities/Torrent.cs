@@ -40,10 +40,35 @@ public class Torrent
     public required string FilePath { get; set; }
 
     /// <summary>
-    /// Description of the torrent content.
+    /// User-provided description of the torrent (rich text, MediaInfo, etc.).
     /// </summary>
     [StringLength(4096)]
     public string? Description { get; set; }
+
+    /// <summary>
+    /// Movie plot/overview from TMDb.
+    /// </summary>
+    [StringLength(2048)]
+    public string? Plot { get; set; }
+
+    /// <summary>
+    /// Subtitle/small description for the torrent.
+    /// </summary>
+    [StringLength(255)]
+    public string? Subtitle { get; set; }
+
+    /// <summary>
+    /// Whether this torrent was uploaded anonymously.
+    /// </summary>
+    [Required]
+    [DefaultValue(false)]
+    public bool IsAnonymous { get; set; } = false;
+
+    /// <summary>
+    /// MediaInfo text output.
+    /// </summary>
+    [StringLength(8192)]
+    public string? MediaInfo { get; set; }
 
     /// <summary>
     /// Foreign key of the user who uploaded the torrent.
@@ -131,9 +156,6 @@ public class Torrent
 
     [StringLength(255)]
     public string? OriginalTitle { get; set; }
-
-    [StringLength(1024)]
-    public string? Tagline { get; set; }
     
     public int? Year { get; set; }
 
