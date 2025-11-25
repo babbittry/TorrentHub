@@ -51,10 +51,10 @@ public class TorrentsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<ApiResponse<UploadTorrentResponseDto>>> Upload(IFormFile torrentFile, [FromForm] UploadTorrentRequestDto request)
+    public async Task<ActionResult<ApiResponse<UploadTorrentResponseDto>>> Upload([FromForm] UploadTorrentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
-        var (success, message, infoHash, torrent) = await _torrentService.UploadTorrentAsync(torrentFile, request, userId);
+        var (success, message, infoHash, torrent) = await _torrentService.UploadTorrentAsync(request.File, request, userId);
 
         if (!success)
         {

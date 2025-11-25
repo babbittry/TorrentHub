@@ -189,7 +189,7 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUser))]
     [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
-    [MapperIgnoreSource(nameof(Torrent.Screenshots))]  // TorrentSearchDto 不需要截图
+    [MapperIgnoreSource(nameof(Torrent.Screenshots))]
     [MapperIgnoreSource(nameof(Torrent.Seeders))]
     [MapperIgnoreSource(nameof(Torrent.Leechers))]
     [MapperIgnoreSource(nameof(Torrent.DeleteReason))]
