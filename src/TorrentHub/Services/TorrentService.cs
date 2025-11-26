@@ -123,7 +123,7 @@ public class TorrentService : ITorrentService
             try
             {
                 // 执行清洗
-                var washedTorrentBytes = _washingService.WashTorrent(originalBytes, torrentId, settings.TrackerUrl);
+                var washedTorrentBytes = _washingService.WashTorrent(originalBytes, torrentId, settings.TrackerUrl, torrentFile.FileName);
                 var washedInfoHash = _washingService.CalculateInfoHash(washedTorrentBytes);
                 
                 // 解析清洗后的种子以获取新的 InfoHash
@@ -131,8 +131,8 @@ public class TorrentService : ITorrentService
                 var washedTorrent = await _bencodeParser.ParseAsync<BencodeNET.Torrents.Torrent>(washedStream);
                 var washedInfoHashBytes = washedTorrent.GetInfoHashBytes();
                 
-                // 上传清洗后的种子文件到 R2（使用 washedInfoHash 作为文件名）
-                var torrentFileName = $"{washedInfoHash}.torrent";
+                // 生成清洗后的种子文件名（替换站点标识）
+                var torrentFileName = _washingService.GenerateWashedFileName(torrentFile.FileName);
                 using var uploadStream = new MemoryStream(washedTorrentBytes);
                 var fileUrl = await _fileStorageService.UploadAsync(
                     uploadStream,

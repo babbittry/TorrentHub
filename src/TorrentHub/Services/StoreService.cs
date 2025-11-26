@@ -95,7 +95,7 @@ public class StoreService : IStoreService
             var totalCost = item.Price * (ulong)request.Quantity;
             if (user.Coins < totalCost)
             {
-                return new PurchaseResultDto { Success = false, Message = "Insufficient Sakura Coins." };
+                return new PurchaseResultDto { Success = false, Message = "Insufficient Coins." };
             }
 
             // Specific validation for badge items

@@ -26,11 +26,11 @@ public class TorrentWashingService : ITorrentWashingService
     /// <summary>
     /// 清洗种子文件
     /// </summary>
-    public byte[] WashTorrent(byte[] torrentBytes, int torrentId, string trackerUrl)
+    public byte[] WashTorrent(byte[] torrentBytes, int torrentId, string trackerUrl, string originalFileName)
     {
         try
         {
-            _logger.LogInformation("开始清洗种子，TorrentId: {TorrentId}", torrentId);
+            _logger.LogInformation("开始清洗种子，TorrentId: {TorrentId}, 原始文件名: {OriginalFileName}", torrentId, originalFileName);
 
             // 解析种子文件
             using var stream = new MemoryStream(torrentBytes);
@@ -118,6 +118,42 @@ public class TorrentWashingService : ITorrentWashingService
         }
     }
 
+    /// <summary>
+    /// 生成清洗后的种子文件名
+    /// </summary>
+    public string GenerateWashedFileName(string originalFileName)
+    {
+        try
+        {
+            // 获取配置的站点标识
+            var newSource = _configuration["SiteInfo:TorrentSource"] ?? "TorrentHub";
+            
+            // 使用正则表达式匹配并替换方括号内的站点标识
+            // 例如：[FRDS]xxx.torrent -> [TorrentHub]xxx.torrent
+            var pattern = @"^\[([^\]]+)\]";
+            var replacement = $"[{newSource}]";
+            
+            var newFileName = System.Text.RegularExpressions.Regex.Replace(
+                originalFileName,
+                pattern,
+                replacement);
+            
+            // 如果原文件名没有方括号标识，在开头添加
+            if (newFileName == originalFileName && !originalFileName.StartsWith("["))
+            {
+                newFileName = $"{replacement}{originalFileName}";
+            }
+            
+            _logger.LogDebug("文件名替换: {Original} -> {New}", originalFileName, newFileName);
+            return newFileName;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "生成清洗后的文件名失败，使用原文件名: {OriginalFileName}", originalFileName);
+            return originalFileName;
+        }
+    }
+    
     /// <summary>
     /// 计算种子的 InfoHash
     /// </summary>
