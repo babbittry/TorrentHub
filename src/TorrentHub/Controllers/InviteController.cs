@@ -35,7 +35,7 @@ public class InvitesController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<InviteDto>> GenerateInvite()
+    public async Task<ActionResult<ApiResponse<InviteDto>>> GenerateInvite()
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
@@ -45,12 +45,12 @@ public class InvitesController : ControllerBase
         try
         {
             var newInvite = await _userService.GenerateInviteAsync(userId);
-            return Ok(Mapper.ToInviteDto(newInvite));
+            return Ok(ApiResponse<InviteDto>.SuccessResult(Mapper.ToInviteDto(newInvite)));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate invite for user {UserId}: {ErrorMessage}", userId, ex.Message);
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(ApiResponse<InviteDto>.ErrorResult(ex.Message));
         }
     }
 }

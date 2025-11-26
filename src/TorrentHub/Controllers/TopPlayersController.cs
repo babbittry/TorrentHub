@@ -41,10 +41,10 @@ public class TopPlayersController : ControllerBase
 
     [HttpPost("refresh-cache")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<IActionResult> RefreshCache()
+    public async Task<ActionResult<ApiResponse>> RefreshCache()
     {
         _logger.LogInformation("Manual cache refresh requested for top players.");
         await _topPlayersService.RefreshTopPlayersCacheAsync();
-        return Ok(new { message = "Top players cache refreshed." });
+        return Ok(ApiResponse.SuccessResult("Top players cache refreshed."));
     }
 }

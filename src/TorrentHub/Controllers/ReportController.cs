@@ -24,7 +24,7 @@ public class ReportsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> SubmitReport([FromBody] SubmitReportRequestDto request)
+    public async Task<ActionResult<ApiResponse>> SubmitReport([FromBody] SubmitReportRequestDto request)
     {
         var reporterUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _reportService.SubmitReportAsync(request, reporterUserId);
@@ -32,10 +32,10 @@ public class ReportsController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Report submission failed: {Message}", message);
-            return BadRequest(new { message = message });
+            return BadRequest(ApiResponse.ErrorResult(message));
         }
 
-        return Ok(new { message = message });
+        return Ok(ApiResponse.SuccessResult(message));
     }
 
     [HttpGet("pending")]
@@ -56,7 +56,7 @@ public class ReportsController : ControllerBase
 
     [HttpPatch("{reportId}/process")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<IActionResult> ProcessReport(int reportId, [FromBody] ProcessReportRequestDto request)
+    public async Task<ActionResult<ApiResponse>> ProcessReport(int reportId, [FromBody] ProcessReportRequestDto request)
     {
         var processedByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message) = await _reportService.ProcessReportAsync(reportId, processedByUserId, request);
@@ -64,9 +64,9 @@ public class ReportsController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Report processing failed: {Message}", message);
-            return BadRequest(new { message = message });
+            return BadRequest(ApiResponse.ErrorResult(message));
         }
 
-        return Ok(new { message = message });
+        return Ok(ApiResponse.SuccessResult(message));
     }
 }

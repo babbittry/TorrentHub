@@ -24,7 +24,7 @@ public class CoinController : ControllerBase
     /// Transfers coins to another user.
     /// </summary>
     [HttpPost("transfer")]
-    public async Task<IActionResult> TransferCoins([FromBody] TransferCoinsRequestDto dto)
+    public async Task<ActionResult<ApiResponse>> TransferCoins([FromBody] TransferCoinsRequestDto dto)
     {
         var fromUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var (success, message) = await _userService.TransferCoinsAsync(fromUserId, dto.ToUserId, dto.Amount, dto.Notes);
@@ -32,10 +32,10 @@ public class CoinController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Coin transfer failed from {FromUserId} to {ToUserId}. Reason: {Message}", fromUserId, dto.ToUserId, message);
-            return BadRequest(new { message });
+            return BadRequest(ApiResponse.ErrorResult(message));
         }
 
-        return Ok(new { message });
+        return Ok(ApiResponse.SuccessResult(message));
     }
 
     /// <summary>
@@ -43,13 +43,13 @@ public class CoinController : ControllerBase
     /// Only supports tipping for Torrents.
     /// </summary>
     [HttpPost("tip")]
-    public async Task<IActionResult> TipCoins([FromBody] TipCoinsRequestDto dto)
+    public async Task<ActionResult<ApiResponse>> TipCoins([FromBody] TipCoinsRequestDto dto)
     {
         // Only allow tipping for Torrents
         if (dto.ContextType != "Torrent")
         {
             _logger.LogWarning("Tip attempt for non-Torrent context: {ContextType} by user {UserId}", dto.ContextType, User.FindFirstValue(ClaimTypes.NameIdentifier));
-            return BadRequest(new { message = "error.tip.invalidContext" });
+            return BadRequest(ApiResponse.ErrorResult("error.tip.invalidContext"));
         }
 
         var fromUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
@@ -59,9 +59,9 @@ public class CoinController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Coin tip failed from {FromUserId} to {ToUserId}. Reason: {Message}", fromUserId, dto.ToUserId, message);
-            return BadRequest(new { message });
+            return BadRequest(ApiResponse.ErrorResult(message));
         }
 
-        return Ok(new { message });
+        return Ok(ApiResponse.SuccessResult(message));
     }
 }

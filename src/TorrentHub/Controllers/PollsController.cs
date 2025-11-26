@@ -69,27 +69,27 @@ public class PollsController : ControllerBase
     }
 
     [HttpPost("{id:int}/vote")]
-    public async Task<IActionResult> Vote(int id, [FromBody] VoteDto dto)
+    public async Task<ActionResult<ApiResponse>> Vote(int id, [FromBody] VoteDto dto)
     {
         var userId = GetCurrentUserId()!.Value; // Should not be null for voting
         var (success, message) = await _pollService.VoteAsync(id, dto, userId);
         if (!success)
         {
-            return BadRequest(new { message });
+            return BadRequest(ApiResponse.ErrorResult(message));
         }
-        return Ok();
+        return Ok(ApiResponse.SuccessResult("Vote recorded successfully."));
     }
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Administrator")]
-    public async Task<IActionResult> DeletePoll(int id)
+    public async Task<ActionResult<ApiResponse>> DeletePoll(int id)
     {
         var (success, message) = await _pollService.DeleteAsync(id);
         if (!success)
         {
-            return NotFound(new { message });
+            return NotFound(ApiResponse.ErrorResult(message));
         }
-        return NoContent();
+        return Ok(ApiResponse.SuccessResult("Poll deleted successfully."));
     }
 
     private int? GetCurrentUserId()

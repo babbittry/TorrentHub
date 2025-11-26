@@ -23,7 +23,7 @@ public class AnnouncementsController : ControllerBase
 
     [HttpPost]
     [Authorize(Roles = "Administrator,Moderator")] // Only admins/mods can create announcements
-    public async Task<ActionResult<AnnouncementDto>> CreateAnnouncement([FromBody] CreateAnnouncementRequestDto request)
+    public async Task<ActionResult<ApiResponse<AnnouncementDto>>> CreateAnnouncement([FromBody] CreateAnnouncementRequestDto request)
     {
         var createdByUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, announcement) = await _announcementService.CreateAnnouncementAsync(request, createdByUserId);
@@ -31,10 +31,10 @@ public class AnnouncementsController : ControllerBase
         if (!success)
         {
             _logger.LogWarning("Failed to create announcement: {Message}", message);
-            return BadRequest(new { message = message });
+            return BadRequest(ApiResponse<AnnouncementDto>.ErrorResult(message));
         }
 
-        return Ok(Mapper.ToAnnouncementDto(announcement!));
+        return Ok(ApiResponse<AnnouncementDto>.SuccessResult(Mapper.ToAnnouncementDto(announcement!)));
     }
 
     [HttpGet]
@@ -46,29 +46,29 @@ public class AnnouncementsController : ControllerBase
 
     [HttpPut("{id:int}")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<ActionResult<AnnouncementDto>> UpdateAnnouncement(int id, [FromBody] UpdateAnnouncementDto dto)
+    public async Task<ActionResult<ApiResponse<AnnouncementDto>>> UpdateAnnouncement(int id, [FromBody] UpdateAnnouncementDto dto)
     {
         var (success, message, announcement) = await _announcementService.UpdateAnnouncementAsync(id, dto);
 
         if (!success)
         {
-            return NotFound(new { message });
+            return NotFound(ApiResponse<AnnouncementDto>.ErrorResult(message));
         }
 
-        return Ok(Mapper.ToAnnouncementDto(announcement!));
+        return Ok(ApiResponse<AnnouncementDto>.SuccessResult(Mapper.ToAnnouncementDto(announcement!)));
     }
 
     [HttpDelete("{id:int}")]
     [Authorize(Roles = "Administrator,Moderator")]
-    public async Task<IActionResult> DeleteAnnouncement(int id)
+    public async Task<ActionResult<ApiResponse>> DeleteAnnouncement(int id)
     {
         var (success, message) = await _announcementService.DeleteAnnouncementAsync(id);
 
         if (!success)
         {
-            return NotFound(new { message });
+            return NotFound(ApiResponse.ErrorResult(message));
         }
 
-        return NoContent();
+        return Ok(ApiResponse.SuccessResult("Announcement deleted successfully."));
     }
 }
