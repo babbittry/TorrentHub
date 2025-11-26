@@ -35,7 +35,7 @@ public class TorrentListingService : ITorrentListingService
         {
             // TODO: MeiliSearchService does not currently return total count, so pagination is incomplete.
             var searchResults = await _meiliSearchService.SearchAsync<Torrent>("torrents", filter.SearchTerm, filter.Page, filter.PageSize);
-            var items = searchResults.Select(t => Mapper.ToTorrentDto(t)).ToList();
+            var items = searchResults.Select(t => Mapper.ToTorrentDtoWithUser(t)).ToList();
             return new PaginatedResult<TorrentDto>
             {
                 Items = items,
@@ -108,7 +108,7 @@ public class TorrentListingService : ITorrentListingService
             return new PaginatedResult<TorrentDto> { Items = new List<TorrentDto>(), Page = filter.Page, PageSize = filter.PageSize, TotalItems = 0, TotalPages = 0 };
         }
 
-        var torrentDtos = torrents.Select(Mapper.ToTorrentDto).ToList();
+        var torrentDtos = torrents.Select(Mapper.ToTorrentDtoWithUser).ToList();
         var torrentIds = torrents.Select(t => t.Id).ToArray();
 
         var redisDbForHashes = _redis.GetDatabase();

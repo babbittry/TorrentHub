@@ -46,12 +46,12 @@ public class TorrentsController : ControllerBase
 
     [HttpPost]
     [Authorize]
-    [ProducesResponseType(typeof(ApiResponse<UploadTorrentResponseDto>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<TorrentDto>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<ApiResponse<UploadTorrentResponseDto>>> Upload([FromForm] UploadTorrentRequestDto request)
+    public async Task<ActionResult<ApiResponse<TorrentDto>>> Upload([FromForm] UploadTorrentRequestDto request)
     {
         var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? throw new InvalidOperationException("User ID claim not found."));
         var (success, message, infoHash, torrent) = await _torrentService.UploadTorrentAsync(request.File, request, userId);
@@ -83,14 +83,31 @@ public class TorrentsController : ControllerBase
         // 返回 201 Created 和新创建的种子数据
         if (torrent != null)
         {
-            // 使用 Mapper 转换并补充 TechnicalSpecs
-            var responseDto = Mapper.ToUploadTorrentResponseDto(torrent).WithTechnicalSpecs(torrent);
+            var torrentDto = Mapper.ToTorrentDtoWithUser(torrent);
+            
+            // Populate technical specs
+            if (!string.IsNullOrEmpty(torrent.Resolution) || !string.IsNullOrEmpty(torrent.VideoCodec) ||
+                !string.IsNullOrEmpty(torrent.AudioCodec) || !string.IsNullOrEmpty(torrent.Subtitles) ||
+                !string.IsNullOrEmpty(torrent.Source))
+            {
+                torrentDto.TechnicalSpecs = new TechnicalSpecsDto
+                {
+                    Resolution = torrent.Resolution,
+                    VideoCodec = torrent.VideoCodec,
+                    AudioCodec = torrent.AudioCodec,
+                    Subtitles = torrent.Subtitles,
+                    Source = torrent.Source
+                };
+            }
+            
+            // Populate file list (optional for upload response, but available)
+            torrentDto.Files = await _torrentService.GetTorrentFileListAsync(torrent.FilePath);
             
             return CreatedAtAction(nameof(GetTorrent), new { id = torrent.Id },
-                new ApiResponse<UploadTorrentResponseDto>
+                new ApiResponse<TorrentDto>
                 {
                     Success = true,
-                    Data = responseDto,
+                    Data = torrentDto,
                     Message = "Torrent uploaded successfully."
                 });
         }
@@ -124,7 +141,7 @@ public class TorrentsController : ControllerBase
             });
         }
         
-        var torrentDto = Mapper.ToTorrentDto(torrent);
+        var torrentDto = Mapper.ToTorrentDtoWithUser(torrent);
         
         // Populate technical specs from entity fields
         if (!string.IsNullOrEmpty(torrent.Resolution) || !string.IsNullOrEmpty(torrent.VideoCodec) ||

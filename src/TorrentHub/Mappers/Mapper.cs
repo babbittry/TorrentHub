@@ -99,16 +99,17 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
 
-    [MapProperty(nameof(Torrent.UploadedByUser), nameof(TorrentDto.Uploader))]
     [MapProperty(nameof(Torrent.Rating), nameof(TorrentDto.ImdbRating))]
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
+    [MapperIgnoreSource(nameof(Torrent.UploadedByUser))]
     [MapperIgnoreSource(nameof(Torrent.Resolution))]
     [MapperIgnoreSource(nameof(Torrent.VideoCodec))]
     [MapperIgnoreSource(nameof(Torrent.AudioCodec))]
     [MapperIgnoreSource(nameof(Torrent.Subtitles))]
     [MapperIgnoreSource(nameof(Torrent.Source))]
+    [MapperIgnoreTarget(nameof(TorrentDto.Uploader))]
     [MapperIgnoreTarget(nameof(TorrentDto.TechnicalSpecs))]
     [MapperIgnoreTarget(nameof(TorrentDto.Files))]
     [MapProperty(nameof(Torrent.Country), nameof(TorrentDto.Country))]
@@ -206,21 +207,6 @@ public static partial class Mapper
     [MapperIgnoreSource(nameof(Torrent.MediaInfo))]
     public static partial TorrentSearchDto ToTorrentSearchDto(Torrent torrent);
 
-    [MapProperty(nameof(Torrent.UploadedByUser), nameof(UploadTorrentResponseDto.Uploader))]
-    [MapperIgnoreSource(nameof(Torrent.InfoHash))]
-    [MapperIgnoreSource(nameof(Torrent.FilePath))]
-    [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]
-    [MapperIgnoreSource(nameof(Torrent.FreeUntil))]
-    [MapperIgnoreSource(nameof(Torrent.IsDeleted))]
-    [MapperIgnoreSource(nameof(Torrent.DeleteReason))]
-    [MapperIgnoreSource(nameof(Torrent.Resolution))]
-    [MapperIgnoreSource(nameof(Torrent.VideoCodec))]
-    [MapperIgnoreSource(nameof(Torrent.AudioCodec))]
-    [MapperIgnoreSource(nameof(Torrent.Subtitles))]
-    [MapperIgnoreSource(nameof(Torrent.Source))]
-    [MapperIgnoreTarget(nameof(UploadTorrentResponseDto.TechnicalSpecs))]
-    public static partial UploadTorrentResponseDto ToUploadTorrentResponseDto(Torrent torrent);
-
     [MapProperty(nameof(User.UserTitle), nameof(UserDisplayDto.UserTitle))]
     [MapProperty(nameof(User.UserName), nameof(UserDisplayDto.Username))]
     [MapProperty(nameof(User.ColorfulUsernameExpiresAt), nameof(UserDisplayDto.IsColorfulUsernameActive), Use = nameof(MapIsColorful))]
@@ -288,17 +274,18 @@ public static partial class Mapper
         };
     }
     
-    // Extension method to populate TechnicalSpecs for UploadTorrentResponseDto
-    public static UploadTorrentResponseDto WithTechnicalSpecs(this UploadTorrentResponseDto dto, Torrent torrent)
+    /// <summary>
+    /// 手动映射方法，处理匿名上传的情况
+    /// 如果 IsAnonymous 为 true，则 Uploader 为 null，保护匿名上传者的隐私
+    /// </summary>
+    public static TorrentDto ToTorrentDtoWithUser(Torrent torrent)
     {
-        dto.TechnicalSpecs = new TechnicalSpecsDto
-        {
-            Resolution = torrent.Resolution,
-            VideoCodec = torrent.VideoCodec,
-            AudioCodec = torrent.AudioCodec,
-            Subtitles = torrent.Subtitles,
-            Source = torrent.Source
-        };
+        var dto = ToTorrentDto(torrent);
+        
+        // 如果是匿名上传，Uploader 保持为 null
+        // 否则，设置为实际上传者信息
+        dto.Uploader = torrent.IsAnonymous ? null : ToUserDisplayDto(torrent.UploadedByUser);
+        
         return dto;
     }
 }
