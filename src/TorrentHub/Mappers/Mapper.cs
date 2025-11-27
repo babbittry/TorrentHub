@@ -99,7 +99,6 @@ public static partial class Mapper
     [MapperIgnoreTarget(nameof(User.ColorfulUsernameExpiresAt))]
     public static partial void MapTo(UpdateUserAdminDto dto, User user);
 
-    [MapProperty(nameof(Torrent.Rating), nameof(TorrentDto.ImdbRating))]
     [MapperIgnoreSource(nameof(Torrent.InfoHash))]
     [MapperIgnoreSource(nameof(Torrent.FilePath))]
     [MapperIgnoreSource(nameof(Torrent.UploadedByUserId))]

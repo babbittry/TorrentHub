@@ -42,6 +42,21 @@ public class StoreService : IStoreService
         _userService = userService;
     }
 
+    private static string? ExtractStringParameter(Dictionary<string, object>? parameters, string key)
+    {
+        if (parameters == null || !parameters.TryGetValue(key, out var value))
+        {
+            return null;
+        }
+
+        return value switch
+        {
+            string str => str,
+            JsonElement element when element.ValueKind == JsonValueKind.String => element.GetString(),
+            _ => value?.ToString()
+        };
+    }
+
     public async Task<List<StoreItemDto>> GetAvailableItemsAsync()
     {
         var cachedData = await _cache.GetStringAsync(StoreItemsCacheKey);
@@ -171,26 +186,34 @@ public class StoreService : IStoreService
                     _logger.LogInformation("User badges cache invalidated for user {UserId}.", userId);
                     break;
                 case StoreItemCode.ChangeUsername:
-                    if (request.Params == null || !request.Params.TryGetValue("newUsername", out var newUsernameObj) || newUsernameObj is not string newUsername || string.IsNullOrWhiteSpace(newUsername))
+                    var newUsername = ExtractStringParameter(request.Params, "newUsername");
+
+                    if (string.IsNullOrWhiteSpace(newUsername))
                     {
                         return new PurchaseResultDto { Success = false, Message = "New username must be provided for this item." };
                     }
+
                     if (await _context.Users.AnyAsync(u => u.UserName == newUsername))
                     {
                         return new PurchaseResultDto { Success = false, Message = "This username is already taken." };
                     }
+
                     user.UserName = newUsername;
                     _logger.LogInformation("User {UserId} changed their username to {NewUsername}.", userId, newUsername);
                     break;
                 case StoreItemCode.UserTitle:
-                    if (request.Params == null || !request.Params.TryGetValue("newTitle", out var newTitleObj) || newTitleObj is not string newTitle || string.IsNullOrWhiteSpace(newTitle))
+                    var newTitle = ExtractStringParameter(request.Params, "newTitle");
+
+                    if (string.IsNullOrWhiteSpace(newTitle))
                     {
                         return new PurchaseResultDto { Success = false, Message = "New title must be provided for this item." };
                     }
+
                     if (newTitle.Length > 30) // Fallback validation
                     {
                         return new PurchaseResultDto { Success = false, Message = "Title is too long." };
                     }
+
                     user.UserTitle = newTitle;
                     _logger.LogInformation("User {UserId} set their title.", userId);
                     break;

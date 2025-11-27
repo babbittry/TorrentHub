@@ -36,9 +36,6 @@ public class TorrentDto
     public string? Directors { get; set; }
     public List<CastMemberDto>? Cast { get; set; }
     public double? Rating { get; set; }
-    
-    // New Fields
-    public double? ImdbRating { get; set; }
     public TechnicalSpecsDto? TechnicalSpecs { get; set; }
     public List<TorrentFileDto>? Files { get; set; }
     public string? Country { get; set; }
